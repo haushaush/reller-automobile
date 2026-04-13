@@ -99,3 +99,12 @@
     font-family: 'Lora', serif;
   }
 }
+
+@layer utilities {
+  .logo-adaptive {
+    filter: invert(1);
+  }
+  .light .logo-adaptive {
+    filter: invert(0);
+  }
+}
