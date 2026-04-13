@@ -157,6 +157,13 @@ Deno.serve(async (req) => {
 
     const xmlText = await response.text();
     console.log("Received XML response, length:", xmlText.length);
+    // Log first ad XML for debugging field structure
+    const firstAdMatch = xmlText.match(/<ad:ad\b[^>]*>[\s\S]*?<\/ad:ad>/i);
+    if (firstAdMatch) {
+      console.log("=== FIRST AD RAW XML ===");
+      console.log(firstAdMatch[0].substring(0, 5000));
+      console.log("=== END FIRST AD ===");
+    }
 
     const ads = parseAds(xmlText);
     console.log(`Parsed ${ads.length} ads from Mobile.de`);
