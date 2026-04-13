@@ -159,8 +159,9 @@ const Index = () => {
           />
         </div>
 
-        <div className="mb-6">
+        <div className="flex items-center justify-between mb-6">
           <ActiveFilters filters={filters} onRemove={handleRemoveFilter} onResetAll={handleResetAll} />
+          <VehicleAlertDialog brands={brands} bodyTypes={bodyTypes} />
         </div>
 
         <div className="flex items-center justify-between mb-6">

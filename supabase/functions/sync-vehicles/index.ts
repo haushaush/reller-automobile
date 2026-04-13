@@ -23,10 +23,8 @@ function textContent(xml: string, tag: string): string | undefined {
 
 function parseImages(adXml: string): string[] {
   const images: string[] = [];
-  // Get the largest representation (XXXL) for each image, fallback to XL, L
   const imageBlocks = adXml.match(/<ad:image>([\s\S]*?)<\/ad:image>/gi) || [];
   for (const block of imageBlocks) {
-    // Try sizes in order of preference
     for (const size of ["XXXL", "XXL", "XL", "L", "M"]) {
       const sizeRegex = new RegExp(`<ad:representation[^>]*size="${size}"[^>]*url="([^"]*)"`, "i");
       const match = block.match(sizeRegex);
@@ -87,7 +85,6 @@ function parseAds(xmlText: string): VehicleRow[] {
 
     const mobileDeId = attr(full, "ad:ad", "key") || `unknown-${rows.length}`;
 
-    // Title: use make + model-description as Mobile.de displays it
     const makeName = localDesc(content, "ad:make");
     const modelName = localDesc(content, "ad:model");
     const modelDesc = attr(content, "ad:model-description", "value");
@@ -187,11 +184,6 @@ Deno.serve(async (req) => {
     const vehicleRows = parseAds(xmlText);
     console.log(`Parsed ${vehicleRows.length} ads`);
 
-    if (vehicleRows.length > 0) {
-      // Log first parsed vehicle for debugging
-      console.log("Sample vehicle:", JSON.stringify(vehicleRows[0]));
-    }
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -220,6 +212,52 @@ Deno.serve(async (req) => {
       if (deleteError) {
         console.error("Delete error:", deleteError);
       }
+
+      // Record price history for vehicles with price changes
+      const { data: existingVehicles } = await supabase
+        .from("vehicles")
+        .select("id, mobile_de_id, price");
+
+      if (existingVehicles) {
+        const vehicleMap = new Map(existingVehicles.map((v) => [v.mobile_de_id, v]));
+
+        for (const row of vehicleRows) {
+          const existing = vehicleMap.get(row.mobile_de_id);
+          if (!existing || row.price === null) continue;
+
+          // Check last price_history entry
+          const { data: lastEntry } = await supabase
+            .from("price_history")
+            .select("price")
+            .eq("vehicle_id", existing.id)
+            .order("recorded_at", { ascending: false })
+            .limit(1);
+
+          const shouldRecord = !lastEntry || lastEntry.length === 0 || lastEntry[0].price !== row.price;
+
+          if (shouldRecord) {
+            await supabase.from("price_history").insert({
+              vehicle_id: existing.id,
+              price: row.price,
+            });
+          }
+        }
+      }
+    }
+
+    // Call check-alerts function
+    try {
+      const alertsUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/check-alerts`;
+      await fetch(alertsUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "Content-Type": "application/json",
+        },
+      });
+      console.log("check-alerts triggered");
+    } catch (e) {
+      console.error("Failed to trigger check-alerts:", e);
     }
 
     return new Response(
