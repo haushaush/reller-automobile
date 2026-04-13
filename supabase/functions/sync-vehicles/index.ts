@@ -142,6 +142,7 @@ Deno.serve(async (req) => {
       headers: {
         Authorization: authHeader,
         Accept: "application/xml",
+        "Accept-Language": "de",
       },
     });
 
