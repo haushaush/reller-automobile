@@ -142,6 +142,56 @@ function parseAds(xmlText: string): VehicleRow[] {
   return rows;
 }
 
+async function fetchDetailImages(
+  mobileDeId: string,
+  authHeader: string
+): Promise<string[] | null> {
+  try {
+    const res = await fetch(
+      `https://services.mobile.de/search-api/ad/${mobileDeId}`,
+      {
+        headers: {
+          Authorization: authHeader,
+          Accept: "application/xml",
+          "Accept-Language": "de",
+        },
+      }
+    );
+    if (!res.ok) {
+      console.error(`Detail fetch failed for ${mobileDeId}: ${res.status}`);
+      return null;
+    }
+    const xml = await res.text();
+    const images = parseImages(xml);
+    return images.length > 0 ? images : null;
+  } catch (e) {
+    console.error(`Detail fetch error for ${mobileDeId}:`, e);
+    return null;
+  }
+}
+
+async function enrichWithDetailImages(
+  vehicles: VehicleRow[],
+  authHeader: string,
+  batchSize = 10,
+  delayMs = 200
+): Promise<void> {
+  for (let i = 0; i < vehicles.length; i += batchSize) {
+    const batch = vehicles.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map((v) => fetchDetailImages(v.mobile_de_id, authHeader))
+    );
+    for (let j = 0; j < batch.length; j++) {
+      if (results[j] && results[j]!.length > 0) {
+        batch[j].image_urls = results[j]!;
+      }
+    }
+    if (i + batchSize < vehicles.length) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -182,7 +232,13 @@ Deno.serve(async (req) => {
     console.log("Received XML, length:", xmlText.length);
 
     const vehicleRows = parseAds(xmlText);
-    console.log(`Parsed ${vehicleRows.length} ads`);
+    console.log(`Parsed ${vehicleRows.length} ads from search`);
+
+    // Fetch detail pages to get all images per vehicle
+    console.log("Fetching detail images for each vehicle...");
+    await enrichWithDetailImages(vehicleRows, authHeader);
+    const totalImages = vehicleRows.reduce((sum, v) => sum + v.image_urls.length, 0);
+    console.log(`Total images after detail enrichment: ${totalImages}`);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -235,7 +291,6 @@ Deno.serve(async (req) => {
           const existing = vehicleMap.get(row.mobile_de_id);
           if (!existing || row.price === null) continue;
 
-          // Check last price_history entry
           const { data: lastEntry } = await supabase
             .from("price_history")
             .select("price")
@@ -271,7 +326,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, synced: vehicleRows.length }),
+      JSON.stringify({ success: true, synced: vehicleRows.length, totalImages }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
