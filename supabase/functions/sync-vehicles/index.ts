@@ -134,8 +134,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch ads from Mobile.de Seller API
-    const apiUrl = `https://services.mobile.de/seller-api/sellers/${sellerKey}/ads`;
+    // Fetch ads from Mobile.de Search API
+    const apiUrl = `https://services.mobile.de/search-api/search?page.size=200`;
     const authHeader = "Basic " + btoa(`${username}:${password}`);
 
     const response = await fetch(apiUrl, {
