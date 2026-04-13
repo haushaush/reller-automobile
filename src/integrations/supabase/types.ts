@@ -14,7 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      vehicles: {
+        Row: {
+          body_type: string | null
+          brand: string | null
+          category: string | null
+          created_at: string
+          currency: string | null
+          description: string | null
+          id: string
+          image_urls: string[] | null
+          mileage: number | null
+          mobile_de_id: string
+          model: string | null
+          price: number | null
+          synced_at: string
+          title: string
+          updated_at: string
+          year: string | null
+        }
+        Insert: {
+          body_type?: string | null
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          id?: string
+          image_urls?: string[] | null
+          mileage?: number | null
+          mobile_de_id: string
+          model?: string | null
+          price?: number | null
+          synced_at?: string
+          title: string
+          updated_at?: string
+          year?: string | null
+        }
+        Update: {
+          body_type?: string | null
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          id?: string
+          image_urls?: string[] | null
+          mileage?: number | null
+          mobile_de_id?: string
+          model?: string | null
+          price?: number | null
+          synced_at?: string
+          title?: string
+          updated_at?: string
+          year?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
