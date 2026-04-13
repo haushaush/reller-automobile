@@ -43,6 +43,45 @@
     --sidebar-border: 0 0% 18%;
     --sidebar-ring: 0 72% 51%;
   }
+
+  .light {
+    --background: 30 33% 97%;
+    --foreground: 20 10% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 20 10% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 10% 12%;
+
+    --primary: 0 72% 51%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 30 15% 92%;
+    --secondary-foreground: 20 10% 25%;
+
+    --muted: 30 10% 90%;
+    --muted-foreground: 20 5% 45%;
+
+    --accent: 30 12% 94%;
+    --accent-foreground: 20 10% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 10% 85%;
+    --input: 30 10% 85%;
+    --ring: 0 72% 51%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 20 10% 12%;
+    --sidebar-primary: 0 72% 51%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 15% 92%;
+    --sidebar-accent-foreground: 20 10% 12%;
+    --sidebar-border: 30 10% 85%;
+    --sidebar-ring: 0 72% 51%;
+  }
 }
 
 @layer base {
@@ -53,6 +92,7 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Instrument Sans', sans-serif;
+    transition: background-color 200ms ease, color 200ms ease;
   }
 
   h1, h2, h3, h4, h5, h6 {

@@ -8,13 +8,33 @@ export interface Vehicle {
   category: string | null;
   brand: string | null;
   model: string | null;
+  model_description: string | null;
   body_type: string | null;
   year: string | null;
   mileage: number | null;
   price: number | null;
   currency: string | null;
+  price_type: string | null;
+  vatable: boolean | null;
   image_urls: string[] | null;
   description: string | null;
+  exterior_color: string | null;
+  fuel: string | null;
+  power: number | null;
+  gearbox: string | null;
+  climatisation: string | null;
+  num_seats: number | null;
+  cubic_capacity: number | null;
+  condition: string | null;
+  usage_type: string | null;
+  interior_color: string | null;
+  interior_type: string | null;
+  damage_unrepaired: boolean | null;
+  detail_page_url: string | null;
+  creation_date: string | null;
+  modification_date: string | null;
+  seller_city: string | null;
+  seller_zipcode: string | null;
   synced_at: string;
 }
 
@@ -32,6 +52,6 @@ export function useVehicles() {
   return useQuery({
     queryKey: ["vehicles"],
     queryFn: fetchVehicles,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 }

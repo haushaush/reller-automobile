@@ -4,6 +4,7 @@ import { vehicles as staticVehicles } from "@/data/vehicles";
 import VehicleCard from "@/components/VehicleCard";
 import FilterBar, { Filters } from "@/components/FilterBar";
 import ActiveFilters from "@/components/ActiveFilters";
+import VehicleAlertDialog from "@/components/VehicleAlertDialog";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -31,13 +32,33 @@ function mapStaticVehicles(statics: typeof staticVehicles): Vehicle[] {
     category: v.category,
     brand: v.brand,
     model: null,
+    model_description: null,
     body_type: v.bodyType,
     year: v.year,
     mileage: v.mileage,
     price: null,
     currency: "EUR",
+    price_type: null,
+    vatable: null,
     image_urls: [v.image],
     description: null,
+    exterior_color: null,
+    fuel: null,
+    power: null,
+    gearbox: null,
+    climatisation: null,
+    num_seats: null,
+    cubic_capacity: null,
+    condition: null,
+    usage_type: null,
+    interior_color: null,
+    interior_type: null,
+    damage_unrepaired: null,
+    detail_page_url: null,
+    creation_date: null,
+    modification_date: null,
+    seller_city: null,
+    seller_zipcode: null,
     synced_at: new Date().toISOString(),
   }));
 }
@@ -138,8 +159,9 @@ const Index = () => {
           />
         </div>
 
-        <div className="mb-6">
+        <div className="flex items-center justify-between mb-6">
           <ActiveFilters filters={filters} onRemove={handleRemoveFilter} onResetAll={handleResetAll} />
+          <VehicleAlertDialog brands={brands} bodyTypes={bodyTypes} />
         </div>
 
         <div className="flex items-center justify-between mb-6">
