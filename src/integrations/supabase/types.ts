@@ -14,6 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
+      price_history: {
+        Row: {
+          id: string
+          price: number
+          recorded_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          id?: string
+          price: number
+          recorded_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          id?: string
+          price?: number
+          recorded_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_history_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_alerts: {
+        Row: {
+          body_type: string | null
+          brand: string | null
+          category: string | null
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          last_notified_at: string | null
+          max_mileage: number | null
+          max_price: number | null
+          min_year: string | null
+          name: string | null
+        }
+        Insert: {
+          body_type?: string | null
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          last_notified_at?: string | null
+          max_mileage?: number | null
+          max_price?: number | null
+          min_year?: string | null
+          name?: string | null
+        }
+        Update: {
+          body_type?: string | null
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          last_notified_at?: string | null
+          max_mileage?: number | null
+          max_price?: number | null
+          min_year?: string | null
+          name?: string | null
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           body_type: string | null
