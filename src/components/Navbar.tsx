@@ -19,13 +19,12 @@ const Navbar = () => {
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 md:h-20">
-          <a href="/" className="flex items-center gap-2 shrink-0">
-            <span className="text-2xl font-bold text-foreground tracking-tight" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
-              <span className="text-primary">R</span>eller
-            </span>
-            <span className="text-xs text-muted-foreground uppercase tracking-widest hidden sm:block" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
-              automobile
-            </span>
+          <a href="/" className="flex items-center shrink-0">
+            <img
+              src={rellerLogo}
+              alt="Reller Automobile"
+              className="h-10 md:h-12 w-auto dark:invert"
+            />
           </a>
 
           <div className="hidden md:flex items-center gap-1">
