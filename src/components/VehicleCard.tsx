@@ -1,11 +1,19 @@
-import { Vehicle as DbVehicle } from "@/hooks/useVehicles";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Vehicle } from "@/hooks/useVehicles";
+import { useCompare } from "@/contexts/CompareContext";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { Scale } from "lucide-react";
 
 interface VehicleCardProps {
-  vehicle: DbVehicle;
+  vehicle: Vehicle;
 }
 
 const VehicleCard = ({ vehicle }: VehicleCardProps) => {
+  const navigate = useNavigate();
+  const { add, remove, isSelected } = useCompare();
+  const selected = isSelected(vehicle.id);
+
   const formattedMileage = vehicle.mileage ? vehicle.mileage.toLocaleString("de-DE") : "–";
   const imageUrl = vehicle.image_urls && vehicle.image_urls.length > 0
     ? vehicle.image_urls[0]
@@ -15,9 +23,23 @@ const VehicleCard = ({ vehicle }: VehicleCardProps) => {
     ? vehicle.price.toLocaleString("de-DE") + " " + (vehicle.currency || "€")
     : null;
 
+  const handleCompareClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selected) {
+      remove(vehicle.id);
+    } else {
+      add(vehicle);
+    }
+  };
+
   return (
-    <div className="group rounded-xl overflow-hidden bg-card border border-border transition-all duration-300 hover:border-primary/30 hover:-translate-y-1">
-      <div className="overflow-hidden">
+    <div
+      onClick={() => navigate(`/fahrzeug/${vehicle.id}`)}
+      className={`group rounded-xl overflow-hidden bg-card border transition-all duration-300 hover:-translate-y-1 cursor-pointer ${
+        selected ? "border-primary shadow-[0_0_15px_hsl(var(--primary)/0.3)]" : "border-border hover:border-primary/30"
+      }`}
+    >
+      <div className="overflow-hidden relative">
         <AspectRatio ratio={16 / 9}>
           <img
             src={imageUrl}
@@ -26,6 +48,17 @@ const VehicleCard = ({ vehicle }: VehicleCardProps) => {
             loading="lazy"
           />
         </AspectRatio>
+        <button
+          onClick={handleCompareClick}
+          className={`absolute top-3 right-3 p-2 rounded-full transition-colors ${
+            selected
+              ? "bg-primary text-primary-foreground"
+              : "bg-background/80 text-muted-foreground hover:bg-primary hover:text-primary-foreground"
+          }`}
+          title="Vergleichen"
+        >
+          <Scale className="h-4 w-4" />
+        </button>
       </div>
       <div className="p-5">
         <h3 className="text-lg font-semibold text-foreground mb-3 leading-tight">
