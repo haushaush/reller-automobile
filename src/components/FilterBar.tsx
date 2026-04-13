@@ -25,12 +25,12 @@ interface FilterBarProps {
   onFilterChange: (key: keyof Filters, value: string) => void;
   brands: string[];
   bodyTypes: string[];
+  categories?: string[];
 }
 
-const FilterBar = ({ filters, onFilterChange, brands, bodyTypes }: FilterBarProps) => {
+const FilterBar = ({ filters, onFilterChange, brands, bodyTypes, categories }: FilterBarProps) => {
   return (
     <div className="space-y-4">
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -41,7 +41,6 @@ const FilterBar = ({ filters, onFilterChange, brands, bodyTypes }: FilterBarProp
         />
       </div>
 
-      {/* Filter dropdowns */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Select value={filters.category} onValueChange={(v) => onFilterChange("category", v)}>
           <SelectTrigger className="bg-secondary border-border text-foreground">
@@ -49,8 +48,9 @@ const FilterBar = ({ filters, onFilterChange, brands, bodyTypes }: FilterBarProp
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Alle Kategorien</SelectItem>
-            <SelectItem value="Oldtimer">Oldtimer</SelectItem>
-            <SelectItem value="Gebrauchtwagen">Gebrauchtwagen</SelectItem>
+            {(categories || ["Oldtimer", "Gebrauchtwagen"]).map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -101,6 +101,8 @@ const FilterBar = ({ filters, onFilterChange, brands, bodyTypes }: FilterBarProp
             <SelectItem value="year-desc">Baujahr absteigend</SelectItem>
             <SelectItem value="mileage-asc">KM aufsteigend</SelectItem>
             <SelectItem value="mileage-desc">KM absteigend</SelectItem>
+            <SelectItem value="price-asc">Preis aufsteigend</SelectItem>
+            <SelectItem value="price-desc">Preis absteigend</SelectItem>
           </SelectContent>
         </Select>
       </div>
