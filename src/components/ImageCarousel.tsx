@@ -21,7 +21,6 @@ const ImageCarousel = memo(({ images, alt, vehicleId, totalImages }: ImageCarous
 
   const displayImages = images.slice(0, 5);
   const hasMultiple = displayImages.length > 1;
-  const isLast = current === displayImages.length - 1;
   const allCount = totalImages ?? images.length;
 
   const goTo = useCallback((idx: number, e?: React.MouseEvent) => {
@@ -72,7 +71,7 @@ const ImageCarousel = memo(({ images, alt, vehicleId, totalImages }: ImageCarous
           className="flex h-full"
           style={{
             transform: `translateX(calc(-${current * 100}% + ${dragging ? dragOffset : 0}px))`,
-            transition: dragging ? "none" : "transform 400ms cubic-bezier(0.25, 0.1, 0.25, 1)",
+            transition: dragging ? "none" : "transform 300ms ease",
             width: `${displayImages.length * 100}%`,
           }}
         >
@@ -88,10 +87,10 @@ const ImageCarousel = memo(({ images, alt, vehicleId, totalImages }: ImageCarous
               {hasMultiple && i === displayImages.length - 1 && allCount > displayImages.length && (
                 <button
                   onClick={handleOverlayClick}
-                  className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer"
+                  className="absolute inset-x-0 bottom-0 bg-black/50 flex items-center justify-center py-2 cursor-pointer"
                 >
-                  <span className="text-white font-semibold text-sm bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm">
-                    Alle {allCount} Bilder ansehen
+                  <span className="text-white text-xs font-medium">
+                    Alle {allCount} Bilder
                   </span>
                 </button>
               )}
@@ -106,17 +105,17 @@ const ImageCarousel = memo(({ images, alt, vehicleId, totalImages }: ImageCarous
           {current > 0 && (
             <button
               onClick={(e) => goTo(current - 1, e)}
-              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors backdrop-blur-sm z-10"
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-1.5 transition-colors z-10"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-6 w-6" />
             </button>
           )}
           {current < displayImages.length - 1 && (
             <button
               onClick={(e) => goTo(current + 1, e)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors backdrop-blur-sm z-10"
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-1.5 transition-colors z-10"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-6 w-6" />
             </button>
           )}
         </>
@@ -129,10 +128,8 @@ const ImageCarousel = memo(({ images, alt, vehicleId, totalImages }: ImageCarous
             <button
               key={i}
               onClick={(e) => goTo(i, e)}
-              className={`rounded-full transition-all ${
-                i === current
-                  ? "w-2.5 h-2.5 bg-primary"
-                  : "w-2 h-2 bg-white/60 hover:bg-white/90"
+              className={`w-2 h-2 rounded-full transition-colors ${
+                i === current ? "bg-primary" : "bg-white/50 hover:bg-white/80"
               }`}
             />
           ))}
