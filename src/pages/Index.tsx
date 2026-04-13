@@ -4,6 +4,7 @@ import { vehicles as staticVehicles } from "@/data/vehicles";
 import VehicleCard from "@/components/VehicleCard";
 import FilterBar, { Filters } from "@/components/FilterBar";
 import ActiveFilters from "@/components/ActiveFilters";
+import VehicleAlertDialog from "@/components/VehicleAlertDialog";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
