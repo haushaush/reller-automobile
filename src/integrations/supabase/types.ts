@@ -19,54 +19,114 @@ export type Database = {
           body_type: string | null
           brand: string | null
           category: string | null
+          climatisation: string | null
+          condition: string | null
           created_at: string
+          creation_date: string | null
+          cubic_capacity: number | null
           currency: string | null
+          damage_unrepaired: boolean | null
           description: string | null
+          detail_page_url: string | null
+          exterior_color: string | null
+          fuel: string | null
+          gearbox: string | null
           id: string
           image_urls: string[] | null
+          interior_color: string | null
+          interior_type: string | null
           mileage: number | null
           mobile_de_id: string
           model: string | null
+          model_description: string | null
+          modification_date: string | null
+          num_seats: number | null
+          power: number | null
           price: number | null
+          price_type: string | null
+          seller_city: string | null
+          seller_zipcode: string | null
           synced_at: string
           title: string
           updated_at: string
+          usage_type: string | null
+          vatable: boolean | null
           year: string | null
         }
         Insert: {
           body_type?: string | null
           brand?: string | null
           category?: string | null
+          climatisation?: string | null
+          condition?: string | null
           created_at?: string
+          creation_date?: string | null
+          cubic_capacity?: number | null
           currency?: string | null
+          damage_unrepaired?: boolean | null
           description?: string | null
+          detail_page_url?: string | null
+          exterior_color?: string | null
+          fuel?: string | null
+          gearbox?: string | null
           id?: string
           image_urls?: string[] | null
+          interior_color?: string | null
+          interior_type?: string | null
           mileage?: number | null
           mobile_de_id: string
           model?: string | null
+          model_description?: string | null
+          modification_date?: string | null
+          num_seats?: number | null
+          power?: number | null
           price?: number | null
+          price_type?: string | null
+          seller_city?: string | null
+          seller_zipcode?: string | null
           synced_at?: string
           title: string
           updated_at?: string
+          usage_type?: string | null
+          vatable?: boolean | null
           year?: string | null
         }
         Update: {
           body_type?: string | null
           brand?: string | null
           category?: string | null
+          climatisation?: string | null
+          condition?: string | null
           created_at?: string
+          creation_date?: string | null
+          cubic_capacity?: number | null
           currency?: string | null
+          damage_unrepaired?: boolean | null
           description?: string | null
+          detail_page_url?: string | null
+          exterior_color?: string | null
+          fuel?: string | null
+          gearbox?: string | null
           id?: string
           image_urls?: string[] | null
+          interior_color?: string | null
+          interior_type?: string | null
           mileage?: number | null
           mobile_de_id?: string
           model?: string | null
+          model_description?: string | null
+          modification_date?: string | null
+          num_seats?: number | null
+          power?: number | null
           price?: number | null
+          price_type?: string | null
+          seller_city?: string | null
+          seller_zipcode?: string | null
           synced_at?: string
           title?: string
           updated_at?: string
+          usage_type?: string | null
+          vatable?: boolean | null
           year?: string | null
         }
         Relationships: []
