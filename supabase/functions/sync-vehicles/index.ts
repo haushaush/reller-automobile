@@ -1,120 +1,148 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface MobileDeAd {
-  id: string;
-  title: string;
-  category?: string;
-  make?: string;
-  model?: string;
-  bodyType?: string;
-  firstRegistration?: string;
-  mileage?: number;
-  price?: number;
-  currency?: string;
-  images?: string[];
-  description?: string;
+function attr(xml: string, tag: string, attribute: string): string | undefined {
+  const regex = new RegExp(`<${tag}[^>]*?\\b${attribute}="([^"]*)"`, "i");
+  return xml.match(regex)?.[1]?.trim();
 }
 
-function parseXmlValue(xml: string, tag: string): string | undefined {
+function localDesc(xml: string, tag: string): string | undefined {
+  const regex = new RegExp(`<${tag}[^>]*>\\s*<resource:local-description[^>]*>([^<]*)</resource:local-description>`, "i");
+  return xml.match(regex)?.[1]?.trim();
+}
+
+function textContent(xml: string, tag: string): string | undefined {
   const regex = new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, "i");
-  const match = xml.match(regex);
-  return match ? match[1].trim() : undefined;
-}
-
-function parseXmlAttribute(xml: string, tag: string, attr: string): string | undefined {
-  const regex = new RegExp(`<${tag}[^>]*${attr}="([^"]*)"`, "i");
-  const match = xml.match(regex);
-  return match ? match[1].trim() : undefined;
+  const val = xml.match(regex)?.[1]?.trim();
+  return val || undefined;
 }
 
 function parseImages(adXml: string): string[] {
   const images: string[] = [];
-  const imgRegex = /<image:representation[^>]*url="([^"]*)"[^>]*>/gi;
-  let match;
-  while ((match = imgRegex.exec(adXml)) !== null) {
-    images.push(match[1]);
-  }
-  // Fallback: try <image url="...">
-  if (images.length === 0) {
-    const fallbackRegex = /<image[^>]*url="([^"]*)"[^>]*>/gi;
-    while ((match = fallbackRegex.exec(adXml)) !== null) {
-      images.push(match[1]);
+  // Get the largest representation (XXXL) for each image, fallback to XL, L
+  const imageBlocks = adXml.match(/<ad:image>([\s\S]*?)<\/ad:image>/gi) || [];
+  for (const block of imageBlocks) {
+    // Try sizes in order of preference
+    for (const size of ["XXXL", "XXL", "XL", "L", "M"]) {
+      const sizeRegex = new RegExp(`<ad:representation[^>]*size="${size}"[^>]*url="([^"]*)"`, "i");
+      const match = block.match(sizeRegex);
+      if (match) {
+        images.push(match[1]);
+        break;
+      }
     }
   }
   return images;
 }
 
-function parseAds(xmlText: string): MobileDeAd[] {
-  const ads: MobileDeAd[] = [];
-  // Split by ad entries
+interface VehicleRow {
+  mobile_de_id: string;
+  title: string;
+  model_description: string | null;
+  category: string | null;
+  brand: string | null;
+  model: string | null;
+  body_type: string | null;
+  year: string | null;
+  mileage: number | null;
+  price: number | null;
+  currency: string;
+  price_type: string | null;
+  vatable: boolean | null;
+  image_urls: string[];
+  description: string | null;
+  exterior_color: string | null;
+  fuel: string | null;
+  power: number | null;
+  gearbox: string | null;
+  climatisation: string | null;
+  num_seats: number | null;
+  cubic_capacity: number | null;
+  condition: string | null;
+  usage_type: string | null;
+  interior_color: string | null;
+  interior_type: string | null;
+  damage_unrepaired: boolean | null;
+  detail_page_url: string | null;
+  creation_date: string | null;
+  modification_date: string | null;
+  seller_city: string | null;
+  seller_zipcode: string | null;
+  synced_at: string;
+}
+
+function parseAds(xmlText: string): VehicleRow[] {
+  const rows: VehicleRow[] = [];
   const adRegex = /<ad:ad\b[^>]*>([\s\S]*?)<\/ad:ad>/gi;
   let adMatch;
+  const now = new Date().toISOString();
 
   while ((adMatch = adRegex.exec(xmlText)) !== null) {
-    const adXml = adMatch[0];
-    const adContent = adMatch[1];
+    const full = adMatch[0];
+    const content = adMatch[1];
 
-    const id = parseXmlAttribute(adXml, "ad:ad", "key") ||
-               parseXmlValue(adContent, "ad:key") ||
-               parseXmlValue(adContent, "key") ||
-               `unknown-${ads.length}`;
+    const mobileDeId = attr(full, "ad:ad", "key") || `unknown-${rows.length}`;
 
-    const title = parseXmlValue(adContent, "ad:title") ||
-                  parseXmlValue(adContent, "title") || "Unbekanntes Fahrzeug";
+    // Title: use make + model-description as Mobile.de displays it
+    const makeName = localDesc(content, "ad:make");
+    const modelName = localDesc(content, "ad:model");
+    const modelDesc = attr(content, "ad:model-description", "value");
+    const title = makeName && modelDesc
+      ? `${makeName} ${modelDesc}`
+      : makeName && modelName
+        ? `${makeName} ${modelName}`
+        : modelDesc || "Unbekanntes Fahrzeug";
 
-    const make = parseXmlAttribute(adContent, "ad:make", "key") ||
-                 parseXmlValue(adContent, "ad:make") ||
-                 parseXmlValue(adContent, "make");
+    const priceStr = attr(content, "ad:consumer-price-amount", "value");
+    const powerStr = attr(content, "ad:power", "value");
+    const mileageStr = attr(content, "ad:mileage", "value");
+    const seatsStr = attr(content, "ad:num-seats", "value");
+    const ccStr = attr(content, "ad:cubic-capacity", "value");
+    const vatStr = attr(content, "ad:vatable", "value");
+    const dmgStr = attr(content, "ad:damage-and-unrepaired", "value");
 
-    const model = parseXmlAttribute(adContent, "ad:model", "key") ||
-                  parseXmlValue(adContent, "ad:model") ||
-                  parseXmlValue(adContent, "model");
-
-    const bodyType = parseXmlAttribute(adContent, "ad:body-type", "key") ||
-                     parseXmlValue(adContent, "ad:body-type") ||
-                     parseXmlValue(adContent, "body-type");
-
-    const category = parseXmlAttribute(adContent, "ad:vehicle-class", "key") ||
-                     parseXmlValue(adContent, "ad:vehicle-class") ||
-                     parseXmlValue(adContent, "ad:category") ||
-                     parseXmlValue(adContent, "category");
-
-    const firstReg = parseXmlValue(adContent, "ad:first-registration") ||
-                     parseXmlValue(adContent, "first-registration");
-
-    const mileageStr = parseXmlAttribute(adContent, "ad:mileage", "value") ||
-                       parseXmlValue(adContent, "ad:mileage") ||
-                       parseXmlValue(adContent, "mileage");
-
-    const priceStr = parseXmlAttribute(adContent, "ad:consumer-price-amount", "value") ||
-                     parseXmlValue(adContent, "ad:consumer-price-amount") ||
-                     parseXmlValue(adContent, "ad:price") ||
-                     parseXmlValue(adContent, "price");
-
-    const currency = parseXmlAttribute(adContent, "ad:consumer-price-amount", "currency") || "EUR";
-
-    const images = parseImages(adXml);
-
-    ads.push({
-      id,
+    rows.push({
+      mobile_de_id: mobileDeId,
       title,
-      category,
-      make,
-      model,
-      bodyType,
-      firstRegistration: firstReg,
-      mileage: mileageStr ? parseInt(mileageStr, 10) : undefined,
-      price: priceStr ? parseInt(priceStr, 10) : undefined,
-      currency,
-      images,
+      model_description: modelDesc || null,
+      category: localDesc(content, "ad:category") || null,
+      brand: makeName || null,
+      model: modelName || null,
+      body_type: localDesc(content, "ad:body-type") || attr(content, "ad:category", "key") || null,
+      year: attr(content, "ad:first-registration", "value") || null,
+      mileage: mileageStr ? parseInt(mileageStr, 10) : null,
+      price: priceStr ? Math.round(parseFloat(priceStr)) : null,
+      currency: attr(content, "ad:price", "currency") || "EUR",
+      price_type: attr(content, "ad:price", "type") || null,
+      vatable: vatStr ? vatStr === "true" : null,
+      image_urls: parseImages(full),
+      description: textContent(content, "ad:description") || null,
+      exterior_color: localDesc(content, "ad:exterior-color") || null,
+      fuel: localDesc(content, "ad:fuel") || null,
+      power: powerStr ? parseInt(powerStr, 10) : null,
+      gearbox: localDesc(content, "ad:gearbox") || null,
+      climatisation: localDesc(content, "ad:climatisation") || null,
+      num_seats: seatsStr ? parseInt(seatsStr, 10) : null,
+      cubic_capacity: ccStr ? parseInt(ccStr, 10) : null,
+      condition: localDesc(content, "ad:condition") || null,
+      usage_type: localDesc(content, "ad:usage-type") || null,
+      interior_color: localDesc(content, "ad:interior-color") || null,
+      interior_type: localDesc(content, "ad:interior-type") || null,
+      damage_unrepaired: dmgStr ? dmgStr === "true" : null,
+      detail_page_url: attr(content, "ad:detail-page", "url") || null,
+      creation_date: attr(content, "ad:creation-date", "value") || null,
+      modification_date: attr(content, "ad:modification-date", "value") || null,
+      seller_city: textContent(content, "seller:city") || attr(content, "seller:city", "value") || null,
+      seller_zipcode: attr(content, "seller:zipcode", "value") || null,
+      synced_at: now,
     });
   }
 
-  return ads;
+  return rows;
 }
 
 Deno.serve(async (req) => {
@@ -125,16 +153,14 @@ Deno.serve(async (req) => {
   try {
     const username = Deno.env.get("MOBILE_DE_USERNAME");
     const password = Deno.env.get("MOBILE_DE_PASSWORD");
-    const sellerKey = Deno.env.get("MOBILE_DE_SELLER_KEY");
 
-    if (!username || !password || !sellerKey) {
+    if (!username || !password) {
       return new Response(
         JSON.stringify({ error: "Missing Mobile.de API credentials" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Fetch ads from Mobile.de Search API
     const apiUrl = `https://services.mobile.de/search-api/search?page.size=200`;
     const authHeader = "Basic " + btoa(`${username}:${password}`);
 
@@ -156,41 +182,20 @@ Deno.serve(async (req) => {
     }
 
     const xmlText = await response.text();
-    console.log("Received XML response, length:", xmlText.length);
-    // Log first ad XML for debugging field structure
-    const firstAdMatch = xmlText.match(/<ad:ad\b[^>]*>[\s\S]*?<\/ad:ad>/i);
-    if (firstAdMatch) {
-      console.log("=== FIRST AD RAW XML ===");
-      console.log(firstAdMatch[0].substring(0, 5000));
-      console.log("=== END FIRST AD ===");
+    console.log("Received XML, length:", xmlText.length);
+
+    const vehicleRows = parseAds(xmlText);
+    console.log(`Parsed ${vehicleRows.length} ads`);
+
+    if (vehicleRows.length > 0) {
+      // Log first parsed vehicle for debugging
+      console.log("Sample vehicle:", JSON.stringify(vehicleRows[0]));
     }
 
-    const ads = parseAds(xmlText);
-    console.log(`Parsed ${ads.length} ads from Mobile.de`);
-
-    // Connect to Supabase with service role
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const now = new Date().toISOString();
-
-    // Upsert all vehicles
-    const vehicleRows = ads.map((ad) => ({
-      mobile_de_id: ad.id,
-      title: ad.title,
-      category: ad.category || null,
-      brand: ad.make || null,
-      model: ad.model || null,
-      body_type: ad.bodyType || null,
-      year: ad.firstRegistration || null,
-      mileage: ad.mileage || null,
-      price: ad.price || null,
-      currency: ad.currency || "EUR",
-      image_urls: ad.images || [],
-      description: ad.description || null,
-      synced_at: now,
-    }));
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
     if (vehicleRows.length > 0) {
       const { error: upsertError } = await supabase
@@ -204,11 +209,9 @@ Deno.serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-    }
 
-    // Remove vehicles no longer in Mobile.de
-    const mobileDeIds = ads.map((ad) => ad.id);
-    if (mobileDeIds.length > 0) {
+      // Remove vehicles no longer in Mobile.de
+      const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
       const { error: deleteError } = await supabase
         .from("vehicles")
         .delete()
@@ -220,7 +223,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, synced: vehicleRows.length, removed_stale: true }),
+      JSON.stringify({ success: true, synced: vehicleRows.length }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
