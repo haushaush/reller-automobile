@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CompareProvider } from "@/contexts/CompareContext";
+import { FavoritesProvider } from "@/contexts/FavoritesContext";
 import CompareBar from "@/components/CompareBar";
 import Index from "./pages/Index.tsx";
 import VehicleDetail from "./pages/VehicleDetail.tsx";
@@ -18,15 +19,17 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <CompareProvider>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/fahrzeug/:id" element={<VehicleDetail />} />
-            <Route path="/vergleich" element={<ComparePage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <CompareBar />
-        </CompareProvider>
+        <FavoritesProvider>
+          <CompareProvider>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/fahrzeug/:id" element={<VehicleDetail />} />
+              <Route path="/vergleich" element={<ComparePage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            <CompareBar />
+          </CompareProvider>
+        </FavoritesProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

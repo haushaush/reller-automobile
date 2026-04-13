@@ -22,7 +22,17 @@ const defaultFilters: Filters = {
   mileageFrom: "",
   mileageTo: "",
   sort: "newest",
+  fuel: "all",
+  powerFrom: "",
+  powerTo: "",
+  gearbox: "all",
+  priceFrom: "",
+  priceTo: "",
+  color: "all",
+  status: "available",
 };
+
+const selectFilterKeys: (keyof Filters)[] = ["category", "brand", "bodyType", "sort", "fuel", "gearbox", "color", "status"];
 
 function mapStaticVehicles(statics: typeof staticVehicles): Vehicle[] {
   return statics.map((v) => ({
@@ -59,6 +69,8 @@ function mapStaticVehicles(statics: typeof staticVehicles): Vehicle[] {
     modification_date: null,
     seller_city: null,
     seller_zipcode: null,
+    is_sold: false,
+    sold_at: null,
     synced_at: new Date().toISOString(),
   }));
 }
@@ -78,6 +90,11 @@ const Index = () => {
   const brands = useMemo(() => [...new Set(allVehicles.map((v) => v.brand).filter(Boolean) as string[])].sort(), [allVehicles]);
   const bodyTypes = useMemo(() => [...new Set(allVehicles.map((v) => v.body_type).filter(Boolean) as string[])].sort(), [allVehicles]);
   const categories = useMemo(() => [...new Set(allVehicles.map((v) => v.category).filter(Boolean) as string[])].sort(), [allVehicles]);
+  const fuels = useMemo(() => [...new Set(allVehicles.map((v) => v.fuel).filter(Boolean) as string[])].sort(), [allVehicles]);
+  const gearboxes = useMemo(() => [...new Set(allVehicles.map((v) => v.gearbox).filter(Boolean) as string[])].sort(), [allVehicles]);
+  const colors = useMemo(() => [...new Set(allVehicles.map((v) => v.exterior_color).filter(Boolean) as string[])].sort(), [allVehicles]);
+
+  const soldCount = useMemo(() => allVehicles.filter((v) => v.is_sold).length, [allVehicles]);
 
   const handleFilterChange = useCallback((key: keyof Filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -87,7 +104,9 @@ const Index = () => {
   const handleRemoveFilter = useCallback((key: keyof Filters) => {
     setFilters((prev) => ({
       ...prev,
-      [key]: key === "category" || key === "brand" || key === "bodyType" || key === "sort" ? "all" : "",
+      [key]: selectFilterKeys.includes(key)
+        ? key === "status" ? "available" : "all"
+        : "",
     }));
     setCurrentPage(1);
   }, []);
@@ -99,6 +118,11 @@ const Index = () => {
 
   const filtered = useMemo(() => {
     let result = [...allVehicles];
+
+    // Status filter
+    if (filters.status === "available") result = result.filter((v) => !v.is_sold);
+    else if (filters.status === "sold") result = result.filter((v) => v.is_sold);
+
     if (filters.search) {
       const q = filters.search.toLowerCase();
       result = result.filter((v) => v.title.toLowerCase().includes(q));
@@ -110,16 +134,38 @@ const Index = () => {
     if (filters.yearTo) result = result.filter((v) => (v.year || "") <= filters.yearTo);
     if (filters.mileageFrom) result = result.filter((v) => (v.mileage || 0) >= Number(filters.mileageFrom));
     if (filters.mileageTo) result = result.filter((v) => (v.mileage || 0) <= Number(filters.mileageTo));
-
-    switch (filters.sort) {
-      case "year-asc": result.sort((a, b) => (a.year || "").localeCompare(b.year || "")); break;
-      case "year-desc": result.sort((a, b) => (b.year || "").localeCompare(a.year || "")); break;
-      case "mileage-asc": result.sort((a, b) => (a.mileage || 0) - (b.mileage || 0)); break;
-      case "mileage-desc": result.sort((a, b) => (b.mileage || 0) - (a.mileage || 0)); break;
-      case "price-asc": result.sort((a, b) => (a.price || 0) - (b.price || 0)); break;
-      case "price-desc": result.sort((a, b) => (b.price || 0) - (a.price || 0)); break;
-      default: result.sort((a, b) => (b.year || "").localeCompare(a.year || ""));
+    if (filters.fuel !== "all") result = result.filter((v) => v.fuel === filters.fuel);
+    if (filters.gearbox !== "all") result = result.filter((v) => v.gearbox === filters.gearbox);
+    if (filters.color !== "all") result = result.filter((v) => v.exterior_color === filters.color);
+    if (filters.priceFrom) result = result.filter((v) => (v.price || 0) >= Number(filters.priceFrom));
+    if (filters.priceTo) result = result.filter((v) => (v.price || 0) <= Number(filters.priceTo));
+    if (filters.powerFrom) {
+      const kwMin = Number(filters.powerFrom) / 1.36;
+      result = result.filter((v) => (v.power || 0) >= kwMin);
     }
+    if (filters.powerTo) {
+      const kwMax = Number(filters.powerTo) / 1.36;
+      result = result.filter((v) => (v.power || 0) <= kwMax);
+    }
+
+    // Sort - sold always last
+    const sortFn = (a: Vehicle, b: Vehicle): number => {
+      switch (filters.sort) {
+        case "year-asc": return (a.year || "").localeCompare(b.year || "");
+        case "year-desc": return (b.year || "").localeCompare(a.year || "");
+        case "mileage-asc": return (a.mileage || 0) - (b.mileage || 0);
+        case "mileage-desc": return (b.mileage || 0) - (a.mileage || 0);
+        case "price-asc": return (a.price || 0) - (b.price || 0);
+        case "price-desc": return (b.price || 0) - (a.price || 0);
+        default: return (b.year || "").localeCompare(a.year || "");
+      }
+    };
+
+    result.sort((a, b) => {
+      if (a.is_sold !== b.is_sold) return a.is_sold ? 1 : -1;
+      return sortFn(a, b);
+    });
+
     return result;
   }, [filters, allVehicles]);
 
@@ -135,7 +181,6 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Hero */}
       <header className="py-16 md:py-24 px-4 max-w-7xl mx-auto">
         <p className="text-xs tracking-[0.3em] uppercase text-muted-foreground mb-4" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
           Seit 1995 lieben & leben wir Automobile in OWL
@@ -156,6 +201,9 @@ const Index = () => {
             brands={brands}
             bodyTypes={bodyTypes}
             categories={categories}
+            fuels={fuels}
+            gearboxes={gearboxes}
+            colors={colors}
           />
         </div>
 
@@ -225,9 +273,20 @@ const Index = () => {
             </Button>
           </div>
         )}
+
+        {/* Sold vehicles info */}
+        {soldCount > 0 && filters.status !== "sold" && (
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => handleFilterChange("status", "sold")}
+              className="text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-4"
+            >
+              {soldCount} Fahrzeuge kürzlich verkauft
+            </button>
+          </div>
+        )}
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-border py-8 px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
