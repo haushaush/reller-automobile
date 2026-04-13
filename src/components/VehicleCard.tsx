@@ -16,7 +16,7 @@ const VehicleCard = ({ vehicle }: VehicleCardProps) => {
     : null;
 
   return (
-    <div className="group rounded-lg overflow-hidden shadow-lg shadow-black/30 transition-all duration-300 hover:shadow-xl hover:shadow-black/40 hover:-translate-y-1">
+    <div className="group rounded-xl overflow-hidden bg-card border border-border transition-all duration-300 hover:border-primary/30 hover:-translate-y-1">
       <div className="overflow-hidden">
         <AspectRatio ratio={16 / 9}>
           <img
@@ -27,29 +27,29 @@ const VehicleCard = ({ vehicle }: VehicleCardProps) => {
           />
         </AspectRatio>
       </div>
-      <div className="p-5" style={{ backgroundColor: 'hsl(20, 30%, 18%)' }}>
-        <h3 className="text-lg font-semibold text-foreground mb-3 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+      <div className="p-5">
+        <h3 className="text-lg font-semibold text-foreground mb-3 leading-tight">
           {vehicle.title}
         </h3>
         {formattedPrice && (
           <p className="text-primary font-bold text-xl mb-3">{formattedPrice}</p>
         )}
-        <div className="space-y-1.5 text-sm text-muted-foreground">
+        <div className="space-y-1.5 text-sm text-muted-foreground" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
           <p className="flex items-center gap-2">
-            <span className="text-primary font-medium">›</span>
+            <span className="w-1 h-1 rounded-full bg-primary inline-block"></span>
             <span>Kilometerstand: {formattedMileage} km</span>
           </p>
           <p className="flex items-center gap-2">
-            <span className="text-primary font-medium">›</span>
+            <span className="w-1 h-1 rounded-full bg-primary inline-block"></span>
             <span>Karosserieform: {vehicle.body_type || "–"}</span>
           </p>
           <p className="flex items-center gap-2">
-            <span className="text-primary font-medium">›</span>
+            <span className="w-1 h-1 rounded-full bg-primary inline-block"></span>
             <span>Baujahr: {vehicle.year || "–"}</span>
           </p>
           {vehicle.brand && (
             <p className="flex items-center gap-2">
-              <span className="text-primary font-medium">›</span>
+              <span className="w-1 h-1 rounded-full bg-primary inline-block"></span>
               <span>Marke: {vehicle.brand}{vehicle.model ? ` ${vehicle.model}` : ""}</span>
             </p>
           )}
