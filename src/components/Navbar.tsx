@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import FavoritesDrawer from "@/components/FavoritesDrawer";
+import rellerLogo from "@/assets/reller-logo.avif";
 
 const navLinks = [
   { label: "Fahrzeuge", href: "#", active: true },
