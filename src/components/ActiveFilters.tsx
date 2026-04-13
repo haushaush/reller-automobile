@@ -16,12 +16,25 @@ const filterLabels: Partial<Record<keyof Filters, string>> = {
   yearFrom: "Baujahr ab",
   yearTo: "Baujahr bis",
   search: "Suche",
+  fuel: "Kraftstoff",
+  powerFrom: "PS ab",
+  powerTo: "PS bis",
+  gearbox: "Getriebe",
+  priceFrom: "Preis ab",
+  priceTo: "Preis bis",
+  color: "Farbe",
+  status: "Status",
 };
 
+const selectFilters: (keyof Filters)[] = ["category", "brand", "bodyType", "fuel", "gearbox", "color", "status"];
+
 const ActiveFilters = ({ filters, onRemove, onResetAll }: ActiveFiltersProps) => {
-  const activeKeys = (Object.keys(filterLabels) as (keyof Filters)[]).filter(
-    (key) => filters[key] && filters[key] !== "all"
-  );
+  const activeKeys = (Object.keys(filterLabels) as (keyof Filters)[]).filter((key) => {
+    const v = filters[key];
+    if (!v) return false;
+    if (selectFilters.includes(key)) return v !== "all" && v !== "available";
+    return true;
+  });
 
   if (activeKeys.length === 0) return null;
 

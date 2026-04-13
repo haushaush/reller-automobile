@@ -202,15 +202,25 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Remove vehicles no longer in Mobile.de
+      // Soft-delete: mark vehicles no longer on Mobile.de as sold
       const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
-      const { error: deleteError } = await supabase
+      const { data: allDbVehicles } = await supabase
         .from("vehicles")
-        .delete()
-        .not("mobile_de_id", "in", `(${mobileDeIds.map((id) => `"${id}"`).join(",")})`);
+        .select("id, mobile_de_id, is_sold");
 
-      if (deleteError) {
-        console.error("Delete error:", deleteError);
+      if (allDbVehicles) {
+        const syncedSet = new Set(mobileDeIds);
+        const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
+        const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
+
+        for (const v of toMarkSold) {
+          await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
+        }
+        for (const v of toMarkAvailable) {
+          await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
+        }
+        if (toMarkSold.length > 0) console.log(`Marked ${toMarkSold.length} vehicles as sold`);
+        if (toMarkAvailable.length > 0) console.log(`Marked ${toMarkAvailable.length} vehicles as available again`);
       }
 
       // Record price history for vehicles with price changes

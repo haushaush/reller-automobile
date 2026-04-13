@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -6,7 +7,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react";
 
 export interface Filters {
   search: string;
@@ -18,6 +20,14 @@ export interface Filters {
   mileageFrom: string;
   mileageTo: string;
   sort: string;
+  fuel: string;
+  powerFrom: string;
+  powerTo: string;
+  gearbox: string;
+  priceFrom: string;
+  priceTo: string;
+  color: string;
+  status: string;
 }
 
 interface FilterBarProps {
@@ -26,9 +36,14 @@ interface FilterBarProps {
   brands: string[];
   bodyTypes: string[];
   categories?: string[];
+  fuels?: string[];
+  gearboxes?: string[];
+  colors?: string[];
 }
 
-const FilterBar = ({ filters, onFilterChange, brands, bodyTypes, categories }: FilterBarProps) => {
+const FilterBar = ({ filters, onFilterChange, brands, bodyTypes, categories, fuels, gearboxes, colors }: FilterBarProps) => {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   return (
     <div className="space-y-4">
       <div className="relative">
@@ -41,7 +56,7 @@ const FilterBar = ({ filters, onFilterChange, brands, bodyTypes, categories }: F
         />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Select value={filters.category} onValueChange={(v) => onFilterChange("category", v)}>
           <SelectTrigger className="bg-secondary border-border text-foreground">
             <SelectValue placeholder="Kategorie" />
@@ -103,6 +118,102 @@ const FilterBar = ({ filters, onFilterChange, brands, bodyTypes, categories }: F
             <SelectItem value="mileage-desc">KM absteigend</SelectItem>
             <SelectItem value="price-asc">Preis aufsteigend</SelectItem>
             <SelectItem value="price-desc">Preis absteigend</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Toggle advanced filters */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setShowAdvanced(!showAdvanced)}
+        className="text-muted-foreground hover:text-foreground text-xs gap-1.5"
+      >
+        <SlidersHorizontal className="h-3.5 w-3.5" />
+        Erweiterte Filter
+        {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+      </Button>
+
+      {/* Advanced filters row */}
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 overflow-hidden transition-all duration-300 ${
+          showAdvanced ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        <Select value={filters.fuel} onValueChange={(v) => onFilterChange("fuel", v)}>
+          <SelectTrigger className="bg-secondary border-border text-foreground">
+            <SelectValue placeholder="Kraftstoff" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Kraftstoffe</SelectItem>
+            {(fuels || []).map((f) => (
+              <SelectItem key={f} value={f}>{f}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Input
+          type="number"
+          placeholder="PS von"
+          value={filters.powerFrom}
+          onChange={(e) => onFilterChange("powerFrom", e.target.value)}
+          className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+        />
+        <Input
+          type="number"
+          placeholder="PS bis"
+          value={filters.powerTo}
+          onChange={(e) => onFilterChange("powerTo", e.target.value)}
+          className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+        />
+
+        <Select value={filters.gearbox} onValueChange={(v) => onFilterChange("gearbox", v)}>
+          <SelectTrigger className="bg-secondary border-border text-foreground">
+            <SelectValue placeholder="Getriebe" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Getriebe</SelectItem>
+            {(gearboxes || []).map((g) => (
+              <SelectItem key={g} value={g}>{g}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Input
+          type="number"
+          placeholder="Preis von €"
+          value={filters.priceFrom}
+          onChange={(e) => onFilterChange("priceFrom", e.target.value)}
+          className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+        />
+        <Input
+          type="number"
+          placeholder="Preis bis €"
+          value={filters.priceTo}
+          onChange={(e) => onFilterChange("priceTo", e.target.value)}
+          className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+        />
+
+        <Select value={filters.color} onValueChange={(v) => onFilterChange("color", v)}>
+          <SelectTrigger className="bg-secondary border-border text-foreground">
+            <SelectValue placeholder="Farbe" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Farben</SelectItem>
+            {(colors || []).map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filters.status} onValueChange={(v) => onFilterChange("status", v)}>
+          <SelectTrigger className="bg-secondary border-border text-foreground">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="available">Verfügbar</SelectItem>
+            <SelectItem value="sold">Verkauft</SelectItem>
+            <SelectItem value="all">Alle</SelectItem>
           </SelectContent>
         </Select>
       </div>

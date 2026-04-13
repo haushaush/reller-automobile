@@ -109,6 +109,7 @@ export type Database = {
           image_urls: string[] | null
           interior_color: string | null
           interior_type: string | null
+          is_sold: boolean
           mileage: number | null
           mobile_de_id: string
           model: string | null
@@ -120,6 +121,7 @@ export type Database = {
           price_type: string | null
           seller_city: string | null
           seller_zipcode: string | null
+          sold_at: string | null
           synced_at: string
           title: string
           updated_at: string
@@ -147,6 +149,7 @@ export type Database = {
           image_urls?: string[] | null
           interior_color?: string | null
           interior_type?: string | null
+          is_sold?: boolean
           mileage?: number | null
           mobile_de_id: string
           model?: string | null
@@ -158,6 +161,7 @@ export type Database = {
           price_type?: string | null
           seller_city?: string | null
           seller_zipcode?: string | null
+          sold_at?: string | null
           synced_at?: string
           title: string
           updated_at?: string
@@ -185,6 +189,7 @@ export type Database = {
           image_urls?: string[] | null
           interior_color?: string | null
           interior_type?: string | null
+          is_sold?: boolean
           mileage?: number | null
           mobile_de_id?: string
           model?: string | null
@@ -196,6 +201,7 @@ export type Database = {
           price_type?: string | null
           seller_city?: string | null
           seller_zipcode?: string | null
+          sold_at?: string | null
           synced_at?: string
           title?: string
           updated_at?: string

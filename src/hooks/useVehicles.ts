@@ -35,6 +35,8 @@ export interface Vehicle {
   modification_date: string | null;
   seller_city: string | null;
   seller_zipcode: string | null;
+  is_sold: boolean;
+  sold_at: string | null;
   synced_at: string;
 }
 
