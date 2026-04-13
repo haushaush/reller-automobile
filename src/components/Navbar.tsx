@@ -23,7 +23,7 @@ const Navbar = () => {
             <img
               src={rellerLogo}
               alt="Reller Automobile"
-              className="h-10 md:h-12 w-auto dark:invert"
+              className="h-10 md:h-12 w-auto invert light:invert-0"
             />
           </a>
 
