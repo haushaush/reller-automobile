@@ -22,21 +22,37 @@ const PriceHistoryWidget = ({ vehicle }: PriceHistoryWidgetProps) => {
   }, [history]);
 
   const marketComparison = useMemo(() => {
-    if (!allVehicles || !vehicle.brand || !vehicle.price) return null;
-    const yearNum = vehicle.year ? parseInt(vehicle.year) : null;
-    const similar = allVehicles.filter((v) => {
+    if (!allVehicles || !vehicle.brand || !vehicle.price || vehicle.price <= 0) return null;
+
+    const currentYear = parseInt(vehicle.year?.substring(0, 4) || "0");
+
+    const comparables = allVehicles.filter((v) => {
       if (v.id === vehicle.id) return false;
       if (v.brand !== vehicle.brand) return false;
-      if (!v.price) return false;
-      if (yearNum && v.year) {
-        const diff = Math.abs(parseInt(v.year) - yearNum);
-        if (diff > 3) return false;
+      if (v.price == null || v.price <= 0) return false;
+      if (currentYear > 0) {
+        const vYear = parseInt(v.year?.substring(0, 4) || "0");
+        if (vYear === 0) return false;
+        if (Math.abs(vYear - currentYear) > 3) return false;
       }
       return true;
     });
-    if (similar.length === 0) return null;
-    const avg = Math.round(similar.reduce((s, v) => s + (v.price || 0), 0) / similar.length);
-    return { avg, count: similar.length, diff: vehicle.price - avg };
+
+    if (comparables.length < 2) {
+      return { insufficient: true as const };
+    }
+
+    const avg = Math.round(
+      comparables.reduce((s, v) => s + (v.price || 0), 0) / comparables.length
+    );
+    const diff = vehicle.price - avg;
+    const diffPercent = (diff / avg) * 100;
+
+    let status: "above" | "below" | "average" = "average";
+    if (diffPercent > 5) status = "above";
+    else if (diffPercent < -5) status = "below";
+
+    return { insufficient: false as const, avg, count: comparables.length, diff, diffPercent, status };
   }, [allVehicles, vehicle]);
 
   const formattedPrice = vehicle.price
@@ -89,27 +105,35 @@ const PriceHistoryWidget = ({ vehicle }: PriceHistoryWidgetProps) => {
 
       {marketComparison && (
         <div className="pt-4 border-t border-border">
-          <p className="text-sm text-muted-foreground mb-1">
-            Durchschnittspreis ähnlicher {vehicle.brand}-Fahrzeuge ({marketComparison.count} Fahrzeuge):
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-foreground font-semibold">
-              {marketComparison.avg.toLocaleString("de-DE")} €
-            </span>
-            {marketComparison.diff < 0 ? (
-              <span className="flex items-center gap-1 text-green-400 text-sm">
-                <TrendingDown className="h-4 w-4" />
-                {Math.abs(marketComparison.diff).toLocaleString("de-DE")} € unter Durchschnitt
-              </span>
-            ) : marketComparison.diff > 0 ? (
-              <span className="flex items-center gap-1 text-red-400 text-sm">
-                <TrendingUp className="h-4 w-4" />
-                {marketComparison.diff.toLocaleString("de-DE")} € über Durchschnitt
-              </span>
-            ) : (
-              <span className="text-muted-foreground text-sm">Im Durchschnitt</span>
-            )}
-          </div>
+          {marketComparison.insufficient ? (
+            <p className="text-sm text-muted-foreground">
+              Nicht genügend Vergleichsfahrzeuge vorhanden.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground mb-1">
+                Durchschnittspreis ähnlicher {vehicle.brand}-Fahrzeuge ({marketComparison.count} Fahrzeuge):
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-foreground font-semibold">
+                  Ø {marketComparison.avg.toLocaleString("de-DE")} €
+                </span>
+                {marketComparison.status === "below" ? (
+                  <span className="flex items-center gap-1 text-green-500 text-sm">
+                    <TrendingDown className="h-4 w-4" />
+                    {Math.abs(marketComparison.diffPercent).toFixed(1)}% unter dem Durchschnitt
+                  </span>
+                ) : marketComparison.status === "above" ? (
+                  <span className="flex items-center gap-1 text-destructive text-sm">
+                    <TrendingUp className="h-4 w-4" />
+                    {marketComparison.diffPercent.toFixed(1)}% über dem Durchschnitt
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground text-sm">Im Durchschnitt</span>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
