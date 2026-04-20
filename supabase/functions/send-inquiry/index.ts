@@ -7,8 +7,8 @@ const corsHeaders = {
 
 const RESEND_GATEWAY = "https://connector-gateway.lovable.dev/resend";
 const FROM = "Reller Portal <onboarding@resend.dev>";
-const DEALER_EMAIL = Deno.env.get("DEALER_EMAIL") || "dennis@haushhaush.de";
-const INTERNAL_MONITORING_EMAIL = Deno.env.get("INTERNAL_MONITORING_EMAIL") || "admin@haushhaush.de";
+const DEALER_EMAIL_PRIMARY = Deno.env.get("DEALER_EMAIL_PRIMARY") || "dennis@haushhaush.de";
+const DEALER_EMAIL_SECONDARY = Deno.env.get("DEALER_EMAIL_SECONDARY") || "admin@haushhaush.de";
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://reller-automobile.lovable.app";
 
 interface ContactInput {
