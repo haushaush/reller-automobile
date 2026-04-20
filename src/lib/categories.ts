@@ -5,6 +5,7 @@ export interface CategoryDefinition {
   slug: CategorySlug;
   /** db vehicle_category values that map into this UI bucket */
   dbCategories: VehicleCategoryKey[];
+  eyebrow: string;
   title: string;
   shortTitle: string;
   description: string;
@@ -17,37 +18,40 @@ export const CATEGORIES: CategoryDefinition[] = [
   {
     slug: "oldtimer",
     dbCategories: ["oldtimer", "youngtimer"],
-    title: "Oldtimer, Youngtimer & Service",
+    eyebrow: "RESTAURIERT MIT LEIDENSCHAFT, GEPRÜFT FÜR DIE ZUKUNFT.",
+    title: "Oldtimer & Youngtimer",
     shortTitle: "Oldtimer & Youngtimer",
-    description:
-      "Ikonen wie Mercedes SL, Pagode oder Porsche 356 — mit internationalem Netzwerk und jahrzehntelanger Erfahrung.",
+    description: "",
     image:
       "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=1600&h=900&fit=crop&q=80",
   },
   {
     slug: "gebrauchtwagen",
     dbCategories: ["used"],
+    eyebrow: "GEPRÜFTE FAHRZEUGE, TRANSPARENTE PREISE",
     title: "Gebraucht- & Jahreswagen",
     shortTitle: "Gebrauchtwagen",
-    description: "Geprüfte Fahrzeuge, transparente Preise, schnelle Abwicklung.",
+    description: "",
     image:
       "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=1600&h=900&fit=crop&q=80",
   },
   {
     slug: "unfallwagen",
     dbCategories: ["accident"],
+    eyebrow: "TRANSPARENTE UNFALLFAHRZEUGE VOM FACHHÄNDLER",
     title: "Unfallwagen",
     shortTitle: "Unfallwagen",
-    description: "Transparente Unfallfahrzeuge direkt vom Fachhändler.",
+    description: "",
     image:
       "https://images.unsplash.com/photo-1597007030739-6d2e7172ee6c?w=1600&h=900&fit=crop&q=80",
   },
   {
     slug: "nutzfahrzeuge",
     dbCategories: ["commercial"],
+    eyebrow: "TRANSPORTER FÜR IHREN GESCHÄFTSALLTAG",
     title: "Nutzfahrzeuge",
     shortTitle: "Nutzfahrzeuge",
-    description: "Transporter, Vans und Kleinbusse für Ihren Geschäftsalltag.",
+    description: "",
     image:
       "https://images.unsplash.com/photo-1586244439413-bc2288941dda?w=1600&h=900&fit=crop&q=80",
   },
