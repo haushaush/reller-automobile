@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
@@ -28,7 +29,7 @@ const filterLabels: Partial<Record<keyof Filters, string>> = {
 
 const selectFilters: (keyof Filters)[] = ["category", "brand", "bodyType", "fuel", "gearbox", "color", "status"];
 
-const ActiveFilters = ({ filters, onRemove, onResetAll }: ActiveFiltersProps) => {
+const ActiveFilters = memo(({ filters, onRemove, onResetAll }: ActiveFiltersProps) => {
   const activeKeys = (Object.keys(filterLabels) as (keyof Filters)[]).filter((key) => {
     const v = filters[key];
     if (!v) return false;
@@ -61,6 +62,7 @@ const ActiveFilters = ({ filters, onRemove, onResetAll }: ActiveFiltersProps) =>
       </Button>
     </div>
   );
-};
+});
 
+ActiveFilters.displayName = "ActiveFilters";
 export default ActiveFilters;
