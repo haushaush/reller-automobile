@@ -12,6 +12,12 @@ import CategoryQuickTabs, { QuickTabOption } from "@/components/CategoryQuickTab
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  toLabelOptions,
+  getBodyTypeLabel,
+  getFuelLabel,
+  getGearboxLabel,
+} from "@/lib/mobileDeLabels";
 
 const ITEMS_PER_PAGE = 8;
 
@@ -150,7 +156,7 @@ const VehicleListGrid = ({
     [scopedVehicles]
   );
   const bodyTypes = useMemo(
-    () => [...new Set(scopedVehicles.map((v) => v.body_type).filter(Boolean) as string[])].sort(),
+    () => toLabelOptions(scopedVehicles.map((v) => v.body_type), getBodyTypeLabel),
     [scopedVehicles]
   );
   const categories = useMemo(
@@ -158,11 +164,11 @@ const VehicleListGrid = ({
     [scopedVehicles]
   );
   const fuels = useMemo(
-    () => [...new Set(scopedVehicles.map((v) => v.fuel).filter(Boolean) as string[])].sort(),
+    () => toLabelOptions(scopedVehicles.map((v) => v.fuel), getFuelLabel),
     [scopedVehicles]
   );
   const gearboxes = useMemo(
-    () => [...new Set(scopedVehicles.map((v) => v.gearbox).filter(Boolean) as string[])].sort(),
+    () => toLabelOptions(scopedVehicles.map((v) => v.gearbox), getGearboxLabel),
     [scopedVehicles]
   );
   const colors = useMemo(

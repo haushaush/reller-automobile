@@ -20,10 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Bell } from "lucide-react";
+import type { LabeledOption } from "@/components/FilterBar";
 
 interface VehicleAlertDialogProps {
   brands: string[];
-  bodyTypes: string[];
+  bodyTypes: LabeledOption[];
 }
 
 const categories = ["Oldtimer", "Gebrauchtwagen", "Unfallwagen", "Nutzfahrzeuge"];
@@ -117,7 +118,7 @@ const VehicleAlertDialog = ({ brands, bodyTypes }: VehicleAlertDialogProps) => {
               <SelectTrigger><SelectValue placeholder="Alle" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Karosserieformen</SelectItem>
-                {bodyTypes.map((bt) => <SelectItem key={bt} value={bt}>{bt}</SelectItem>)}
+                {bodyTypes.map((bt) => <SelectItem key={bt.raw} value={bt.raw}>{bt.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
