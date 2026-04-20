@@ -3,10 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Vehicle } from "@/hooks/useVehicles";
 import { useCompare } from "@/contexts/CompareContext";
 import { useFavoritesContext } from "@/contexts/FavoritesContext";
-import { Scale, Heart, ArrowRight } from "lucide-react";
+import { useInquiry, MAX_INQUIRY_ITEMS } from "@/contexts/InquiryContext";
+import { Scale, Heart, ArrowRight, Plus, Check } from "lucide-react";
 import ImageCarousel from "@/components/ImageCarousel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { decodeHtml } from "@/lib/decodeHtml";
+import { toast } from "sonner";
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -26,8 +28,10 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
   const navigate = useNavigate();
   const { add, remove, isSelected } = useCompare();
   const { toggleFavorite, isFavorite } = useFavoritesContext();
+  const { addToInquiry, removeFromInquiry, isInInquiry, inquiryCount } = useInquiry();
   const selected = isSelected(vehicle.id);
   const favorited = isFavorite(vehicle.id);
+  const inInquiry = isInInquiry(vehicle.id);
   const isSold = vehicle.is_sold;
 
   const images = vehicle.image_urls && vehicle.image_urls.length > 0
