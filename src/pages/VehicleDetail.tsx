@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useVehicle } from "@/hooks/useVehicle";
 import Navbar from "@/components/Navbar";
-import PriceHistoryWidget from "@/components/PriceHistoryWidget";
+
 import DealerLocation from "@/components/DealerLocation";
 import DownloadExposeButton from "@/components/DownloadExposeButton";
 import { Button } from "@/components/ui/button";
@@ -231,7 +231,6 @@ const VehicleDetail = () => {
               </div>
             </div>
 
-            <PriceHistoryWidget vehicle={vehicle} />
             <DealerLocation />
           </div>
         </div>
