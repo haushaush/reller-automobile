@@ -8,6 +8,7 @@ const corsHeaders = {
 const RESEND_GATEWAY = "https://connector-gateway.lovable.dev/resend";
 const FROM = "Reller Portal <onboarding@resend.dev>";
 const DEALER_EMAIL = Deno.env.get("DEALER_EMAIL") || "dennis@haushhaush.de";
+const INTERNAL_MONITORING_EMAIL = Deno.env.get("INTERNAL_MONITORING_EMAIL") || "admin@haushhaush.de";
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://reller-automobile.lovable.app";
 
 interface ContactInput {
@@ -235,6 +236,7 @@ async function sendResendMail(args: {
   subject: string;
   html: string;
   replyTo?: string;
+  bcc?: string[];
 }): Promise<{ ok: boolean; error?: string }> {
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   const resendKey = Deno.env.get("RESEND_API_KEY");
@@ -248,6 +250,7 @@ async function sendResendMail(args: {
     html: args.html,
   };
   if (args.replyTo) body.reply_to = args.replyTo;
+  if (args.bcc && args.bcc.length > 0) body.bcc = args.bcc;
 
   const res = await fetch(`${RESEND_GATEWAY}/emails`, {
     method: "POST",
@@ -385,6 +388,7 @@ Deno.serve(async (req) => {
       subject: subjectDealer,
       html: dealerHtml,
       replyTo: contact.email,
+      bcc: INTERNAL_MONITORING_EMAIL ? [INTERNAL_MONITORING_EMAIL] : undefined,
     }),
     sendResendMail({
       to: contact.email,
