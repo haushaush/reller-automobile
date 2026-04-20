@@ -7,19 +7,49 @@ const corsHeaders = {
 
 const ID_PREFIX = "accident_";
 
+function decodeHtmlEntities(text: string | undefined | null): string | undefined {
+  if (text === undefined || text === null) return undefined;
+  let result = text;
+  let previous = "";
+  let iterations = 0;
+  const maxIterations = 5;
+  while (result !== previous && iterations < maxIterations) {
+    previous = result;
+    result = result
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#039;/g, "'")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&auml;/g, "ä")
+      .replace(/&ouml;/g, "ö")
+      .replace(/&uuml;/g, "ü")
+      .replace(/&Auml;/g, "Ä")
+      .replace(/&Ouml;/g, "Ö")
+      .replace(/&Uuml;/g, "Ü")
+      .replace(/&szlig;/g, "ß")
+      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+    iterations++;
+  }
+  return result;
+}
+
 function attr(xml: string, tag: string, attribute: string): string | undefined {
   const regex = new RegExp(`<${tag}[^>]*?\\b${attribute}="([^"]*)"`, "i");
-  return xml.match(regex)?.[1]?.trim();
+  return decodeHtmlEntities(xml.match(regex)?.[1]?.trim());
 }
 
 function localDesc(xml: string, tag: string): string | undefined {
   const regex = new RegExp(`<${tag}[^>]*>\\s*<resource:local-description[^>]*>([^<]*)</resource:local-description>`, "i");
-  return xml.match(regex)?.[1]?.trim();
+  return decodeHtmlEntities(xml.match(regex)?.[1]?.trim());
 }
 
 function textContent(xml: string, tag: string): string | undefined {
   const regex = new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, "i");
-  const val = xml.match(regex)?.[1]?.trim();
+  const val = decodeHtmlEntities(xml.match(regex)?.[1]?.trim());
   return val || undefined;
 }
 
