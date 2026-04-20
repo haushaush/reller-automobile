@@ -6,6 +6,7 @@ import { useFavoritesContext } from "@/contexts/FavoritesContext";
 import { Scale, Heart, ArrowRight } from "lucide-react";
 import ImageCarousel from "@/components/ImageCarousel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { decodeHtml } from "@/lib/decodeHtml";
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -38,7 +39,9 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
     ? `${vehicle.price.toLocaleString("de-DE")} ${currencySymbol}`
     : null;
 
-  const modelTitle = vehicle.model_description?.trim() || stripBrandFromTitle(vehicle.title, vehicle.brand);
+  const decodedBrand = decodeHtml(vehicle.brand);
+  const decodedTitleSource = vehicle.model_description?.trim() || stripBrandFromTitle(vehicle.title, vehicle.brand);
+  const modelTitle = decodeHtml(decodedTitleSource);
 
   // Build spec chips (max 5)
   const chips: string[] = [];
@@ -135,12 +138,12 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
 
       <div className="px-5 py-4">
         {/* Brand */}
-        {vehicle.brand && (
+        {decodedBrand && (
           <p
             className="text-muted-foreground font-medium mb-1"
             style={{ fontSize: "12px", letterSpacing: "0.1em", textTransform: "uppercase" }}
           >
-            {vehicle.brand}
+            {decodedBrand}
           </p>
         )}
 
