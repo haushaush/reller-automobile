@@ -352,7 +352,7 @@ const VehicleListGrid = ({
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-6 mb-10">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="rounded-xl overflow-hidden bg-card border border-border">
               <Skeleton className="w-full aspect-video" />
@@ -366,7 +366,7 @@ const VehicleListGrid = ({
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-6 mb-10">
           {paginated.map((vehicle) => (
             <VehicleCard key={vehicle.id} vehicle={vehicle} />
           ))}

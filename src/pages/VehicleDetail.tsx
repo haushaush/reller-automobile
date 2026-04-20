@@ -24,6 +24,7 @@ const VehicleDetail = () => {
   const navigate = useNavigate();
   const { data: vehicle, isLoading } = useVehicle(id);
   const [selectedImage, setSelectedImage] = useState(0);
+  const touchStartX = useState<{ x: number }>({ x: 0 })[0];
   const { addToInquiry, removeFromInquiry, isInInquiry, inquiryCount } = useInquiry();
 
   if (isLoading) {
@@ -66,6 +67,17 @@ const VehicleDetail = () => {
     setSelectedImage((i) => (i - 1 + images.length) % images.length);
   const goNextImage = () => setSelectedImage((i) => (i + 1) % images.length);
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.x = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const delta = e.changedTouches[0].clientX - touchStartX.x;
+    if (Math.abs(delta) > 50) {
+      if (delta < 0) goNextImage();
+      else goPrevImage();
+    }
+  };
+
   const handleInquiry = () => {
     if (inquiryCount >= MAX_INQUIRY_ITEMS) {
       toast.error(`Maximal ${MAX_INQUIRY_ITEMS} Fahrzeuge pro Anfrage`);
@@ -97,37 +109,42 @@ const VehicleDetail = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" data-detail-page>
       <Navbar />
-      <div className="max-w-7xl mx-auto px-4 py-10 pb-32">
-        <Button onClick={() => navigate(-1)} variant="outline" size="sm" className="gap-1.5 mb-6">
+      {/* Add bottom padding for sticky CTA on mobile */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10 pb-[120px] lg:pb-12">
+        <Button onClick={() => navigate(-1)} variant="outline" size="sm" className="gap-1.5 mb-6 min-h-[44px]">
           <ArrowLeft className="h-4 w-4" /> Zurück
         </Button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Left: Images + Specs + Description */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Main image with arrows */}
-            <div className="relative rounded-xl overflow-hidden">
+            {/* Main image with arrows + swipe */}
+            <div
+              className="relative rounded-xl overflow-hidden bg-muted"
+              onTouchStart={images.length > 1 ? handleTouchStart : undefined}
+              onTouchEnd={images.length > 1 ? handleTouchEnd : undefined}
+            >
               <img
                 src={images[selectedImage]}
                 alt={vehicle.title}
                 loading="lazy"
-                className="w-full h-[400px] md:h-[500px] object-cover"
+                className="w-full h-[260px] sm:h-[400px] md:h-[500px] object-cover"
               />
               {images.length > 1 && (
                 <>
                   <button
                     onClick={goPrevImage}
                     aria-label="Vorheriges Bild"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+                    className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 h-11 w-11 sm:h-10 sm:w-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors"
                   >
                     <ChevronLeft className="h-5 w-5" />
                   </button>
                   <button
                     onClick={goNextImage}
                     aria-label="Nächstes Bild"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+                    className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 h-11 w-11 sm:h-10 sm:w-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors"
                   >
                     <ChevronRight className="h-5 w-5" />
                   </button>
@@ -138,9 +155,26 @@ const VehicleDetail = () => {
               )}
             </div>
 
+            {/* Mobile-first: Title + Price + Primary CTA appear here BEFORE specs (only on small screens) */}
+            <div className="lg:hidden bg-card border border-border rounded-xl p-5 space-y-3">
+              {vehicle.brand && (
+                <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                  {vehicle.brand}
+                </p>
+              )}
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground leading-tight">
+                {vehicle.title}
+              </h1>
+              {formattedPrice ? (
+                <p className="text-2xl sm:text-3xl font-bold text-primary">{formattedPrice}</p>
+              ) : (
+                <p className="text-lg font-semibold text-muted-foreground">Auf Anfrage</p>
+              )}
+            </div>
+
             {/* Thumbnails */}
             {images.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-2">
+              <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
                 {images.map((url, i) => (
                   <button
                     key={i}
@@ -156,17 +190,17 @@ const VehicleDetail = () => {
             )}
 
             {/* Specs */}
-            <div className="bg-card border border-border rounded-xl p-6">
+            <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">Technische Daten</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
                 {specs.map(([label, value]) =>
                   value ? (
                     <div
                       key={label}
-                      className="flex justify-between py-2 border-b border-border text-sm"
+                      className="flex justify-between py-2 border-b border-border text-sm gap-3"
                     >
                       <span className="text-muted-foreground">{label}</span>
-                      <span className="text-foreground font-medium">{value}</span>
+                      <span className="text-foreground font-medium text-right">{value}</span>
                     </div>
                   ) : null
                 )}
@@ -175,7 +209,7 @@ const VehicleDetail = () => {
 
             {/* Description */}
             {vehicle.description && (
-              <div className="bg-card border border-border rounded-xl p-6">
+              <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
                 <h3 className="text-lg font-semibold text-foreground mb-3">Beschreibung</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-line">
                   {vehicle.description}
@@ -184,30 +218,32 @@ const VehicleDetail = () => {
             )}
           </div>
 
-          {/* Right sidebar */}
-          <div className="space-y-6">
-            {/* Summary + Inquiry */}
-            <div className="bg-card border border-border rounded-xl p-6 space-y-4">
-              {vehicle.brand && (
-                <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                  {vehicle.brand}
-                </p>
-              )}
-              <h1 className="text-2xl font-bold text-foreground leading-tight">
-                {vehicle.title}
-              </h1>
-              {formattedPrice ? (
-                <p className="text-3xl font-bold text-primary">{formattedPrice}</p>
-              ) : (
-                <p className="text-xl font-semibold text-muted-foreground">Auf Anfrage</p>
-              )}
+          {/* Right sidebar — sticky on desktop, hidden header section on mobile (already shown above) */}
+          <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+            {/* Summary + Inquiry — full version on desktop, only actions on mobile */}
+            <div className="bg-card border border-border rounded-xl p-5 sm:p-6 space-y-4">
+              <div className="hidden lg:block space-y-4">
+                {vehicle.brand && (
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                    {vehicle.brand}
+                  </p>
+                )}
+                <h1 className="text-2xl font-bold text-foreground leading-tight">
+                  {vehicle.title}
+                </h1>
+                {formattedPrice ? (
+                  <p className="text-3xl font-bold text-primary">{formattedPrice}</p>
+                ) : (
+                  <p className="text-xl font-semibold text-muted-foreground">Auf Anfrage</p>
+                )}
+              </div>
 
               {!vehicle.is_sold && (
                 <Button
                   onClick={inInquiry ? () => removeFromInquiry(vehicle.id) : handleInquiry}
                   size="lg"
                   variant={inInquiry ? "outline" : "default"}
-                  className="w-full rounded-full gap-2 text-base font-semibold"
+                  className="w-full rounded-full gap-2 text-base font-semibold min-h-[48px]"
                 >
                   {inInquiry ? (
                     <>
@@ -243,6 +279,44 @@ const VehicleDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* Sticky bottom CTA — mobile/tablet only, hidden on lg+ where sidebar is sticky */}
+      {!vehicle.is_sold && (
+        <div
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-t border-border"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              {formattedPrice ? (
+                <p className="text-lg font-bold text-primary truncate">{formattedPrice}</p>
+              ) : (
+                <p className="text-sm font-semibold text-muted-foreground">Auf Anfrage</p>
+              )}
+              <p className="text-xs text-muted-foreground truncate">{vehicle.title}</p>
+            </div>
+            <Button
+              onClick={inInquiry ? () => removeFromInquiry(vehicle.id) : handleInquiry}
+              size="lg"
+              variant={inInquiry ? "outline" : "default"}
+              className="rounded-full gap-2 font-semibold min-h-[48px] shrink-0"
+            >
+              {inInquiry ? (
+                <>
+                  <Check className="h-4 w-4" />
+                  <span className="hidden sm:inline">In Anfrage</span>
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  <span className="hidden sm:inline">Anfragen</span>
+                  <span className="sm:hidden">Anfragen</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

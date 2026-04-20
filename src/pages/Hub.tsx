@@ -18,14 +18,14 @@ const Hub = () => {
       </header>
 
       <section className="max-w-5xl mx-auto px-4 mb-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           {CATEGORIES.map((cat) => {
             const count = counts?.[cat.slug];
             return (
               <Link
                 key={cat.slug}
                 to={`/fahrzeuge/${cat.slug}`}
-                className="group rounded-xl border border-border bg-card px-5 py-6 text-center hover:border-primary hover:-translate-y-0.5 transition-all"
+                className="group rounded-xl border border-border bg-card px-5 py-5 sm:py-6 text-center hover:border-primary hover:-translate-y-0.5 transition-all min-h-[88px] flex flex-col items-center justify-center"
               >
                 <h2
                   className="text-base md:text-lg font-semibold text-foreground"

@@ -115,7 +115,7 @@ const InquiryPage = () => {
           Wir melden uns innerhalb von 24 Stunden bei Ihnen.
         </p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr,1.2fr] gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr,1.2fr] gap-6 md:gap-8">
           {/* Left: vehicle list */}
           <section>
             <h2 className="text-lg font-semibold text-foreground mb-4">
@@ -358,7 +358,7 @@ const InquiryPage = () => {
               <Button
                 type="submit"
                 disabled={submitting || inquiryCount === 0}
-                className="w-full gap-2"
+                className="w-full gap-2 min-h-[48px]"
                 size="lg"
               >
                 {submitting ? (

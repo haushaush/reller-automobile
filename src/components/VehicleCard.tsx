@@ -109,12 +109,12 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
           </div>
         )}
 
-        {/* Favorite heart */}
+        {/* Favorite heart — larger touch target on mobile */}
         <div className="absolute top-3 right-3 z-30">
           {isSold ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <button className="p-2 rounded-full bg-background/80 text-muted-foreground cursor-not-allowed opacity-60">
+                <button className="p-2.5 rounded-full bg-background/80 text-muted-foreground cursor-not-allowed opacity-60 min-h-[44px] min-w-[44px] flex items-center justify-center">
                   <Heart className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
@@ -123,7 +123,8 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
           ) : (
             <button
               onClick={handleFavoriteClick}
-              className={`p-2 rounded-full transition-all ${
+              aria-label={favorited ? "Aus Favoriten entfernen" : "Zu Favoriten"}
+              className={`p-2.5 rounded-full transition-all min-h-[44px] min-w-[44px] flex items-center justify-center ${
                 favorited
                   ? "bg-red-500 text-white scale-110"
                   : "bg-background/80 text-white hover:bg-red-500 hover:text-white"
@@ -135,10 +136,11 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
           )}
         </div>
 
-        {/* Compare button */}
+        {/* Compare button — larger touch target */}
         <button
           onClick={handleCompareClick}
-          className={`absolute top-3 left-3 z-30 p-2 rounded-full transition-colors ${
+          aria-label={selected ? "Vom Vergleich entfernen" : "Zum Vergleich hinzufügen"}
+          className={`absolute top-3 left-3 z-30 p-2.5 rounded-full transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
             selected
               ? "bg-primary text-primary-foreground"
               : "bg-background/80 text-muted-foreground hover:bg-primary hover:text-primary-foreground"
@@ -149,7 +151,7 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
         </button>
       </div>
 
-      <div className="px-5 py-4">
+      <div className="px-4 sm:px-5 py-4">
         {/* Brand */}
         {decodedBrand && (
           <p
@@ -160,10 +162,10 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
           </p>
         )}
 
-        {/* Model / title */}
+        {/* Model / title — slightly smaller on mobile */}
         <h3
-          className="text-foreground font-semibold mb-3 leading-tight line-clamp-2"
-          style={{ fontSize: "18px", lineHeight: 1.3 }}
+          className="text-foreground font-semibold mb-3 leading-tight line-clamp-2 text-base sm:text-[18px]"
+          style={{ lineHeight: 1.3 }}
         >
           {modelTitle}
         </h3>
@@ -172,9 +174,8 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
         <div className="mb-4">
           {formattedPrice ? (
             <p
+              className="font-bold text-[20px] sm:text-[22px]"
               style={{
-                fontSize: "22px",
-                fontWeight: 700,
                 color: "hsl(var(--primary))",
                 lineHeight: 1.2,
               }}
@@ -182,7 +183,7 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
               {formattedPrice}
             </p>
           ) : (
-            <p className="text-muted-foreground font-medium" style={{ fontSize: "16px" }}>
+            <p className="text-muted-foreground font-medium text-[15px] sm:text-base">
               Auf Anfrage
             </p>
           )}

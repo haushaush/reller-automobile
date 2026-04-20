@@ -19,12 +19,12 @@ const Navbar = () => {
             <img
               src={rellerLogo}
               alt="Reller Automobile"
-              className="h-10 md:h-12 w-auto logo-adaptive"
+              className="h-9 sm:h-10 md:h-12 w-auto logo-adaptive"
             />
           </Link>
 
-          {/* Center: Nav links */}
-          <div className="hidden md:flex items-center justify-center gap-1">
+          {/* Center: Nav links — only on lg+ (1024px+) to avoid cramped tablet rendering */}
+          <div className="hidden lg:flex items-center justify-center gap-1">
             {CATEGORIES.map((cat) => (
               <Link
                 key={cat.slug}
@@ -46,15 +46,16 @@ const Navbar = () => {
           </div>
 
           {/* Right: Actions */}
-          <div className="flex items-center gap-2 justify-end">
+          <div className="flex items-center gap-1 sm:gap-2 justify-end">
             <ThemeToggle />
             <FavoritesDrawer />
             <InquiryNavButton />
 
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="md:hidden p-2 text-foreground"
+              className="lg:hidden p-2.5 text-foreground min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="Menü"
+              aria-expanded={mobileOpen}
             >
               {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
@@ -63,13 +64,13 @@ const Navbar = () => {
       </div>
 
       {mobileOpen && (
-        <div className="md:hidden border-t border-border bg-background">
+        <div className="lg:hidden border-t border-border bg-background">
           <div className="px-4 py-4 space-y-1">
             {CATEGORIES.map((cat) => (
               <Link
                 key={cat.slug}
                 to={`/fahrzeuge/${cat.slug}`}
-                className="block px-4 py-3 text-sm font-medium text-foreground hover:bg-secondary transition-colors rounded-md"
+                className="block px-4 py-3 text-sm font-medium text-foreground hover:bg-secondary transition-colors rounded-md min-h-[44px]"
                 onClick={() => setMobileOpen(false)}
               >
                 {cat.title}
@@ -78,7 +79,7 @@ const Navbar = () => {
             <div className="border-t border-border my-2" />
             <a
               href="https://reller-automobile.de"
-              className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md"
+              className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md min-h-[44px]"
               onClick={() => setMobileOpen(false)}
             >
               <ArrowLeft className="h-4 w-4" />
