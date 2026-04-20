@@ -73,10 +73,15 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
   return (
     <div
       onClick={() => navigate(`/fahrzeug/${vehicle.id}`)}
-      className={`group rounded-xl overflow-hidden bg-card border transition-all duration-300 hover:-translate-y-1 cursor-pointer ${
-        selected ? "border-primary shadow-[0_0_15px_hsl(var(--primary)/0.3)]" : "border-border hover:border-primary/30"
+      className={`group rounded-xl overflow-hidden bg-card border cursor-pointer ${
+        selected
+          ? "border-primary shadow-[0_0_15px_hsl(var(--primary)/0.3)]"
+          : "border-border hover:border-[hsl(var(--primary)/0.2)] shadow-[0_2px_8px_rgba(0,0,0,0.1)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.15)]"
       }`}
-      style={isSold ? { filter: "grayscale(40%) opacity(0.85)" } : undefined}
+      style={{
+        transition: "all 200ms ease",
+        ...(isSold ? { filter: "grayscale(40%) opacity(0.85)" } : {}),
+      }}
     >
       <div className="relative">
         <ImageCarousel images={images} alt={vehicle.title} vehicleId={vehicle.id} totalImages={vehicle.image_urls?.length} />
