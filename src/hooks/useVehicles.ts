@@ -38,6 +38,7 @@ export interface Vehicle {
   is_sold: boolean;
   sold_at: string | null;
   synced_at: string;
+  vehicle_category: string | null;
 }
 
 async function fetchVehicles(): Promise<Vehicle[]> {
