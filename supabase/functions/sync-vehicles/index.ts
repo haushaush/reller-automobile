@@ -71,6 +71,26 @@ interface VehicleRow {
   seller_city: string | null;
   seller_zipcode: string | null;
   synced_at: string;
+  vehicle_category: string;
+}
+
+const COMMERCIAL_BODY_TYPES = new Set([
+  "Van", "Transporter", "Kastenwagen", "Pritschenwagen",
+  "Kleinbus", "LKW", "Sattelzugmaschine", "Kipper",
+]);
+
+function deriveCategory(bodyType: string | null, category: string | null, year: string | null, isAccident: boolean): string {
+  if (isAccident) return "accident";
+  if (bodyType && COMMERCIAL_BODY_TYPES.has(bodyType)) return "commercial";
+  const cat = (category || "").toLowerCase();
+  if (cat.includes("transporter") || cat.includes("nutzfahrzeug")) return "commercial";
+  if (year && /^\d{4}/.test(year)) {
+    const y = parseInt(year.substring(0, 4), 10);
+    const now = new Date().getFullYear();
+    if (y <= now - 30) return "oldtimer";
+    if (y <= now - 20) return "youngtimer";
+  }
+  return "used";
 }
 
 function parseAds(xmlText: string): VehicleRow[] {
