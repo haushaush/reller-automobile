@@ -33,8 +33,9 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
     ? vehicle.image_urls
     : ["https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&h=450&fit=crop"];
 
+  const currencySymbol = !vehicle.currency || vehicle.currency.toUpperCase() === "EUR" ? "€" : vehicle.currency;
   const formattedPrice = vehicle.price
-    ? vehicle.price.toLocaleString("de-DE") + " " + (vehicle.currency || "€")
+    ? `${vehicle.price.toLocaleString("de-DE")} ${currencySymbol}`
     : null;
 
   const modelTitle = vehicle.model_description?.trim() || stripBrandFromTitle(vehicle.title, vehicle.brand);
@@ -150,11 +151,16 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
         <div className="mb-4">
           {formattedPrice ? (
             <span
-              className="inline-block bg-white/[0.08] text-foreground font-bold"
+              className="text-foreground"
               style={{
-                padding: "6px 16px",
-                borderRadius: "20px",
+                display: "inline-flex",
+                alignItems: "center",
+                width: "fit-content",
+                backgroundColor: "hsl(var(--secondary))",
+                padding: "8px 18px",
+                borderRadius: "24px",
                 fontSize: "18px",
+                fontWeight: 700,
               }}
             >
               {formattedPrice}
@@ -168,16 +174,26 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
 
         {/* Spec chips */}
         {visibleChips.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              justifyContent: "flex-start",
+            }}
+          >
             {visibleChips.map((chip, i) => (
               <span
                 key={i}
-                className="text-muted-foreground bg-white/[0.05] border border-white/[0.08]"
                 style={{
-                  padding: "6px 12px",
-                  borderRadius: "16px",
+                  backgroundColor: "hsl(var(--secondary))",
+                  border: "1px solid hsl(var(--border))",
+                  color: "hsl(var(--muted-foreground))",
+                  padding: "6px 14px",
+                  borderRadius: "20px",
                   fontSize: "13px",
                   fontWeight: 400,
+                  display: "inline-block",
                 }}
               >
                 {chip}
