@@ -19,7 +19,10 @@ const Navbar = () => {
             <img
               src={rellerLogo}
               alt="Reller Automobile"
-              className="h-9 sm:h-10 md:h-12 w-auto logo-adaptive"
+              className="h-9 sm:h-10 md:h-12 w-auto object-contain logo-adaptive"
+              style={{ aspectRatio: "auto" }}
+              loading="eager"
+              decoding="async"
             />
           </Link>
 

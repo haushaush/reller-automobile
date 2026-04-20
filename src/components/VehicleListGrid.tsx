@@ -12,14 +12,13 @@ import CategoryQuickTabs, { QuickTabOption } from "@/components/CategoryQuickTab
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useItemsPerPage } from "@/hooks/useItemsPerPage";
 import {
   toLabelOptions,
   getBodyTypeLabel,
   getFuelLabel,
   getGearboxLabel,
 } from "@/lib/mobileDeLabels";
-
-const ITEMS_PER_PAGE = 8;
 
 const defaultFilters: Filters = {
   search: "",
@@ -114,6 +113,7 @@ const VehicleListGrid = ({
 }: VehicleListGridProps) => {
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = useItemsPerPage();
   const [activeTabKey, setActiveTabKey] = useState<string>(
     quickTabs && quickTabs.length > 0 ? quickTabs[0].key : ""
   );
@@ -276,11 +276,16 @@ const VehicleListGrid = ({
     return result;
   }, [filters, searched, isSearchActive]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const paginated = filtered.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
+
+  // If viewport changes shrink the page count below the active page, snap back to 1
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(1);
+  }, [itemsPerPage, totalPages, currentPage]);
 
   // Scroll AFTER state commit so first click works reliably
   useEffect(() => {
@@ -352,8 +357,8 @@ const VehicleListGrid = ({
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-6 mb-10">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6 mb-10">
+          {Array.from({ length: itemsPerPage }).map((_, i) => (
             <div key={i} className="rounded-xl overflow-hidden bg-card border border-border">
               <Skeleton className="w-full aspect-video" />
               <div className="p-5 space-y-3">
@@ -366,7 +371,7 @@ const VehicleListGrid = ({
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-6 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6 mb-10">
           {paginated.map((vehicle) => (
             <VehicleCard key={vehicle.id} vehicle={vehicle} />
           ))}
@@ -378,7 +383,7 @@ const VehicleListGrid = ({
         </div>
       )}
 
-      {filtered.length > ITEMS_PER_PAGE && (
+      {filtered.length > itemsPerPage && (
         <div className="flex items-center justify-center gap-4">
           <Button
             variant="outline"
