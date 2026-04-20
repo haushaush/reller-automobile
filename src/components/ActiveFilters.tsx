@@ -3,6 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { Filters } from "@/components/FilterBar";
+import {
+  getBodyTypeLabel,
+  getFuelLabel,
+  getGearboxLabel,
+} from "@/lib/mobileDeLabels";
 
 interface ActiveFiltersProps {
   filters: Filters;
@@ -29,6 +34,20 @@ const filterLabels: Partial<Record<keyof Filters, string>> = {
 
 const selectFilters: (keyof Filters)[] = ["category", "brand", "bodyType", "fuel", "gearbox", "color", "status"];
 
+/** Wandelt den gespeicherten Raw-Filterwert in das lesbare Label fürs Chip um. */
+function displayValue(key: keyof Filters, value: string): string {
+  switch (key) {
+    case "bodyType":
+      return getBodyTypeLabel(value);
+    case "fuel":
+      return getFuelLabel(value);
+    case "gearbox":
+      return getGearboxLabel(value);
+    default:
+      return value;
+  }
+}
+
 const ActiveFilters = memo(({ filters, onRemove, onResetAll }: ActiveFiltersProps) => {
   const activeKeys = (Object.keys(filterLabels) as (keyof Filters)[]).filter((key) => {
     const v = filters[key];
@@ -48,7 +67,7 @@ const ActiveFilters = memo(({ filters, onRemove, onResetAll }: ActiveFiltersProp
           className="gap-1 px-3 py-1.5 text-xs bg-primary/20 text-primary border-primary/30 hover:bg-primary/30 cursor-pointer"
           onClick={() => onRemove(key)}
         >
-          {filterLabels[key]}: {filters[key]}
+          {filterLabels[key]}: {displayValue(key, filters[key])}
           <X className="h-3 w-3" />
         </Badge>
       ))}
@@ -66,3 +85,4 @@ const ActiveFilters = memo(({ filters, onRemove, onResetAll }: ActiveFiltersProp
 
 ActiveFilters.displayName = "ActiveFilters";
 export default ActiveFilters;
+

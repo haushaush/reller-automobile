@@ -12,6 +12,12 @@ import CategoryQuickTabs, { QuickTabOption } from "@/components/CategoryQuickTab
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  toLabelOptions,
+  getBodyTypeLabel,
+  getFuelLabel,
+  getGearboxLabel,
+} from "@/lib/mobileDeLabels";
 
 const ITEMS_PER_PAGE = 8;
 

@@ -10,6 +10,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Send, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useInquiry, MAX_INQUIRY_ITEMS } from "@/contexts/InquiryContext";
 import { toast } from "sonner";
+import {
+  getBodyTypeLabel,
+  getFuelLabel,
+  getGearboxLabel,
+  getClimatisationLabel,
+  getConditionLabel,
+  getInteriorTypeLabel,
+} from "@/lib/mobileDeLabels";
 
 const VehicleDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -74,15 +82,15 @@ const VehicleDetail = () => {
     ["Kilometerstand", vehicle.mileage ? vehicle.mileage.toLocaleString("de-DE") + " km" : null],
     ["Leistung", vehicle.power ? `${vehicle.power} kW (${ps} PS)` : null],
     ["Hubraum", vehicle.cubic_capacity ? vehicle.cubic_capacity.toLocaleString("de-DE") + " cm³" : null],
-    ["Getriebe", vehicle.gearbox],
-    ["Kraftstoff", vehicle.fuel],
-    ["Karosserie", vehicle.body_type],
+    ["Getriebe", vehicle.gearbox ? getGearboxLabel(vehicle.gearbox) : null],
+    ["Kraftstoff", vehicle.fuel ? getFuelLabel(vehicle.fuel) : null],
+    ["Karosserie", vehicle.body_type ? getBodyTypeLabel(vehicle.body_type) : null],
     ["Farbe außen", vehicle.exterior_color],
     ["Farbe innen", vehicle.interior_color],
-    ["Interieur", vehicle.interior_type],
+    ["Interieur", vehicle.interior_type ? getInteriorTypeLabel(vehicle.interior_type) : null],
     ["Sitze", vehicle.num_seats?.toString() || null],
-    ["Klimaanlage", vehicle.climatisation],
-    ["Zustand", vehicle.condition],
+    ["Klimaanlage", vehicle.climatisation ? getClimatisationLabel(vehicle.climatisation) : null],
+    ["Zustand", vehicle.condition ? getConditionLabel(vehicle.condition) : null],
     ["Nutzungsart", vehicle.usage_type],
     ["Unfallschaden", vehicle.damage_unrepaired === true ? "Ja" : vehicle.damage_unrepaired === false ? "Nein" : null],
     ["MwSt. ausweisbar", vehicle.vatable === true ? "Ja" : vehicle.vatable === false ? "Nein" : null],

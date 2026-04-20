@@ -4,6 +4,13 @@ import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, X, ArrowRight } from "lucide-react";
 import type { Vehicle } from "@/hooks/useVehicles";
+import {
+  getBodyTypeLabel,
+  getFuelLabel,
+  getGearboxLabel,
+  getClimatisationLabel,
+  getConditionLabel,
+} from "@/lib/mobileDeLabels";
 
 function formatPrice(v: Vehicle): string {
   if (!v.price) return "Auf Anfrage";
@@ -47,14 +54,14 @@ const rows: RowDef[] = [
   { label: "Kilometerstand", icon: "🛣", getValue: formatMileage, getNumeric: (v) => v.mileage ?? null, best: "min" },
   { label: "Leistung", icon: "⚡", getValue: formatPower, getNumeric: (v) => v.power ?? null, best: "max" },
   { label: "Hubraum", icon: "🔧", getValue: formatCubicCapacity },
-  { label: "Getriebe", icon: "⚙", getValue: (v) => v.gearbox || "–" },
-  { label: "Kraftstoff", icon: "⛽", getValue: (v) => v.fuel || "–" },
+  { label: "Getriebe", icon: "⚙", getValue: (v) => getGearboxLabel(v.gearbox) },
+  { label: "Kraftstoff", icon: "⛽", getValue: (v) => getFuelLabel(v.fuel) },
   { label: "Farbe (außen)", icon: "🎨", getValue: (v) => v.exterior_color || "–" },
   { label: "Farbe (innen)", icon: "🪑", getValue: (v) => v.interior_color || "–" },
-  { label: "Karosserie", icon: "🚗", getValue: (v) => v.body_type || "–" },
-  { label: "Zustand", icon: "✓", getValue: (v) => v.condition || "–" },
+  { label: "Karosserie", icon: "🚗", getValue: (v) => getBodyTypeLabel(v.body_type) },
+  { label: "Zustand", icon: "✓", getValue: (v) => getConditionLabel(v.condition) },
   { label: "Sitze", icon: "💺", getValue: (v) => v.num_seats?.toString() || "–" },
-  { label: "Klimaanlage", icon: "❄", getValue: (v) => v.climatisation || "–" },
+  { label: "Klimaanlage", icon: "❄", getValue: (v) => getClimatisationLabel(v.climatisation) },
 ];
 
 function getBestIndices(vehicles: Vehicle[], row: RowDef): Set<number> {

@@ -7,6 +7,13 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { Vehicle } from "@/hooks/useVehicles";
+import {
+  getBodyTypeLabel,
+  getFuelLabel,
+  getGearboxLabel,
+  getClimatisationLabel,
+  getConditionLabel,
+} from "@/lib/mobileDeLabels";
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: "Helvetica", fontSize: 10, color: "#222" },
@@ -44,14 +51,14 @@ const VehicleExpose = ({ vehicle }: VehicleExposeProps) => {
     ["Kilometerstand", vehicle.mileage ? vehicle.mileage.toLocaleString("de-DE") + " km" : "–"],
     ["Leistung", vehicle.power ? `${vehicle.power} kW (${ps} PS)` : "–"],
     ["Hubraum", vehicle.cubic_capacity ? vehicle.cubic_capacity.toLocaleString("de-DE") + " cm³" : "–"],
-    ["Getriebe", vehicle.gearbox || "–"],
-    ["Kraftstoff", vehicle.fuel || "–"],
-    ["Karosserie", vehicle.body_type || "–"],
+    ["Getriebe", vehicle.gearbox ? getGearboxLabel(vehicle.gearbox) : "–"],
+    ["Kraftstoff", vehicle.fuel ? getFuelLabel(vehicle.fuel) : "–"],
+    ["Karosserie", vehicle.body_type ? getBodyTypeLabel(vehicle.body_type) : "–"],
     ["Farbe außen", vehicle.exterior_color || "–"],
     ["Farbe innen", vehicle.interior_color || "–"],
     ["Sitze", vehicle.num_seats?.toString() || "–"],
-    ["Klimaanlage", vehicle.climatisation || "–"],
-    ["Zustand", vehicle.condition || "–"],
+    ["Klimaanlage", vehicle.climatisation ? getClimatisationLabel(vehicle.climatisation) : "–"],
+    ["Zustand", vehicle.condition ? getConditionLabel(vehicle.condition) : "–"],
     ["MwSt. ausweisbar", vehicle.vatable === true ? "Ja" : vehicle.vatable === false ? "Nein" : "–"],
   ];
 
