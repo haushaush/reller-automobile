@@ -113,6 +113,7 @@ const VehicleListGrid = ({
 }: VehicleListGridProps) => {
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = useItemsPerPage();
   const [activeTabKey, setActiveTabKey] = useState<string>(
     quickTabs && quickTabs.length > 0 ? quickTabs[0].key : ""
   );
@@ -275,11 +276,16 @@ const VehicleListGrid = ({
     return result;
   }, [filters, searched, isSearchActive]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const paginated = filtered.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
+
+  // If viewport changes shrink the page count below the active page, snap back to 1
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(1);
+  }, [itemsPerPage, totalPages, currentPage]);
 
   // Scroll AFTER state commit so first click works reliably
   useEffect(() => {
