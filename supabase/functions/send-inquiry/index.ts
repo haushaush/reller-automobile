@@ -7,8 +7,8 @@ const corsHeaders = {
 
 const RESEND_GATEWAY = "https://connector-gateway.lovable.dev/resend";
 const FROM = "Reller Portal <onboarding@resend.dev>";
-const DEALER_EMAIL = Deno.env.get("DEALER_EMAIL") || "dennis@haushhaush.de";
-const INTERNAL_MONITORING_EMAIL = Deno.env.get("INTERNAL_MONITORING_EMAIL") || "admin@haushhaush.de";
+const DEALER_EMAIL_PRIMARY = Deno.env.get("DEALER_EMAIL_PRIMARY") || "dennis@haushhaush.de";
+const DEALER_EMAIL_SECONDARY = Deno.env.get("DEALER_EMAIL_SECONDARY") || "admin@haushhaush.de";
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://reller-automobile.lovable.app";
 
 interface ContactInput {
@@ -232,7 +232,7 @@ function customerEmailHtml(contact: ContactInput, vehicles: VehicleRow[]): strin
 }
 
 async function sendResendMail(args: {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   replyTo?: string;
@@ -245,7 +245,7 @@ async function sendResendMail(args: {
 
   const body: Record<string, unknown> = {
     from: FROM,
-    to: [args.to],
+    to: Array.isArray(args.to) ? args.to : [args.to],
     subject: args.subject,
     html: args.html,
   };
@@ -382,13 +382,17 @@ Deno.serve(async (req) => {
   const dealerHtml = dealerEmailHtml(contact, vehicles as VehicleRow[], message ?? null, inquiry.id);
   const customerHtml = customerEmailHtml(contact, vehicles as VehicleRow[]);
 
+  const dealerRecipients = [DEALER_EMAIL_PRIMARY];
+  if (DEALER_EMAIL_SECONDARY && DEALER_EMAIL_SECONDARY !== DEALER_EMAIL_PRIMARY) {
+    dealerRecipients.push(DEALER_EMAIL_SECONDARY);
+  }
+
   const [dealerRes, customerRes] = await Promise.all([
     sendResendMail({
-      to: DEALER_EMAIL,
+      to: dealerRecipients,
       subject: subjectDealer,
       html: dealerHtml,
       replyTo: contact.email,
-      bcc: INTERNAL_MONITORING_EMAIL ? [INTERNAL_MONITORING_EMAIL] : undefined,
     }),
     sendResendMail({
       to: contact.email,
