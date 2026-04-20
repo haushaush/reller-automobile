@@ -103,9 +103,22 @@ const OldtimerPage = () => {
   const { data: dbVehicles, isLoading, isError } = useVehicles();
 
   // Preload leather background image
-  useEffect(() => {
+useEffect(() => {
     const img = new Image();
     img.src = LEATHER_BG;
+  }, []);
+
+  // Force dark mode while on oldtimer route; restore user preference on leave
+  useEffect(() => {
+    const root = document.documentElement;
+    const previous = root.classList.contains("light") ? "light" : "dark";
+    root.classList.remove("light");
+    root.classList.add("dark");
+    return () => {
+      const stored = (localStorage.getItem("theme") as "light" | "dark" | null) ?? previous;
+      root.classList.remove("dark", "light");
+      root.classList.add(stored);
+    };
   }, []);
 
   const allVehicles = useMemo(() => {
@@ -270,8 +283,7 @@ const OldtimerPage = () => {
               fontFamily: "'DM Sans', sans-serif",
               fontSize: "11px",
               fontWeight: 500,
-              color: TEXT_MUTED,
-              opacity: 0.8,
+              color: "rgba(245, 241, 237, 0.95)",
               letterSpacing: "0.25em",
               textTransform: "uppercase",
               marginBottom: "32px",
@@ -284,7 +296,8 @@ const OldtimerPage = () => {
             style={{
               fontFamily: "'Playfair Display', serif",
               fontWeight: 500,
-              color: TEXT_WARM,
+              color: "#ffffff",
+              textShadow: "0 2px 20px rgba(0, 0, 0, 0.4)",
               lineHeight: 1.15,
               letterSpacing: "-0.01em",
               marginBottom: "28px",
@@ -301,8 +314,7 @@ const OldtimerPage = () => {
               fontFamily: "'DM Sans', sans-serif",
               fontSize: "15px",
               fontWeight: 400,
-              color: TEXT_MUTED,
-              opacity: 0.7,
+              color: "rgba(245, 241, 237, 0.9)",
               lineHeight: 1.6,
               maxWidth: "580px",
               margin: "0 auto",
