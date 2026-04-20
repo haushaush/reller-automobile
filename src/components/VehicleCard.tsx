@@ -72,9 +72,18 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
     if (!isSold) navigate(`/fahrzeug/${vehicle.id}`);
   };
 
-  const handleSecondaryClick = (e: React.MouseEvent) => {
+  const handleInquiryClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/fahrzeug/${vehicle.id}`);
+    if (isSold) return;
+    if (inInquiry) {
+      removeFromInquiry(vehicle.id);
+      return;
+    }
+    if (inquiryCount >= MAX_INQUIRY_ITEMS) {
+      toast.error(`Maximal ${MAX_INQUIRY_ITEMS} Fahrzeuge pro Anfrage`);
+      return;
+    }
+    addToInquiry(vehicle);
   };
 
   return (
