@@ -232,7 +232,7 @@ function customerEmailHtml(contact: ContactInput, vehicles: VehicleRow[]): strin
 }
 
 async function sendResendMail(args: {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   replyTo?: string;
@@ -245,7 +245,7 @@ async function sendResendMail(args: {
 
   const body: Record<string, unknown> = {
     from: FROM,
-    to: [args.to],
+    to: Array.isArray(args.to) ? args.to : [args.to],
     subject: args.subject,
     html: args.html,
   };
