@@ -7,7 +7,9 @@ const InquiryBar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Hide on /anfrage routes (we already see the list there)
+  // Hide on /anfrage routes (already see the list there) and on detail pages on mobile
+  // (the detail page has its own sticky CTA — only ONE sticky bar at a time on mobile).
+  const isDetailRoute = location.pathname.startsWith("/fahrzeug/");
   if (inquiryCount === 0 || location.pathname.startsWith("/anfrage")) {
     return null;
   }
@@ -17,10 +19,13 @@ const InquiryBar = () => {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-md animate-in slide-in-from-bottom-4 duration-300"
+      className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-md animate-in slide-in-from-bottom-4 duration-300 ${
+        isDetailRoute ? "hidden lg:block" : ""
+      }`}
       style={{
         background: "rgba(0, 13, 20, 0.92)",
         borderTopColor: "rgba(218, 27, 30, 0.3)",
+        paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 md:py-4">

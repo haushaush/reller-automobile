@@ -98,31 +98,33 @@ const ComparePage = () => {
   }
 
   const count = selected.length;
-  const labelColWidth = count === 2 ? "280px" : count === 3 ? "240px" : "200px";
-  const gridTemplate = `${labelColWidth} ${"1fr ".repeat(count).trim()}`;
+  // Mobile-first column widths: label column smaller, vehicle cols min 220px
+  const labelColWidthDesktop = count === 2 ? "260px" : count === 3 ? "220px" : "180px";
+  const labelColWidthMobile = "120px";
+  const vehicleColMinMobile = "220px";
   const titleSize = count === 2 ? "text-base" : "text-sm";
-  const priceSize = count === 2 ? "text-[22px]" : "text-lg";
-  const valueSize = count === 2 ? "text-[15px]" : "text-[13px]";
+  const priceSize = count === 2 ? "text-[20px] sm:text-[22px]" : "text-base sm:text-lg";
+  const valueSize = count === 2 ? "text-[14px] sm:text-[15px]" : "text-[12px] sm:text-[13px]";
 
   const ACCENT = "hsl(var(--primary))";
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="mx-auto px-4 md:px-8 py-10" style={{ maxWidth: "1400px" }}>
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10" style={{ maxWidth: "1400px" }}>
         {/* Header */}
-        <div className="flex items-start justify-between mb-10 gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
+        <div className="flex items-start justify-between mb-6 md:mb-10 gap-3 flex-wrap">
+          <div className="flex items-center gap-3 md:gap-4 min-w-0">
             <Button
-              onClick={() => navigate("/")}
+              onClick={() => navigate(-1)}
               variant="outline"
               size="sm"
-              className="gap-1.5"
+              className="gap-1.5 min-h-[44px] shrink-0"
             >
-              <ArrowLeft className="h-4 w-4" /> Zurück
+              <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Zurück</span>
             </Button>
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground tracking-tight">
                 Fahrzeugvergleich
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
@@ -137,25 +139,37 @@ const ComparePage = () => {
               clear();
               navigate("/");
             }}
-            className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive min-h-[44px]"
           >
             Auswahl leeren
           </Button>
         </div>
 
-        {/* Scrollable container */}
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          <div style={{ minWidth: count === 2 ? "640px" : count === 3 ? "820px" : "1000px" }}>
+        {/* Scroll hint for mobile when 3+ vehicles */}
+        {count >= 3 && (
+          <p className="md:hidden text-xs text-muted-foreground italic mb-3 text-center">
+            ← Nach rechts wischen für weitere Fahrzeuge →
+          </p>
+        )}
+
+        {/* Scrollable container with sticky label column */}
+        <div className="overflow-x-auto -mx-4 px-0 md:mx-0">
+          <div
+            className="compare-grid"
+            style={{
+              minWidth: count === 2 ? "560px" : count === 3 ? "780px" : "980px",
+              ["--label-col" as string]: labelColWidthMobile,
+              ["--label-col-md" as string]: labelColWidthDesktop,
+              ["--vehicle-col" as string]: vehicleColMinMobile,
+            }}
+          >
             {/* Vehicle header row */}
-            <div
-              className="grid gap-3 md:gap-4 mb-2"
-              style={{ gridTemplateColumns: gridTemplate }}
-            >
-              <div /> {/* empty corner */}
+            <div className="compare-row mb-2">
+              <div className="compare-label-cell" /> {/* empty corner */}
               {selected.map((v) => {
                 const img = v.image_urls?.[0] || "/placeholder.svg";
                 return (
-                  <div key={v.id}>
+                  <div key={v.id} className="px-3 md:px-0">
                     <div
                       className="relative overflow-hidden group"
                       style={{
@@ -175,10 +189,10 @@ const ComparePage = () => {
                           e.stopPropagation();
                           remove(v.id);
                         }}
-                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 hover:bg-destructive text-white flex items-center justify-center transition-colors backdrop-blur-sm"
+                        className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 hover:bg-destructive text-white flex items-center justify-center transition-colors backdrop-blur-sm"
                         aria-label="Entfernen"
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="h-4 w-4" />
                       </button>
                     </div>
                     <p
@@ -201,23 +215,21 @@ const ComparePage = () => {
             <div className="mt-6 rounded-xl overflow-hidden border border-border">
               {rows.map((row, rowIdx) => {
                 const bestSet = getBestIndices(selected, row);
-                const altBg = rowIdx % 2 === 1 ? "bg-muted/20" : "bg-transparent";
+                const altBg = rowIdx % 2 === 1 ? "bg-muted/20" : "bg-card";
                 return (
-                  <div
-                    key={row.label}
-                    className={`grid gap-3 md:gap-4 ${altBg}`}
-                    style={{ gridTemplateColumns: gridTemplate }}
-                  >
-                    <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] uppercase tracking-wider font-medium text-muted-foreground">
-                      <span className="text-sm opacity-70">{row.icon}</span>
-                      {row.label}
+                  <div key={row.label} className={`compare-row ${altBg}`}>
+                    <div
+                      className={`compare-label-cell flex items-center gap-2 px-3 md:px-4 py-3 md:py-3.5 text-[11px] md:text-[13px] uppercase tracking-wider font-medium text-muted-foreground border-r border-border ${altBg}`}
+                    >
+                      <span className="text-sm opacity-70 hidden sm:inline">{row.icon}</span>
+                      <span className="truncate">{row.label}</span>
                     </div>
                     {selected.map((v, i) => {
                       const isBest = bestSet.has(i);
                       return (
                         <div
                           key={v.id}
-                          className={`flex items-center gap-2 px-4 py-3.5 ${valueSize} text-foreground`}
+                          className={`flex items-center gap-2 px-3 md:px-4 py-3 md:py-3.5 ${valueSize} text-foreground`}
                           style={{
                             backgroundColor: isBest ? "rgba(74,222,128,0.04)" : undefined,
                             borderLeft: isBest
@@ -229,7 +241,7 @@ const ComparePage = () => {
                         >
                           {isBest && (
                             <span
-                              className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded tracking-wider"
+                              className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded tracking-wider shrink-0"
                               style={{
                                 backgroundColor: "rgba(74,222,128,0.15)",
                                 color: "#4ade80",
@@ -248,24 +260,42 @@ const ComparePage = () => {
             </div>
 
             {/* Footer CTAs */}
-            <div
-              className="grid gap-3 md:gap-4 mt-6"
-              style={{ gridTemplateColumns: gridTemplate }}
-            >
-              <div />
+            <div className="compare-row mt-6">
+              <div className="compare-label-cell" />
               {selected.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => navigate(`/fahrzeug/${v.id}`)}
-                  className="flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-colors bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  Fahrzeug ansehen <ArrowRight className="h-4 w-4" />
-                </button>
+                <div key={v.id} className="px-3 md:px-0">
+                  <button
+                    onClick={() => navigate(`/fahrzeug/${v.id}`)}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-colors bg-primary text-primary-foreground hover:bg-primary/90 min-h-[44px]"
+                  >
+                    Fahrzeug ansehen <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
               ))}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Inline grid styles — sticky left label column */}
+      <style>{`
+        .compare-grid .compare-row {
+          display: grid;
+          grid-template-columns: var(--label-col) repeat(${count}, minmax(var(--vehicle-col), 1fr));
+          gap: 0.75rem;
+        }
+        @media (min-width: 768px) {
+          .compare-grid .compare-row {
+            grid-template-columns: var(--label-col-md) repeat(${count}, 1fr);
+            gap: 1rem;
+          }
+        }
+        .compare-grid .compare-label-cell {
+          position: sticky;
+          left: 0;
+          z-index: 5;
+        }
+      `}</style>
     </div>
   );
 };
