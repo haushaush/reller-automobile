@@ -213,30 +213,44 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
           </div>
         )}
 
-        {/* Subtle CTA link */}
+        {/* CTA row: ansehen + zur Anfrage */}
         {isSold ? (
           <p className="text-muted-foreground" style={{ fontSize: "14px", fontWeight: 500 }}>
             Fahrzeug nicht mehr verfügbar
           </p>
         ) : (
-          <button
-            onClick={handleCtaClick}
-            className="cta-link inline-flex items-center gap-1.5 hover:underline transition-colors"
-            style={{
-              width: "fit-content",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "hsl(var(--primary))",
-              background: "transparent",
-              padding: 0,
-            }}
-          >
-            Fahrzeug ansehen
-            <ArrowRight
-              className="h-4 w-4 cta-arrow"
-              style={{ transition: "transform 200ms ease" }}
-            />
-          </button>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <button
+              onClick={handleCtaClick}
+              className="cta-link inline-flex items-center gap-1.5 hover:underline transition-colors"
+              style={{
+                width: "fit-content",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "hsl(var(--primary))",
+                background: "transparent",
+                padding: 0,
+              }}
+            >
+              Fahrzeug ansehen
+              <ArrowRight className="h-4 w-4 cta-arrow" style={{ transition: "transform 200ms ease" }} />
+            </button>
+            <button
+              onClick={handleInquiryClick}
+              className="inline-flex items-center gap-1 hover:underline transition-colors"
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                color: inInquiry ? "rgb(34 197 94)" : "hsl(var(--primary))",
+                background: "transparent",
+                padding: 0,
+              }}
+              title={inInquiry ? "Aus Anfrage entfernen" : "Zur Anfrage hinzufügen"}
+            >
+              {inInquiry ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              {inInquiry ? "In Anfrage" : "Zur Anfrage"}
+            </button>
+          </div>
         )}
       </div>
       <style>{`
