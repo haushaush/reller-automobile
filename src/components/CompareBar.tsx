@@ -2,15 +2,21 @@ import { useCompare } from "@/contexts/CompareContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { X, Scale } from "lucide-react";
+import { useFooterVisible } from "@/hooks/useFooterVisible";
 
 const CompareBar = () => {
   const { selected, remove, clear } = useCompare();
   const navigate = useNavigate();
+  const footerVisible = useFooterVisible(96);
 
   if (selected.length < 2) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-t border-border p-4">
+    <div
+      className={`fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-t border-border p-4 transition-transform duration-300 ${
+        footerVisible ? "translate-y-full" : "translate-y-0"
+      }`}
+    >
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 overflow-x-auto">
           {selected.map((v) => {

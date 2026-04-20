@@ -1,11 +1,13 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { Send, X } from "lucide-react";
 import { useInquiry } from "@/contexts/InquiryContext";
+import { useFooterVisible } from "@/hooks/useFooterVisible";
 
 const InquiryBar = () => {
   const { inquiryList, inquiryCount, removeFromInquiry, clearInquiry } = useInquiry();
   const navigate = useNavigate();
   const location = useLocation();
+  const footerVisible = useFooterVisible(96);
 
   // Hide on /anfrage routes (already see the list there) and on detail pages on mobile
   // (the detail page has its own sticky CTA — only ONE sticky bar at a time on mobile).
@@ -19,9 +21,9 @@ const InquiryBar = () => {
 
   return (
     <div
-      className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-md animate-in slide-in-from-bottom-4 duration-300 ${
+      className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-md animate-in slide-in-from-bottom-4 duration-300 transition-transform ${
         isDetailRoute ? "hidden lg:block" : ""
-      }`}
+      } ${footerVisible ? "translate-y-full" : "translate-y-0"}`}
       style={{
         background: "rgba(0, 13, 20, 0.92)",
         borderTopColor: "rgba(218, 27, 30, 0.3)",
