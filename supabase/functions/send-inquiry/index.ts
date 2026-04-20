@@ -81,8 +81,8 @@ function dealerEmailHtml(contact: ContactInput, vehicles: VehicleRow[], message:
         v.year ? `EZ ${escapeHtml(v.year)}` : null,
         v.mileage != null ? `${v.mileage.toLocaleString("de-DE")} km` : null,
         ps ? `${ps} PS` : null,
-        v.fuel ? escapeHtml(v.fuel) : null,
-        v.gearbox ? escapeHtml(v.gearbox) : null,
+        v.fuel ? escapeHtml(fuelLabel(v.fuel)) : null,
+        v.gearbox ? escapeHtml(gearboxLabel(v.gearbox)) : null,
       ]
         .filter(Boolean)
         .join(" · ");
