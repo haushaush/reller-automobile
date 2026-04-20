@@ -382,13 +382,17 @@ Deno.serve(async (req) => {
   const dealerHtml = dealerEmailHtml(contact, vehicles as VehicleRow[], message ?? null, inquiry.id);
   const customerHtml = customerEmailHtml(contact, vehicles as VehicleRow[]);
 
+  const dealerRecipients = [DEALER_EMAIL_PRIMARY];
+  if (DEALER_EMAIL_SECONDARY && DEALER_EMAIL_SECONDARY !== DEALER_EMAIL_PRIMARY) {
+    dealerRecipients.push(DEALER_EMAIL_SECONDARY);
+  }
+
   const [dealerRes, customerRes] = await Promise.all([
     sendResendMail({
-      to: DEALER_EMAIL,
+      to: dealerRecipients,
       subject: subjectDealer,
       html: dealerHtml,
       replyTo: contact.email,
-      bcc: INTERNAL_MONITORING_EMAIL ? [INTERNAL_MONITORING_EMAIL] : undefined,
     }),
     sendResendMail({
       to: contact.email,
