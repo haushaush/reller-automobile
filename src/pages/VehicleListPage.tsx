@@ -92,8 +92,6 @@ export interface VehicleListPageProps {
   title: string;
   /** Eyebrow shown above the title */
   eyebrow?: string;
-  /** Subtitle / description below the title */
-  subtitle?: string;
   /** Optional breadcrumb segments — last item is current page (no link) */
   breadcrumbs?: { label: string; to?: string }[];
   /** Pre-filter to a subset of vehicle_category values (UI bucket). Empty/undefined = all */
@@ -105,7 +103,6 @@ export interface VehicleListPageProps {
 const VehicleListPage = ({
   title,
   eyebrow,
-  subtitle,
   breadcrumbs,
   categoryFilter,
   showCategorySelect = false,
@@ -246,7 +243,7 @@ const VehicleListPage = ({
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <header className="py-12 md:py-20 px-4 max-w-7xl mx-auto">
+      <header className="px-4 pt-12 md:pt-16 max-w-7xl mx-auto">
         {breadcrumbs && breadcrumbs.length > 0 && (
           <nav
             aria-label="Breadcrumb"
@@ -268,25 +265,16 @@ const VehicleListPage = ({
           </nav>
         )}
 
-        {eyebrow && (
-          <p
-            className="text-xs tracking-[0.3em] uppercase text-muted-foreground mb-4"
-            style={{ fontFamily: "'Instrument Sans', sans-serif" }}
-          >
-            {eyebrow}
-          </p>
-        )}
-        <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 leading-tight max-w-3xl">
-          {title}
-        </h1>
-        {subtitle && (
-          <p
-            className="text-muted-foreground text-base md:text-lg max-w-2xl leading-relaxed"
-            style={{ fontFamily: "'Instrument Sans', sans-serif" }}
-          >
-            {subtitle}
-          </p>
-        )}
+        <div className="py-12 md:py-20 text-center max-w-3xl mx-auto">
+          {eyebrow && (
+            <p className="text-xs tracking-[0.25em] uppercase text-primary font-medium mb-5">
+              {eyebrow}
+            </p>
+          )}
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight tracking-tight">
+            {title}
+          </h1>
+        </div>
       </header>
 
       <main id="fahrzeuge" className="max-w-7xl mx-auto px-4 pb-20">

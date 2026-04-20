@@ -3,21 +3,16 @@ import { Mail } from "lucide-react";
 import { useInquiry } from "@/contexts/InquiryContext";
 
 interface InquiryNavButtonProps {
-  variant?: "default" | "oldtimer";
+  variant?: "default";
 }
 
 const InquiryNavButton = ({ variant = "default" }: InquiryNavButtonProps) => {
   const { inquiryCount } = useInquiry();
-  const isOldtimer = variant === "oldtimer";
 
   return (
     <Link
       to="/anfrage"
-      className={`relative p-2 rounded-md transition-colors ${
-        isOldtimer
-          ? "text-white/90 hover:text-white"
-          : "text-foreground hover:text-foreground/80 hover:bg-secondary"
-      }`}
+      className="relative p-2 rounded-md transition-colors text-foreground hover:text-foreground/80 hover:bg-secondary"
       aria-label={`Anfrage (${inquiryCount} Fahrzeuge)`}
       title="Fahrzeug-Anfrage"
     >
