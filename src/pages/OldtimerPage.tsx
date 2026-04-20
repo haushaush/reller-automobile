@@ -242,23 +242,12 @@ const OldtimerPage = () => {
     <div
       className="oldtimer-route min-h-screen relative"
       style={{
-        backgroundImage: `url('${LEATHER_BG}')`,
+        background: `linear-gradient(rgba(0, 0, 0, 0.549), rgba(0, 0, 0, 0.2)), linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url('${LEATHER_BG}')`,
         backgroundSize: "cover",
-        backgroundAttachment: "fixed",
         backgroundPosition: "center",
+        backgroundAttachment: "fixed",
       }}
     >
-      {/* Dark overlay for contrast */}
-      <div
-        aria-hidden
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(15, 8, 5, 0.4)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
 
       <div className="relative z-10">
         <Navbar />
