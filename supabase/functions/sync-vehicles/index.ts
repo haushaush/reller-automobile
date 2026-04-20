@@ -93,7 +93,14 @@ function deriveCategory(bodyType: string | null, category: string | null, year: 
   return "used";
 }
 
-function parseAds(xmlText: string): VehicleRow[] {
+interface ParseOpts {
+  isAccident?: boolean;
+  /** Prefix prepended to mobile_de_id (e.g. "accident_") so accident & main syncs don't collide */
+  idPrefix?: string;
+}
+
+function parseAds(xmlText: string, opts: ParseOpts = {}): VehicleRow[] {
+  const { isAccident = false, idPrefix = "" } = opts;
   const rows: VehicleRow[] = [];
   const adRegex = /<ad:ad\b[^>]*>([\s\S]*?)<\/ad:ad>/gi;
   let adMatch;
@@ -103,7 +110,8 @@ function parseAds(xmlText: string): VehicleRow[] {
     const full = adMatch[0];
     const content = adMatch[1];
 
-    const mobileDeId = attr(full, "ad:ad", "key") || `unknown-${rows.length}`;
+    const rawId = attr(full, "ad:ad", "key") || `unknown-${rows.length}`;
+    const mobileDeId = `${idPrefix}${rawId}`;
 
     const makeName = localDesc(content, "ad:make");
     const modelName = localDesc(content, "ad:model");
@@ -122,15 +130,19 @@ function parseAds(xmlText: string): VehicleRow[] {
     const vatStr = attr(content, "ad:vatable", "value");
     const dmgStr = attr(content, "ad:damage-and-unrepaired", "value");
 
+    const bodyType = localDesc(content, "ad:body-type") || attr(content, "ad:category", "key") || null;
+    const adCategory = localDesc(content, "ad:category") || null;
+    const year = attr(content, "ad:first-registration", "value") || null;
+
     rows.push({
       mobile_de_id: mobileDeId,
       title,
       model_description: modelDesc || null,
-      category: localDesc(content, "ad:category") || null,
+      category: adCategory,
       brand: makeName || null,
       model: modelName || null,
-      body_type: localDesc(content, "ad:body-type") || attr(content, "ad:category", "key") || null,
-      year: attr(content, "ad:first-registration", "value") || null,
+      body_type: bodyType,
+      year,
       mileage: mileageStr ? parseInt(mileageStr, 10) : null,
       price: priceStr ? Math.round(parseFloat(priceStr)) : null,
       currency: attr(content, "ad:price", "currency") || "EUR",
@@ -156,6 +168,7 @@ function parseAds(xmlText: string): VehicleRow[] {
       seller_city: textContent(content, "seller:city") || attr(content, "seller:city", "value") || null,
       seller_zipcode: attr(content, "seller:zipcode", "value") || null,
       synced_at: now,
+      vehicle_category: deriveCategory(bodyType, adCategory, year, isAccident),
     });
   }
 
