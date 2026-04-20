@@ -41,9 +41,11 @@ interface FilterBarProps {
   colors?: string[];
   /** Show the "Kategorie" select. Hidden by default since most pages are pre-scoped via the route. */
   showCategorySelect?: boolean;
+  /** When true, disables the sort dropdown (used while a search query forces relevance sort). */
+  sortDisabled?: boolean;
 }
 
-const FilterBar = memo(({ filters, onFilterChange, brands, bodyTypes, categories, fuels, gearboxes, colors, showCategorySelect = false }: FilterBarProps) => {
+const FilterBar = memo(({ filters, onFilterChange, brands, bodyTypes, categories, fuels, gearboxes, colors, showCategorySelect = false, sortDisabled = false }: FilterBarProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
@@ -110,8 +112,15 @@ const FilterBar = memo(({ filters, onFilterChange, brands, bodyTypes, categories
           className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
         />
 
-        <Select value={filters.sort} onValueChange={(v) => onFilterChange("sort", v)}>
-          <SelectTrigger className="bg-secondary border-border text-foreground">
+        <Select
+          value={filters.sort}
+          onValueChange={(v) => onFilterChange("sort", v)}
+          disabled={sortDisabled}
+        >
+          <SelectTrigger
+            className={`bg-secondary border-border text-foreground ${sortDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+            title={sortDisabled ? "Während einer Suche wird nach Relevanz sortiert" : undefined}
+          >
             <SelectValue placeholder="Sortierung" />
           </SelectTrigger>
           <SelectContent>

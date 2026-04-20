@@ -315,7 +315,13 @@ const VehicleListGrid = ({
           gearboxes={gearboxes}
           colors={colors}
           showCategorySelect={showCategorySelect}
+          sortDisabled={isSearchActive}
         />
+        {isSearchActive && (
+          <p className="mt-2 text-xs italic text-muted-foreground">
+            Ergebnisse nach Relevanz sortiert
+          </p>
+        )}
       </div>
 
       <div className="flex items-center justify-between mb-6">
