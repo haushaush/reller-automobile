@@ -105,27 +105,35 @@ const PriceHistoryWidget = ({ vehicle }: PriceHistoryWidgetProps) => {
 
       {marketComparison && (
         <div className="pt-4 border-t border-border">
-          <p className="text-sm text-muted-foreground mb-1">
-            Durchschnittspreis ähnlicher {vehicle.brand}-Fahrzeuge ({marketComparison.count} Fahrzeuge):
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-foreground font-semibold">
-              {marketComparison.avg.toLocaleString("de-DE")} €
-            </span>
-            {marketComparison.diff < 0 ? (
-              <span className="flex items-center gap-1 text-green-400 text-sm">
-                <TrendingDown className="h-4 w-4" />
-                {Math.abs(marketComparison.diff).toLocaleString("de-DE")} € unter Durchschnitt
-              </span>
-            ) : marketComparison.diff > 0 ? (
-              <span className="flex items-center gap-1 text-red-400 text-sm">
-                <TrendingUp className="h-4 w-4" />
-                {marketComparison.diff.toLocaleString("de-DE")} € über Durchschnitt
-              </span>
-            ) : (
-              <span className="text-muted-foreground text-sm">Im Durchschnitt</span>
-            )}
-          </div>
+          {marketComparison.insufficient ? (
+            <p className="text-sm text-muted-foreground">
+              Nicht genügend Vergleichsfahrzeuge vorhanden.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground mb-1">
+                Durchschnittspreis ähnlicher {vehicle.brand}-Fahrzeuge ({marketComparison.count} Fahrzeuge):
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-foreground font-semibold">
+                  Ø {marketComparison.avg.toLocaleString("de-DE")} €
+                </span>
+                {marketComparison.status === "below" ? (
+                  <span className="flex items-center gap-1 text-green-500 text-sm">
+                    <TrendingDown className="h-4 w-4" />
+                    {Math.abs(marketComparison.diffPercent).toFixed(1)}% unter dem Durchschnitt
+                  </span>
+                ) : marketComparison.status === "above" ? (
+                  <span className="flex items-center gap-1 text-destructive text-sm">
+                    <TrendingUp className="h-4 w-4" />
+                    {marketComparison.diffPercent.toFixed(1)}% über dem Durchschnitt
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground text-sm">Im Durchschnitt</span>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
