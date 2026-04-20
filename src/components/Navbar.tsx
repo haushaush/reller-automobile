@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Menu, X, ChevronDown } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import FavoritesDrawer from "@/components/FavoritesDrawer";
+import InquiryNavButton from "@/components/InquiryNavButton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -98,6 +99,7 @@ const Navbar = () => {
           <div className="flex items-center gap-2">
             {!isOldtimerPage && <ThemeToggle />}
             <FavoritesDrawer />
+            <InquiryNavButton variant={isOldtimerPage ? "oldtimer" : "default"} />
             <Link
               to="/"
               className="hidden md:inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors"

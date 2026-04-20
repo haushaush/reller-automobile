@@ -7,13 +7,16 @@ import DealerLocation from "@/components/DealerLocation";
 import DownloadExposeButton from "@/components/DownloadExposeButton";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Send, Check } from "lucide-react";
+import { useInquiry, MAX_INQUIRY_ITEMS } from "@/contexts/InquiryContext";
+import { toast } from "sonner";
 
 const VehicleDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: vehicle, isLoading } = useVehicle(id);
   const [selectedImage, setSelectedImage] = useState(0);
+  const { addToInquiry, removeFromInquiry, isInInquiry, inquiryCount } = useInquiry();
 
   if (isLoading) {
     return (
@@ -142,6 +145,35 @@ const VehicleDetail = () => {
 
             {/* Actions */}
             <div className="flex flex-wrap gap-3">
+              {!vehicle.is_sold && (
+                isInInquiry(vehicle.id) ? (
+                  <Button
+                    onClick={() => removeFromInquiry(vehicle.id)}
+                    variant="outline"
+                    size="lg"
+                    className="gap-2 rounded-full"
+                  >
+                    <Check className="h-4 w-4" />
+                    Aus Anfrage entfernen
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      if (inquiryCount >= MAX_INQUIRY_ITEMS) {
+                        toast.error(`Maximal ${MAX_INQUIRY_ITEMS} Fahrzeuge pro Anfrage`);
+                        return;
+                      }
+                      addToInquiry(vehicle);
+                      toast.success("Zur Anfrage hinzugefügt");
+                    }}
+                    size="lg"
+                    className="gap-2 rounded-full"
+                  >
+                    <Send className="h-4 w-4" />
+                    Jetzt Fahrzeug anfragen
+                  </Button>
+                )
+              )}
               <DownloadExposeButton vehicle={vehicle} />
               {vehicle.detail_page_url && (
                 <Button asChild variant="outline" className="gap-2">

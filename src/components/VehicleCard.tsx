@@ -3,10 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Vehicle } from "@/hooks/useVehicles";
 import { useCompare } from "@/contexts/CompareContext";
 import { useFavoritesContext } from "@/contexts/FavoritesContext";
-import { Scale, Heart, ArrowRight } from "lucide-react";
+import { useInquiry, MAX_INQUIRY_ITEMS } from "@/contexts/InquiryContext";
+import { Scale, Heart, ArrowRight, Plus, Check } from "lucide-react";
 import ImageCarousel from "@/components/ImageCarousel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { decodeHtml } from "@/lib/decodeHtml";
+import { toast } from "sonner";
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -26,8 +28,10 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
   const navigate = useNavigate();
   const { add, remove, isSelected } = useCompare();
   const { toggleFavorite, isFavorite } = useFavoritesContext();
+  const { addToInquiry, removeFromInquiry, isInInquiry, inquiryCount } = useInquiry();
   const selected = isSelected(vehicle.id);
   const favorited = isFavorite(vehicle.id);
+  const inInquiry = isInInquiry(vehicle.id);
   const isSold = vehicle.is_sold;
 
   const images = vehicle.image_urls && vehicle.image_urls.length > 0
@@ -68,9 +72,18 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
     if (!isSold) navigate(`/fahrzeug/${vehicle.id}`);
   };
 
-  const handleSecondaryClick = (e: React.MouseEvent) => {
+  const handleInquiryClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/fahrzeug/${vehicle.id}`);
+    if (isSold) return;
+    if (inInquiry) {
+      removeFromInquiry(vehicle.id);
+      return;
+    }
+    if (inquiryCount >= MAX_INQUIRY_ITEMS) {
+      toast.error(`Maximal ${MAX_INQUIRY_ITEMS} Fahrzeuge pro Anfrage`);
+      return;
+    }
+    addToInquiry(vehicle);
   };
 
   return (
@@ -200,30 +213,44 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
           </div>
         )}
 
-        {/* Subtle CTA link */}
+        {/* CTA row: ansehen + zur Anfrage */}
         {isSold ? (
           <p className="text-muted-foreground" style={{ fontSize: "14px", fontWeight: 500 }}>
             Fahrzeug nicht mehr verfügbar
           </p>
         ) : (
-          <button
-            onClick={handleCtaClick}
-            className="cta-link inline-flex items-center gap-1.5 hover:underline transition-colors"
-            style={{
-              width: "fit-content",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "hsl(var(--primary))",
-              background: "transparent",
-              padding: 0,
-            }}
-          >
-            Fahrzeug ansehen
-            <ArrowRight
-              className="h-4 w-4 cta-arrow"
-              style={{ transition: "transform 200ms ease" }}
-            />
-          </button>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <button
+              onClick={handleCtaClick}
+              className="cta-link inline-flex items-center gap-1.5 hover:underline transition-colors"
+              style={{
+                width: "fit-content",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "hsl(var(--primary))",
+                background: "transparent",
+                padding: 0,
+              }}
+            >
+              Fahrzeug ansehen
+              <ArrowRight className="h-4 w-4 cta-arrow" style={{ transition: "transform 200ms ease" }} />
+            </button>
+            <button
+              onClick={handleInquiryClick}
+              className="inline-flex items-center gap-1 hover:underline transition-colors"
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                color: inInquiry ? "rgb(34 197 94)" : "hsl(var(--primary))",
+                background: "transparent",
+                padding: 0,
+              }}
+              title={inInquiry ? "Aus Anfrage entfernen" : "Zur Anfrage hinzufügen"}
+            >
+              {inInquiry ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              {inInquiry ? "In Anfrage" : "Zur Anfrage"}
+            </button>
+          </div>
         )}
       </div>
       <style>{`

@@ -14,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      inquiries: {
+        Row: {
+          created_at: string
+          email: string
+          first_name: string
+          gdpr_accepted: boolean
+          id: string
+          ip_address: string | null
+          last_name: string
+          message: string | null
+          phone: string | null
+          preferred_contact: string | null
+          salutation: string | null
+          status: string
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          first_name: string
+          gdpr_accepted?: boolean
+          id?: string
+          ip_address?: string | null
+          last_name: string
+          message?: string | null
+          phone?: string | null
+          preferred_contact?: string | null
+          salutation?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          first_name?: string
+          gdpr_accepted?: boolean
+          id?: string
+          ip_address?: string | null
+          last_name?: string
+          message?: string | null
+          phone?: string | null
+          preferred_contact?: string | null
+          salutation?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      inquiry_vehicles: {
+        Row: {
+          created_at: string
+          id: string
+          inquiry_id: string
+          vehicle_id: string
+          vehicle_snapshot: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inquiry_id: string
+          vehicle_id: string
+          vehicle_snapshot: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inquiry_id?: string
+          vehicle_id?: string
+          vehicle_snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inquiry_vehicles_inquiry_id_fkey"
+            columns: ["inquiry_id"]
+            isOneToOne: false
+            referencedRelation: "inquiries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inquiry_vehicles_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       price_history: {
         Row: {
           id: string
