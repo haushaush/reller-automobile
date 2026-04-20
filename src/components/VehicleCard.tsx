@@ -3,12 +3,22 @@ import { useNavigate } from "react-router-dom";
 import { Vehicle } from "@/hooks/useVehicles";
 import { useCompare } from "@/contexts/CompareContext";
 import { useFavoritesContext } from "@/contexts/FavoritesContext";
-import { Scale, Heart } from "lucide-react";
+import { Scale, Heart, ArrowRight } from "lucide-react";
 import ImageCarousel from "@/components/ImageCarousel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface VehicleCardProps {
   vehicle: Vehicle;
+}
+
+function stripBrandFromTitle(title: string, brand?: string | null): string {
+  if (!brand) return title;
+  const lower = title.toLowerCase();
+  const lowerBrand = brand.toLowerCase();
+  if (lower.startsWith(lowerBrand)) {
+    return title.substring(brand.length).trim();
+  }
+  return title;
 }
 
 const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
@@ -19,7 +29,6 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
   const favorited = isFavorite(vehicle.id);
   const isSold = vehicle.is_sold;
 
-  const formattedMileage = vehicle.mileage ? vehicle.mileage.toLocaleString("de-DE") : "–";
   const images = vehicle.image_urls && vehicle.image_urls.length > 0
     ? vehicle.image_urls
     : ["https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&h=450&fit=crop"];
@@ -27,6 +36,17 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
   const formattedPrice = vehicle.price
     ? vehicle.price.toLocaleString("de-DE") + " " + (vehicle.currency || "€")
     : null;
+
+  const modelTitle = vehicle.model_description?.trim() || stripBrandFromTitle(vehicle.title, vehicle.brand);
+
+  // Build spec chips (max 5)
+  const chips: string[] = [];
+  if (vehicle.gearbox) chips.push(vehicle.gearbox);
+  if (vehicle.power) chips.push(`${Math.round(vehicle.power * 1.36)} PS`);
+  if (vehicle.year) chips.push(`EZ ${vehicle.year}`);
+  if (vehicle.mileage != null) chips.push(`${vehicle.mileage.toLocaleString("de-DE")} km`);
+  if (vehicle.fuel) chips.push(vehicle.fuel);
+  const visibleChips = chips.slice(0, 5);
 
   const handleCompareClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -37,6 +57,16 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isSold) toggleFavorite(vehicle.id);
+  };
+
+  const handleCtaClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isSold) navigate(`/fahrzeug/${vehicle.id}`);
+  };
+
+  const handleSecondaryClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/fahrzeug/${vehicle.id}`);
   };
 
   return (
@@ -97,33 +127,98 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
         </button>
       </div>
 
-      <div className="p-5">
-        <h3 className="text-lg font-semibold text-foreground mb-3 leading-tight">
-          {vehicle.title}
-        </h3>
-        {formattedPrice && (
-          <p className="text-primary font-bold text-xl mb-3">{formattedPrice}</p>
+      <div className="px-5 py-4">
+        {/* Brand */}
+        {vehicle.brand && (
+          <p
+            className="text-muted-foreground font-medium mb-1"
+            style={{ fontSize: "12px", letterSpacing: "0.1em", textTransform: "uppercase" }}
+          >
+            {vehicle.brand}
+          </p>
         )}
-        <div className="space-y-1.5 text-sm text-muted-foreground" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
-          <p className="flex items-center gap-2">
-            <span className="w-1 h-1 rounded-full bg-primary inline-block"></span>
-            <span>Kilometerstand: {formattedMileage} km</span>
-          </p>
-          <p className="flex items-center gap-2">
-            <span className="w-1 h-1 rounded-full bg-primary inline-block"></span>
-            <span>Karosserieform: {vehicle.body_type || "–"}</span>
-          </p>
-          <p className="flex items-center gap-2">
-            <span className="w-1 h-1 rounded-full bg-primary inline-block"></span>
-            <span>Baujahr: {vehicle.year || "–"}</span>
-          </p>
-          {vehicle.brand && (
-            <p className="flex items-center gap-2">
-              <span className="w-1 h-1 rounded-full bg-primary inline-block"></span>
-              <span>Marke: {vehicle.brand}{vehicle.model ? ` ${vehicle.model}` : ""}</span>
-            </p>
+
+        {/* Model / title */}
+        <h3
+          className="text-foreground font-semibold mb-3 leading-tight line-clamp-2"
+          style={{ fontSize: "18px", lineHeight: 1.3 }}
+        >
+          {modelTitle}
+        </h3>
+
+        {/* Price pill */}
+        <div className="mb-4">
+          {formattedPrice ? (
+            <span
+              className="inline-block bg-white/[0.08] text-foreground font-bold"
+              style={{
+                padding: "6px 16px",
+                borderRadius: "20px",
+                fontSize: "18px",
+              }}
+            >
+              {formattedPrice}
+            </span>
+          ) : (
+            <span className="text-muted-foreground font-medium" style={{ fontSize: "16px" }}>
+              Auf Anfrage
+            </span>
           )}
         </div>
+
+        {/* Spec chips */}
+        {visibleChips.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {visibleChips.map((chip, i) => (
+              <span
+                key={i}
+                className="text-muted-foreground bg-white/[0.05] border border-white/[0.08]"
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "16px",
+                  fontSize: "13px",
+                  fontWeight: 400,
+                }}
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* CTA Button */}
+        <button
+          onClick={handleCtaClick}
+          disabled={isSold}
+          className={`w-full mt-4 flex items-center justify-center gap-2 transition-opacity ${
+            isSold
+              ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+              : "bg-foreground text-background hover:opacity-90"
+          }`}
+          style={{
+            padding: "12px 20px",
+            borderRadius: "24px",
+            fontSize: "14px",
+            fontWeight: 600,
+          }}
+        >
+          {isSold ? (
+            "Fahrzeug nicht mehr verfügbar"
+          ) : (
+            <>
+              Jetzt Fahrzeug anfragen <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </button>
+
+        {/* Secondary link */}
+        <button
+          onClick={handleSecondaryClick}
+          className="w-full mt-2.5 text-muted-foreground hover:text-foreground transition-colors"
+          style={{ fontSize: "13px", fontWeight: 500 }}
+        >
+          Mehr erfahren →
+        </button>
       </div>
     </div>
   );
