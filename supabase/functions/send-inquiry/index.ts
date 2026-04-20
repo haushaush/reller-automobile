@@ -56,6 +56,25 @@ function preferredContactLabel(v: string | undefined | null): string {
   return "E-Mail";
 }
 
+const FUEL_LABELS: Record<string, string> = {
+  Petrol: "Benzin", Diesel: "Diesel", Electric: "Elektro", Electricity: "Elektro",
+  Hybrid: "Hybrid", HybridPetrol: "Hybrid (Benzin)", HybridDiesel: "Hybrid (Diesel)",
+  PluginHybrid: "Plug-in-Hybrid", PluginHybridPetrol: "Plug-in-Hybrid (Benzin)",
+  PluginHybridDiesel: "Plug-in-Hybrid (Diesel)", LPG: "Autogas (LPG)", CNG: "Erdgas (CNG)",
+  Hydrogen: "Wasserstoff", Ethanol: "Ethanol", Other: "Sonstige",
+};
+const GEARBOX_LABELS: Record<string, string> = {
+  Automatic: "Automatik", AutomaticGear: "Automatik",
+  Manual: "Schaltgetriebe", ManualGear: "Schaltgetriebe",
+  SemiAutomatic: "Halbautomatik", SemiautomaticGear: "Halbautomatik",
+};
+function fuelLabel(v: string): string {
+  return FUEL_LABELS[v] ?? v.replace(/([A-Z])/g, " $1").trim();
+}
+function gearboxLabel(v: string): string {
+  return GEARBOX_LABELS[v] ?? v.replace(/([A-Z])/g, " $1").trim();
+}
+
 interface VehicleRow {
   id: string;
   title: string;
