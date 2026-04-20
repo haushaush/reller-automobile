@@ -361,6 +361,22 @@ Deno.serve(async (req) => {
       console.error("Failed to trigger check-alerts:", e);
     }
 
+    // Chain accident-vehicles sync (only runs successfully if accident credentials are configured).
+    // We fire-and-await but never fail the main sync if accident sync errors.
+    try {
+      const accidentUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-accident-vehicles`;
+      const accRes = await fetch(accidentUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "Content-Type": "application/json",
+        },
+      });
+      console.log("sync-accident-vehicles triggered, status:", accRes.status);
+    } catch (e) {
+      console.error("Failed to trigger sync-accident-vehicles:", e);
+    }
+
     return new Response(
       JSON.stringify({ success: true, synced: vehicleRows.length, totalImages }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
