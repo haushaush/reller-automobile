@@ -291,11 +291,14 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Soft-delete: mark vehicles no longer on Mobile.de as sold
+      // Soft-delete: mark vehicles no longer on Mobile.de as sold.
+      // IMPORTANT: only touch vehicles owned by THIS sync (vehicle_category != 'accident'),
+      // so the accident-vehicles sync and the main sync don't clobber each other.
       const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
       const { data: allDbVehicles } = await supabase
         .from("vehicles")
-        .select("id, mobile_de_id, is_sold");
+        .select("id, mobile_de_id, is_sold, vehicle_category")
+        .neq("vehicle_category", "accident");
 
       if (allDbVehicles) {
         const syncedSet = new Set(mobileDeIds);
