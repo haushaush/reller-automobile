@@ -24,7 +24,7 @@ Defined in `src/lib/categories.ts` (CATEGORIES array, slug + dbCategories + imag
 
 ## Categorization rules (sync + SQL backfill + FE derive — all match)
 1. accident — only set by sync-accident-vehicles
-2. commercial — body_type ∈ {Van, Transporter, Kastenwagen, Pritschenwagen, Kleinbus, LKW, Sattelzugmaschine, Kipper} OR category contains "transporter"/"nutzfahrzeug"
+2. commercial — body_type ∈ {BoxTypeDeliveryVan, BoxVan} ONLY (narrow allowlist; everything else ignores body_type for commercial)
 3. oldtimer — year ≤ currentYear - 30
 4. youngtimer — year ≤ currentYear - 20
 5. used — default
