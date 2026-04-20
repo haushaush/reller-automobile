@@ -75,15 +75,13 @@ interface VehicleRow {
 }
 
 const COMMERCIAL_BODY_TYPES = new Set([
-  "Van", "Transporter", "Kastenwagen", "Pritschenwagen",
-  "Kleinbus", "LKW", "Sattelzugmaschine", "Kipper",
+  "BoxTypeDeliveryVan",
+  "BoxVan",
 ]);
 
-function deriveCategory(bodyType: string | null, category: string | null, year: string | null, isAccident: boolean): string {
+function deriveCategory(bodyType: string | null, _category: string | null, year: string | null, isAccident: boolean): string {
   if (isAccident) return "accident";
   if (bodyType && COMMERCIAL_BODY_TYPES.has(bodyType)) return "commercial";
-  const cat = (category || "").toLowerCase();
-  if (cat.includes("transporter") || cat.includes("nutzfahrzeug")) return "commercial";
   if (year && /^\d{4}/.test(year)) {
     const y = parseInt(year.substring(0, 4), 10);
     const now = new Date().getFullYear();

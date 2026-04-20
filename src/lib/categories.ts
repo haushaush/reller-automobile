@@ -59,14 +59,8 @@ export function getCategoryBySlug(slug: string | undefined): CategoryDefinition 
 }
 
 const COMMERCIAL_BODY_TYPES = new Set([
-  "Van",
-  "Transporter",
-  "Kastenwagen",
-  "Pritschenwagen",
-  "Kleinbus",
-  "LKW",
-  "Sattelzugmaschine",
-  "Kipper",
+  "BoxTypeDeliveryVan",
+  "BoxVan",
 ]);
 
 /**
@@ -83,8 +77,6 @@ export function deriveVehicleCategory(input: {
   if (input.is_accident) return "accident";
 
   if (input.body_type && COMMERCIAL_BODY_TYPES.has(input.body_type)) return "commercial";
-  const cat = input.category?.toLowerCase() ?? "";
-  if (cat.includes("transporter") || cat.includes("nutzfahrzeug")) return "commercial";
 
   if (input.year && /^\d{4}/.test(input.year)) {
     const y = parseInt(input.year.substring(0, 4), 10);

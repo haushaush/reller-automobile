@@ -96,7 +96,7 @@ const Navbar = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <ThemeToggle />
+            {!isOldtimerPage && <ThemeToggle />}
             <FavoritesDrawer />
             <Link
               to="/"
