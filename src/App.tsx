@@ -8,6 +8,7 @@ import { FavoritesProvider } from "@/contexts/FavoritesContext";
 import CompareBar from "@/components/CompareBar";
 import Hub from "./pages/Hub";
 import CategoryPage, { AllVehiclesPage } from "./pages/CategoryPage";
+import OldtimerPage from "./pages/OldtimerPage";
 import VehicleDetail from "./pages/VehicleDetail.tsx";
 import ComparePage from "./pages/ComparePage.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -25,6 +26,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Hub />} />
               <Route path="/fahrzeuge" element={<AllVehiclesPage />} />
+              <Route path="/fahrzeuge/oldtimer" element={<OldtimerPage />} />
               <Route path="/fahrzeuge/:category" element={<CategoryPage />} />
               <Route path="/fahrzeug/:id" element={<VehicleDetail />} />
               <Route path="/vergleich" element={<ComparePage />} />
