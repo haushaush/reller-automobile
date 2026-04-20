@@ -127,6 +127,7 @@ export type Database = {
           updated_at: string
           usage_type: string | null
           vatable: boolean | null
+          vehicle_category: string | null
           year: string | null
         }
         Insert: {
@@ -167,6 +168,7 @@ export type Database = {
           updated_at?: string
           usage_type?: string | null
           vatable?: boolean | null
+          vehicle_category?: string | null
           year?: string | null
         }
         Update: {
@@ -207,6 +209,7 @@ export type Database = {
           updated_at?: string
           usage_type?: string | null
           vatable?: boolean | null
+          vehicle_category?: string | null
           year?: string | null
         }
         Relationships: []

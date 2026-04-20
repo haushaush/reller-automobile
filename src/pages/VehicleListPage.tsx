@@ -1,13 +1,15 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { useVehicles, Vehicle } from "@/hooks/useVehicles";
 import { vehicles as staticVehicles } from "@/data/vehicles";
+import { deriveVehicleCategory, VehicleCategoryKey } from "@/lib/categories";
 import VehicleCard from "@/components/VehicleCard";
 import FilterBar, { Filters } from "@/components/FilterBar";
 import ActiveFilters from "@/components/ActiveFilters";
 import VehicleAlertDialog from "@/components/VehicleAlertDialog";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronRight as Chevron } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const ITEMS_PER_PAGE = 4;
@@ -32,7 +34,16 @@ const defaultFilters: Filters = {
   status: "available",
 };
 
-const selectFilterKeys: (keyof Filters)[] = ["category", "brand", "bodyType", "sort", "fuel", "gearbox", "color", "status"];
+const selectFilterKeys: (keyof Filters)[] = [
+  "category",
+  "brand",
+  "bodyType",
+  "sort",
+  "fuel",
+  "gearbox",
+  "color",
+  "status",
+];
 
 function mapStaticVehicles(statics: typeof staticVehicles): Vehicle[] {
   return statics.map((v) => ({
@@ -72,10 +83,33 @@ function mapStaticVehicles(statics: typeof staticVehicles): Vehicle[] {
     is_sold: false,
     sold_at: null,
     synced_at: new Date().toISOString(),
+    vehicle_category: null,
   }));
 }
 
-const Index = () => {
+export interface VehicleListPageProps {
+  /** Page title shown in the header */
+  title: string;
+  /** Eyebrow shown above the title */
+  eyebrow?: string;
+  /** Subtitle / description below the title */
+  subtitle?: string;
+  /** Optional breadcrumb segments — last item is current page (no link) */
+  breadcrumbs?: { label: string; to?: string }[];
+  /** Pre-filter to a subset of vehicle_category values (UI bucket). Empty/undefined = all */
+  categoryFilter?: VehicleCategoryKey[];
+  /** Show the "Kategorie" select inside FilterBar (only useful on /fahrzeuge) */
+  showCategorySelect?: boolean;
+}
+
+const VehicleListPage = ({
+  title,
+  eyebrow,
+  subtitle,
+  breadcrumbs,
+  categoryFilter,
+  showCategorySelect = false,
+}: VehicleListPageProps) => {
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [currentPage, setCurrentPage] = useState(1);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -87,14 +121,49 @@ const Index = () => {
     return mapStaticVehicles(staticVehicles);
   }, [dbVehicles]);
 
-  const brands = useMemo(() => [...new Set(allVehicles.map((v) => v.brand).filter(Boolean) as string[])].sort(), [allVehicles]);
-  const bodyTypes = useMemo(() => [...new Set(allVehicles.map((v) => v.body_type).filter(Boolean) as string[])].sort(), [allVehicles]);
-  const categories = useMemo(() => [...new Set(allVehicles.map((v) => v.category).filter(Boolean) as string[])].sort(), [allVehicles]);
-  const fuels = useMemo(() => [...new Set(allVehicles.map((v) => v.fuel).filter(Boolean) as string[])].sort(), [allVehicles]);
-  const gearboxes = useMemo(() => [...new Set(allVehicles.map((v) => v.gearbox).filter(Boolean) as string[])].sort(), [allVehicles]);
-  const colors = useMemo(() => [...new Set(allVehicles.map((v) => v.exterior_color).filter(Boolean) as string[])].sort(), [allVehicles]);
+  // Pre-filter by route category bucket
+  const scopedVehicles = useMemo(() => {
+    if (!categoryFilter || categoryFilter.length === 0) return allVehicles;
+    const allowed = new Set<string>(categoryFilter);
+    return allVehicles.filter((v) => {
+      const cat =
+        (v.vehicle_category as VehicleCategoryKey | null) ??
+        deriveVehicleCategory({
+          body_type: v.body_type,
+          category: v.category,
+          year: v.year,
+        });
+      return allowed.has(cat);
+    });
+  }, [allVehicles, categoryFilter]);
 
-  const soldCount = useMemo(() => allVehicles.filter((v) => v.is_sold).length, [allVehicles]);
+  const brands = useMemo(
+    () => [...new Set(scopedVehicles.map((v) => v.brand).filter(Boolean) as string[])].sort(),
+    [scopedVehicles]
+  );
+  const bodyTypes = useMemo(
+    () => [...new Set(scopedVehicles.map((v) => v.body_type).filter(Boolean) as string[])].sort(),
+    [scopedVehicles]
+  );
+  const categories = useMemo(
+    () => [...new Set(scopedVehicles.map((v) => v.category).filter(Boolean) as string[])].sort(),
+    [scopedVehicles]
+  );
+  const fuels = useMemo(
+    () => [...new Set(scopedVehicles.map((v) => v.fuel).filter(Boolean) as string[])].sort(),
+    [scopedVehicles]
+  );
+  const gearboxes = useMemo(
+    () => [...new Set(scopedVehicles.map((v) => v.gearbox).filter(Boolean) as string[])].sort(),
+    [scopedVehicles]
+  );
+  const colors = useMemo(
+    () =>
+      [...new Set(scopedVehicles.map((v) => v.exterior_color).filter(Boolean) as string[])].sort(),
+    [scopedVehicles]
+  );
+
+  const soldCount = useMemo(() => scopedVehicles.filter((v) => v.is_sold).length, [scopedVehicles]);
 
   const handleFilterChange = useCallback((key: keyof Filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -104,9 +173,7 @@ const Index = () => {
   const handleRemoveFilter = useCallback((key: keyof Filters) => {
     setFilters((prev) => ({
       ...prev,
-      [key]: selectFilterKeys.includes(key)
-        ? key === "status" ? "available" : "all"
-        : "",
+      [key]: selectFilterKeys.includes(key) ? (key === "status" ? "available" : "all") : "",
     }));
     setCurrentPage(1);
   }, []);
@@ -117,9 +184,8 @@ const Index = () => {
   }, []);
 
   const filtered = useMemo(() => {
-    let result = [...allVehicles];
+    let result = [...scopedVehicles];
 
-    // Status filter
     if (filters.status === "available") result = result.filter((v) => !v.is_sold);
     else if (filters.status === "sold") result = result.filter((v) => v.is_sold);
 
@@ -148,7 +214,6 @@ const Index = () => {
       result = result.filter((v) => (v.power || 0) <= kwMax);
     }
 
-    // Sort - sold always last
     const sortFn = (a: Vehicle, b: Vehicle): number => {
       switch (filters.sort) {
         case "year-asc": return (a.year || "").localeCompare(b.year || "");
@@ -167,7 +232,7 @@ const Index = () => {
     });
 
     return result;
-  }, [filters, allVehicles]);
+  }, [filters, scopedVehicles]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -181,16 +246,47 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <header className="py-16 md:py-24 px-4 max-w-7xl mx-auto">
-        <p className="text-xs tracking-[0.3em] uppercase text-muted-foreground mb-4" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
-          Seit 1995 lieben & leben wir Automobile in OWL
-        </p>
+      <header className="py-12 md:py-20 px-4 max-w-7xl mx-auto">
+        {breadcrumbs && breadcrumbs.length > 0 && (
+          <nav
+            aria-label="Breadcrumb"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground mb-6 flex-wrap"
+            style={{ fontFamily: "'Instrument Sans', sans-serif" }}
+          >
+            {breadcrumbs.map((bc, i) => (
+              <span key={i} className="flex items-center gap-1.5">
+                {bc.to ? (
+                  <Link to={bc.to} className="hover:text-foreground transition-colors">
+                    {bc.label}
+                  </Link>
+                ) : (
+                  <span className="text-foreground">{bc.label}</span>
+                )}
+                {i < breadcrumbs.length - 1 && <Chevron className="h-3.5 w-3.5 opacity-60" />}
+              </span>
+            ))}
+          </nav>
+        )}
+
+        {eyebrow && (
+          <p
+            className="text-xs tracking-[0.3em] uppercase text-muted-foreground mb-4"
+            style={{ fontFamily: "'Instrument Sans', sans-serif" }}
+          >
+            {eyebrow}
+          </p>
+        )}
         <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 leading-tight max-w-3xl">
-          Aktueller Fahrzeugbestand
+          {title}
         </h1>
-        <p className="text-muted-foreground text-base md:text-lg max-w-2xl leading-relaxed" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
-          Oldtimer, moderne Gebrauchtwagen & Werkstatt-Services – alles aus einer Hand.
-        </p>
+        {subtitle && (
+          <p
+            className="text-muted-foreground text-base md:text-lg max-w-2xl leading-relaxed"
+            style={{ fontFamily: "'Instrument Sans', sans-serif" }}
+          >
+            {subtitle}
+          </p>
+        )}
       </header>
 
       <main id="fahrzeuge" className="max-w-7xl mx-auto px-4 pb-20">
@@ -204,6 +300,7 @@ const Index = () => {
             fuels={fuels}
             gearboxes={gearboxes}
             colors={colors}
+            showCategorySelect={showCategorySelect}
           />
         </div>
 
@@ -274,7 +371,6 @@ const Index = () => {
           </div>
         )}
 
-        {/* Sold vehicles info */}
         {soldCount > 0 && filters.status !== "sold" && (
           <div className="mt-8 text-center">
             <button
@@ -302,4 +398,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default VehicleListPage;

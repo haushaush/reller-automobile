@@ -5,6 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const ID_PREFIX = "accident_";
+
 function attr(xml: string, tag: string, attribute: string): string | undefined {
   const regex = new RegExp(`<${tag}[^>]*?\\b${attribute}="([^"]*)"`, "i");
   return xml.match(regex)?.[1]?.trim();
@@ -74,33 +76,7 @@ interface VehicleRow {
   vehicle_category: string;
 }
 
-const COMMERCIAL_BODY_TYPES = new Set([
-  "Van", "Transporter", "Kastenwagen", "Pritschenwagen",
-  "Kleinbus", "LKW", "Sattelzugmaschine", "Kipper",
-]);
-
-function deriveCategory(bodyType: string | null, category: string | null, year: string | null, isAccident: boolean): string {
-  if (isAccident) return "accident";
-  if (bodyType && COMMERCIAL_BODY_TYPES.has(bodyType)) return "commercial";
-  const cat = (category || "").toLowerCase();
-  if (cat.includes("transporter") || cat.includes("nutzfahrzeug")) return "commercial";
-  if (year && /^\d{4}/.test(year)) {
-    const y = parseInt(year.substring(0, 4), 10);
-    const now = new Date().getFullYear();
-    if (y <= now - 30) return "oldtimer";
-    if (y <= now - 20) return "youngtimer";
-  }
-  return "used";
-}
-
-interface ParseOpts {
-  isAccident?: boolean;
-  /** Prefix prepended to mobile_de_id (e.g. "accident_") so accident & main syncs don't collide */
-  idPrefix?: string;
-}
-
-function parseAds(xmlText: string, opts: ParseOpts = {}): VehicleRow[] {
-  const { isAccident = false, idPrefix = "" } = opts;
+function parseAds(xmlText: string): VehicleRow[] {
   const rows: VehicleRow[] = [];
   const adRegex = /<ad:ad\b[^>]*>([\s\S]*?)<\/ad:ad>/gi;
   let adMatch;
@@ -111,7 +87,7 @@ function parseAds(xmlText: string, opts: ParseOpts = {}): VehicleRow[] {
     const content = adMatch[1];
 
     const rawId = attr(full, "ad:ad", "key") || `unknown-${rows.length}`;
-    const mobileDeId = `${idPrefix}${rawId}`;
+    const mobileDeId = `${ID_PREFIX}${rawId}`;
 
     const makeName = localDesc(content, "ad:make");
     const modelName = localDesc(content, "ad:model");
@@ -130,19 +106,15 @@ function parseAds(xmlText: string, opts: ParseOpts = {}): VehicleRow[] {
     const vatStr = attr(content, "ad:vatable", "value");
     const dmgStr = attr(content, "ad:damage-and-unrepaired", "value");
 
-    const bodyType = localDesc(content, "ad:body-type") || attr(content, "ad:category", "key") || null;
-    const adCategory = localDesc(content, "ad:category") || null;
-    const year = attr(content, "ad:first-registration", "value") || null;
-
     rows.push({
       mobile_de_id: mobileDeId,
       title,
       model_description: modelDesc || null,
-      category: adCategory,
+      category: localDesc(content, "ad:category") || null,
       brand: makeName || null,
       model: modelName || null,
-      body_type: bodyType,
-      year,
+      body_type: localDesc(content, "ad:body-type") || attr(content, "ad:category", "key") || null,
+      year: attr(content, "ad:first-registration", "value") || null,
       mileage: mileageStr ? parseInt(mileageStr, 10) : null,
       price: priceStr ? Math.round(parseFloat(priceStr)) : null,
       currency: attr(content, "ad:price", "currency") || "EUR",
@@ -168,51 +140,37 @@ function parseAds(xmlText: string, opts: ParseOpts = {}): VehicleRow[] {
       seller_city: textContent(content, "seller:city") || attr(content, "seller:city", "value") || null,
       seller_zipcode: attr(content, "seller:zipcode", "value") || null,
       synced_at: now,
-      vehicle_category: deriveCategory(bodyType, adCategory, year, isAccident),
+      vehicle_category: "accident",
     });
   }
 
   return rows;
 }
 
-async function fetchDetailImages(
-  mobileDeId: string,
-  authHeader: string
-): Promise<string[] | null> {
+async function fetchDetailImages(mobileDeIdRaw: string, authHeader: string): Promise<string[] | null> {
   try {
-    const res = await fetch(
-      `https://services.mobile.de/search-api/ad/${mobileDeId}`,
-      {
-        headers: {
-          Authorization: authHeader,
-          Accept: "application/xml",
-          "Accept-Language": "de",
-        },
-      }
-    );
+    const res = await fetch(`https://services.mobile.de/search-api/ad/${mobileDeIdRaw}`, {
+      headers: { Authorization: authHeader, Accept: "application/xml", "Accept-Language": "de" },
+    });
     if (!res.ok) {
-      console.error(`Detail fetch failed for ${mobileDeId}: ${res.status}`);
+      console.error(`Detail fetch failed for ${mobileDeIdRaw}: ${res.status}`);
       return null;
     }
     const xml = await res.text();
     const images = parseImages(xml);
     return images.length > 0 ? images : null;
   } catch (e) {
-    console.error(`Detail fetch error for ${mobileDeId}:`, e);
+    console.error(`Detail fetch error for ${mobileDeIdRaw}:`, e);
     return null;
   }
 }
 
-async function enrichWithDetailImages(
-  vehicles: VehicleRow[],
-  authHeader: string,
-  batchSize = 10,
-  delayMs = 200
-): Promise<void> {
+async function enrichWithDetailImages(vehicles: VehicleRow[], authHeader: string, batchSize = 10, delayMs = 200): Promise<void> {
   for (let i = 0; i < vehicles.length; i += batchSize) {
     const batch = vehicles.slice(i, i + batchSize);
     const results = await Promise.all(
-      batch.map((v) => fetchDetailImages(v.mobile_de_id, authHeader))
+      // strip the prefix to call mobile.de detail API with the raw ID
+      batch.map((v) => fetchDetailImages(v.mobile_de_id.replace(ID_PREFIX, ""), authHeader))
     );
     for (let j = 0; j < batch.length; j++) {
       if (results[j] && results[j]!.length > 0) {
@@ -231,12 +189,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const username = Deno.env.get("MOBILE_DE_USERNAME");
-    const password = Deno.env.get("MOBILE_DE_PASSWORD");
+    const username = Deno.env.get("MOBILE_DE_ACCIDENT_USERNAME");
+    const password = Deno.env.get("MOBILE_DE_ACCIDENT_PASSWORD");
 
     if (!username || !password) {
       return new Response(
-        JSON.stringify({ error: "Missing Mobile.de API credentials" }),
+        JSON.stringify({ error: "Missing Mobile.de accident-account credentials (MOBILE_DE_ACCIDENT_USERNAME / MOBILE_DE_ACCIDENT_PASSWORD)" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -245,11 +203,7 @@ Deno.serve(async (req) => {
     const authHeader = "Basic " + btoa(`${username}:${password}`);
 
     const response = await fetch(apiUrl, {
-      headers: {
-        Authorization: authHeader,
-        Accept: "application/xml",
-        "Accept-Language": "de",
-      },
+      headers: { Authorization: authHeader, Accept: "application/xml", "Accept-Language": "de" },
     });
 
     if (!response.ok) {
@@ -262,16 +216,14 @@ Deno.serve(async (req) => {
     }
 
     const xmlText = await response.text();
-    console.log("Received XML, length:", xmlText.length);
+    console.log("[accident] Received XML, length:", xmlText.length);
 
     const vehicleRows = parseAds(xmlText);
-    console.log(`Parsed ${vehicleRows.length} ads from search`);
+    console.log(`[accident] Parsed ${vehicleRows.length} ads`);
 
-    // Fetch detail pages to get all images per vehicle
-    console.log("Fetching detail images for each vehicle...");
     await enrichWithDetailImages(vehicleRows, authHeader);
     const totalImages = vehicleRows.reduce((sum, v) => sum + v.image_urls.length, 0);
-    console.log(`Total images after detail enrichment: ${totalImages}`);
+    console.log(`[accident] Total images after detail enrichment: ${totalImages}`);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -284,21 +236,20 @@ Deno.serve(async (req) => {
         .upsert(vehicleRows, { onConflict: "mobile_de_id" });
 
       if (upsertError) {
-        console.error("Upsert error:", upsertError);
+        console.error("[accident] Upsert error:", upsertError);
         return new Response(
           JSON.stringify({ error: "Failed to upsert vehicles", details: upsertError }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Soft-delete: mark vehicles no longer on Mobile.de as sold.
-      // IMPORTANT: only touch vehicles owned by THIS sync (vehicle_category != 'accident'),
-      // so the accident-vehicles sync and the main sync don't clobber each other.
+      // Soft-delete: only touch ACCIDENT vehicles (vehicle_category = 'accident').
+      // Main sync-vehicles handles all other categories.
       const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
       const { data: allDbVehicles } = await supabase
         .from("vehicles")
-        .select("id, mobile_de_id, is_sold, vehicle_category")
-        .neq("vehicle_category", "accident");
+        .select("id, mobile_de_id, is_sold")
+        .eq("vehicle_category", "accident");
 
       if (allDbVehicles) {
         const syncedSet = new Set(mobileDeIds);
@@ -311,14 +262,15 @@ Deno.serve(async (req) => {
         for (const v of toMarkAvailable) {
           await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
         }
-        if (toMarkSold.length > 0) console.log(`Marked ${toMarkSold.length} vehicles as sold`);
-        if (toMarkAvailable.length > 0) console.log(`Marked ${toMarkAvailable.length} vehicles as available again`);
+        if (toMarkSold.length > 0) console.log(`[accident] Marked ${toMarkSold.length} vehicles as sold`);
+        if (toMarkAvailable.length > 0) console.log(`[accident] Marked ${toMarkAvailable.length} vehicles as available`);
       }
 
-      // Record price history for vehicles with price changes
+      // Price history
       const { data: existingVehicles } = await supabase
         .from("vehicles")
-        .select("id, mobile_de_id, price");
+        .select("id, mobile_de_id, price")
+        .eq("vehicle_category", "accident");
 
       if (existingVehicles) {
         const vehicleMap = new Map(existingVehicles.map((v) => [v.mobile_de_id, v]));
@@ -346,43 +298,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Call check-alerts function
-    try {
-      const alertsUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/check-alerts`;
-      await fetch(alertsUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          "Content-Type": "application/json",
-        },
-      });
-      console.log("check-alerts triggered");
-    } catch (e) {
-      console.error("Failed to trigger check-alerts:", e);
-    }
-
-    // Chain accident-vehicles sync (only runs successfully if accident credentials are configured).
-    // We fire-and-await but never fail the main sync if accident sync errors.
-    try {
-      const accidentUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-accident-vehicles`;
-      const accRes = await fetch(accidentUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          "Content-Type": "application/json",
-        },
-      });
-      console.log("sync-accident-vehicles triggered, status:", accRes.status);
-    } catch (e) {
-      console.error("Failed to trigger sync-accident-vehicles:", e);
-    }
-
     return new Response(
-      JSON.stringify({ success: true, synced: vehicleRows.length, totalImages }),
+      JSON.stringify({ success: true, scope: "accident", synced: vehicleRows.length, totalImages }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Sync error:", error);
+    console.error("[accident] Sync error:", error);
     return new Response(
       JSON.stringify({ error: "Internal error", details: String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

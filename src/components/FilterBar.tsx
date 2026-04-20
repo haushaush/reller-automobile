@@ -39,9 +39,11 @@ interface FilterBarProps {
   fuels?: string[];
   gearboxes?: string[];
   colors?: string[];
+  /** Show the "Kategorie" select. Hidden by default since most pages are pre-scoped via the route. */
+  showCategorySelect?: boolean;
 }
 
-const FilterBar = ({ filters, onFilterChange, brands, bodyTypes, categories, fuels, gearboxes, colors }: FilterBarProps) => {
+const FilterBar = ({ filters, onFilterChange, brands, bodyTypes, categories, fuels, gearboxes, colors, showCategorySelect = false }: FilterBarProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
@@ -56,18 +58,20 @@ const FilterBar = ({ filters, onFilterChange, brands, bodyTypes, categories, fue
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Select value={filters.category} onValueChange={(v) => onFilterChange("category", v)}>
-          <SelectTrigger className="bg-secondary border-border text-foreground">
-            <SelectValue placeholder="Kategorie" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Kategorien</SelectItem>
-            {(categories || ["Oldtimer", "Gebrauchtwagen"]).map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${showCategorySelect ? "lg:grid-cols-6" : "lg:grid-cols-5"} gap-3`}>
+        {showCategorySelect && (
+          <Select value={filters.category} onValueChange={(v) => onFilterChange("category", v)}>
+            <SelectTrigger className="bg-secondary border-border text-foreground">
+              <SelectValue placeholder="Kategorie" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Kategorien</SelectItem>
+              {(categories || ["Oldtimer", "Gebrauchtwagen"]).map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <Select value={filters.brand} onValueChange={(v) => onFilterChange("brand", v)}>
           <SelectTrigger className="bg-secondary border-border text-foreground">
