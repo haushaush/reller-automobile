@@ -30,14 +30,23 @@ export interface Filters {
   status: string;
 }
 
+/** Filter-Option mit Raw-Wert (für interne Logik) und lesbarem Label (für Anzeige). */
+export interface LabeledOption {
+  raw: string;
+  label: string;
+}
+
 interface FilterBarProps {
   filters: Filters;
   onFilterChange: (key: keyof Filters, value: string) => void;
   brands: string[];
-  bodyTypes: string[];
+  /** Karosserieformen — als `{raw,label}` für lesbare Mobile.de-Übersetzungen. */
+  bodyTypes: LabeledOption[];
   categories?: string[];
-  fuels?: string[];
-  gearboxes?: string[];
+  /** Kraftstoffe — als `{raw,label}`. */
+  fuels?: LabeledOption[];
+  /** Getriebe — als `{raw,label}`. */
+  gearboxes?: LabeledOption[];
   colors?: string[];
   /** Show the "Kategorie" select. Hidden by default since most pages are pre-scoped via the route. */
   showCategorySelect?: boolean;
@@ -91,13 +100,13 @@ const FilterBar = memo(({ filters, onFilterChange, brands, bodyTypes, categories
           <SelectTrigger className="bg-secondary border-border text-foreground">
             <SelectValue placeholder="Karosserieform" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Karosserieformen</SelectItem>
-            {bodyTypes.map((bt) => (
-              <SelectItem key={bt} value={bt}>{bt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <SelectContent>
+              <SelectItem value="all">Alle Karosserieformen</SelectItem>
+              {bodyTypes.map((bt) => (
+                <SelectItem key={bt.raw} value={bt.raw}>{bt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
         <Input
           placeholder="Baujahr von"
@@ -160,7 +169,7 @@ const FilterBar = memo(({ filters, onFilterChange, brands, bodyTypes, categories
           <SelectContent>
             <SelectItem value="all">Alle Kraftstoffe</SelectItem>
             {(fuels || []).map((f) => (
-              <SelectItem key={f} value={f}>{f}</SelectItem>
+              <SelectItem key={f.raw} value={f.raw}>{f.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -187,7 +196,7 @@ const FilterBar = memo(({ filters, onFilterChange, brands, bodyTypes, categories
           <SelectContent>
             <SelectItem value="all">Alle Getriebe</SelectItem>
             {(gearboxes || []).map((g) => (
-              <SelectItem key={g} value={g}>{g}</SelectItem>
+              <SelectItem key={g.raw} value={g.raw}>{g.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>

@@ -150,7 +150,7 @@ const VehicleListGrid = ({
     [scopedVehicles]
   );
   const bodyTypes = useMemo(
-    () => [...new Set(scopedVehicles.map((v) => v.body_type).filter(Boolean) as string[])].sort(),
+    () => toLabelOptions(scopedVehicles.map((v) => v.body_type), getBodyTypeLabel),
     [scopedVehicles]
   );
   const categories = useMemo(
@@ -158,11 +158,11 @@ const VehicleListGrid = ({
     [scopedVehicles]
   );
   const fuels = useMemo(
-    () => [...new Set(scopedVehicles.map((v) => v.fuel).filter(Boolean) as string[])].sort(),
+    () => toLabelOptions(scopedVehicles.map((v) => v.fuel), getFuelLabel),
     [scopedVehicles]
   );
   const gearboxes = useMemo(
-    () => [...new Set(scopedVehicles.map((v) => v.gearbox).filter(Boolean) as string[])].sort(),
+    () => toLabelOptions(scopedVehicles.map((v) => v.gearbox), getGearboxLabel),
     [scopedVehicles]
   );
   const colors = useMemo(
