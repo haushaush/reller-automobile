@@ -151,12 +151,12 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
         <div className="mb-4">
           {formattedPrice ? (
             <span
-              className="text-foreground"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 width: "fit-content",
-                backgroundColor: "hsl(var(--secondary))",
+                backgroundColor: "hsl(var(--primary))",
+                color: "hsl(var(--primary-foreground))",
                 padding: "8px 18px",
                 borderRadius: "24px",
                 fontSize: "18px",
