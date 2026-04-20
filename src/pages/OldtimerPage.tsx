@@ -242,23 +242,12 @@ const OldtimerPage = () => {
     <div
       className="oldtimer-route min-h-screen relative"
       style={{
-        backgroundImage: `url('${LEATHER_BG}')`,
+        background: `linear-gradient(rgba(0, 0, 0, 0.549), rgba(0, 0, 0, 0.2)), linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url('${LEATHER_BG}')`,
         backgroundSize: "cover",
-        backgroundAttachment: "fixed",
         backgroundPosition: "center",
+        backgroundAttachment: "fixed",
       }}
     >
-      {/* Dark overlay for contrast */}
-      <div
-        aria-hidden
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(15, 8, 5, 0.4)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
 
       <div className="relative z-10">
         <Navbar />
@@ -499,14 +488,8 @@ const OldtimerPage = () => {
         </footer>
       </div>
 
-      {/* Scoped overrides for navbar + filterbar gold accents on this route */}
+      {/* Scoped focus accents on this route */}
       <style>{`
-        .oldtimer-route nav.sticky {
-          background: rgba(15, 8, 5, 0.5) !important;
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border-bottom-color: rgba(201, 169, 97, 0.2) !important;
-        }
         .oldtimer-route input:focus-visible,
         .oldtimer-route button:focus-visible,
         .oldtimer-route [role="combobox"]:focus-visible {

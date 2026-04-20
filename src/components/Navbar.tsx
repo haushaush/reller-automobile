@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Menu, X, ChevronDown } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import FavoritesDrawer from "@/components/FavoritesDrawer";
@@ -22,16 +22,33 @@ const externalLinks = [
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const location = useLocation();
+  const isOldtimerPage = location.pathname.startsWith("/fahrzeuge/oldtimer");
 
   return (
-    <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+    <nav
+      className={`sticky top-0 z-50 backdrop-blur-sm border-b transition-colors ${
+        isOldtimerPage ? "" : "bg-background/95 border-border"
+      }`}
+      style={
+        isOldtimerPage
+          ? {
+              background: "rgba(0, 0, 0, 0.3)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              borderBottomColor: "rgba(201, 169, 97, 0.15)",
+            }
+          : undefined
+      }
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 md:h-20">
           <Link to="/" className="flex items-center shrink-0">
             <img
               src={rellerLogo}
               alt="Reller Automobile"
-              className="h-10 md:h-12 w-auto logo-adaptive"
+              className={`h-10 md:h-12 w-auto ${isOldtimerPage ? "" : "logo-adaptive"}`}
+              style={isOldtimerPage ? { filter: "invert(1) brightness(1.1)" } : undefined}
             />
           </Link>
 
