@@ -13,7 +13,7 @@ const CategoryPage = () => {
   return (
     <VehicleListPage
       title={def.title}
-      subtitle={def.description}
+      eyebrow={def.eyebrow}
       breadcrumbs={[
         { label: "Home", to: "/" },
         { label: def.shortTitle },
@@ -29,7 +29,6 @@ export const AllVehiclesPage = () => (
   <VehicleListPage
     title="Aktueller Fahrzeugbestand"
     eyebrow="Alle Kategorien"
-    subtitle="Oldtimer, moderne Gebrauchtwagen, Nutzfahrzeuge und Unfallwagen — alles auf einen Blick."
     breadcrumbs={[{ label: "Home", to: "/" }, { label: "Alle Fahrzeuge" }]}
     categoryFilter={CATEGORIES.flatMap((c) => c.dbCategories)}
     showCategorySelect
