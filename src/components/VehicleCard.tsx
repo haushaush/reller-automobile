@@ -206,12 +206,13 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
         <button
           onClick={handleCtaClick}
           disabled={isSold}
-          className={`w-full mt-4 flex items-center justify-center gap-2 transition-opacity ${
+          className={`mt-4 inline-flex items-center gap-2 transition-opacity ${
             isSold
               ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
               : "bg-foreground text-background hover:opacity-90"
           }`}
           style={{
+            width: "fit-content",
             padding: "12px 20px",
             borderRadius: "24px",
             fontSize: "14px",
@@ -230,8 +231,8 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
         {/* Secondary link */}
         <button
           onClick={handleSecondaryClick}
-          className="w-full mt-2.5 text-muted-foreground hover:text-foreground transition-colors"
-          style={{ fontSize: "13px", fontWeight: 500 }}
+          className="block mt-2.5 text-left text-muted-foreground hover:text-foreground transition-colors"
+          style={{ width: "fit-content", fontSize: "13px", fontWeight: 500 }}
         >
           Mehr erfahren →
         </button>
