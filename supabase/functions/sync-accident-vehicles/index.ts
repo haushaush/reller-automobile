@@ -296,36 +296,6 @@ Deno.serve(async (req) => {
         if (toMarkAvailable.length > 0) console.log(`[accident] Marked ${toMarkAvailable.length} vehicles as available`);
       }
 
-      // Price history
-      const { data: existingVehicles } = await supabase
-        .from("vehicles")
-        .select("id, mobile_de_id, price")
-        .eq("vehicle_category", "accident");
-
-      if (existingVehicles) {
-        const vehicleMap = new Map(existingVehicles.map((v) => [v.mobile_de_id, v]));
-
-        for (const row of vehicleRows) {
-          const existing = vehicleMap.get(row.mobile_de_id);
-          if (!existing || row.price === null) continue;
-
-          const { data: lastEntry } = await supabase
-            .from("price_history")
-            .select("price")
-            .eq("vehicle_id", existing.id)
-            .order("recorded_at", { ascending: false })
-            .limit(1);
-
-          const shouldRecord = !lastEntry || lastEntry.length === 0 || lastEntry[0].price !== row.price;
-
-          if (shouldRecord) {
-            await supabase.from("price_history").insert({
-              vehicle_id: existing.id,
-              price: row.price,
-            });
-          }
-        }
-      }
     }
 
     return new Response(
