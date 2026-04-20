@@ -1,6 +1,5 @@
 import { useCompare } from "@/contexts/CompareContext";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, X, ArrowRight } from "lucide-react";
@@ -74,7 +73,6 @@ function getBestIndices(vehicles: Vehicle[], row: RowDef): Set<number> {
 const ComparePage = () => {
   const { selected, remove, clear } = useCompare();
   const navigate = useNavigate();
-  const [hoveredCol, setHoveredCol] = useState<number | null>(null);
 
   if (selected.length < 2) {
     return (
@@ -101,8 +99,6 @@ const ComparePage = () => {
 
   const ACCENT = "hsl(var(--primary))";
 
-  const isDimmed = (i: number) => hoveredCol !== null && hoveredCol !== i;
-
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -114,7 +110,7 @@ const ComparePage = () => {
               onClick={() => navigate("/")}
               variant="outline"
               size="sm"
-              className="gap-1.5 bg-transparent border-white/10 hover:bg-white/5"
+              className="gap-1.5"
             >
               <ArrowLeft className="h-4 w-4" /> Zurück
             </Button>
@@ -134,7 +130,7 @@ const ComparePage = () => {
               clear();
               navigate("/");
             }}
-            className="bg-transparent border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             Auswahl leeren
           </Button>
@@ -149,27 +145,22 @@ const ComparePage = () => {
               style={{ gridTemplateColumns: gridTemplate }}
             >
               <div /> {/* empty corner */}
-              {selected.map((v, i) => {
+              {selected.map((v) => {
                 const img = v.image_urls?.[0] || "/placeholder.svg";
                 return (
-                  <div
-                    key={v.id}
-                    className="transition-opacity duration-300"
-                    style={{ opacity: isDimmed(i) ? 0.55 : 1 }}
-                    onMouseEnter={() => setHoveredCol(i)}
-                    onMouseLeave={() => setHoveredCol(null)}
-                  >
+                  <div key={v.id}>
                     <div
                       className="relative overflow-hidden group"
                       style={{
                         aspectRatio: "16 / 10",
                         borderRadius: "12px",
-                        border: "1px solid rgba(255,255,255,0.08)",
+                        border: "1px solid hsl(var(--border))",
                       }}
                     >
                       <img
                         src={img}
                         alt={v.title}
+                        loading="lazy"
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                       <button
@@ -200,33 +191,31 @@ const ComparePage = () => {
             </div>
 
             {/* Spec rows */}
-            <div className="mt-6 rounded-xl overflow-hidden border border-white/[0.06]">
+            <div className="mt-6 rounded-xl overflow-hidden border border-border">
               {rows.map((row, rowIdx) => {
                 const bestSet = getBestIndices(selected, row);
-                const altBg = rowIdx % 2 === 1 ? "bg-white/[0.015]" : "bg-transparent";
+                const altBg = rowIdx % 2 === 1 ? "bg-muted/20" : "bg-transparent";
                 return (
                   <div
                     key={row.label}
-                    className={`grid gap-3 md:gap-4 ${altBg} hover:bg-white/[0.04] transition-colors group`}
+                    className={`grid gap-3 md:gap-4 ${altBg}`}
                     style={{ gridTemplateColumns: gridTemplate }}
                   >
-                    <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] uppercase tracking-wider font-medium text-foreground/45">
+                    <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] uppercase tracking-wider font-medium text-muted-foreground">
                       <span className="text-sm opacity-70">{row.icon}</span>
                       {row.label}
                     </div>
                     {selected.map((v, i) => {
                       const isBest = bestSet.has(i);
-                      const dimmed = isDimmed(i);
                       return (
                         <div
                           key={v.id}
-                          onMouseEnter={() => setHoveredCol(i)}
-                          onMouseLeave={() => setHoveredCol(null)}
-                          className={`flex items-center gap-2 px-4 py-3.5 ${valueSize} text-foreground transition-all duration-300`}
+                          className={`flex items-center gap-2 px-4 py-3.5 ${valueSize} text-foreground`}
                           style={{
-                            opacity: dimmed ? 0.4 : 1,
                             backgroundColor: isBest ? "rgba(74,222,128,0.04)" : undefined,
-                            borderLeft: isBest ? "2px solid rgba(74,222,128,0.3)" : "2px solid transparent",
+                            borderLeft: isBest
+                              ? "2px solid rgba(74,222,128,0.3)"
+                              : "2px solid transparent",
                             color: isBest ? "#4ade80" : undefined,
                             fontWeight: isBest ? 600 : 400,
                           }}
@@ -257,25 +246,11 @@ const ComparePage = () => {
               style={{ gridTemplateColumns: gridTemplate }}
             >
               <div />
-              {selected.map((v, i) => (
+              {selected.map((v) => (
                 <button
                   key={v.id}
                   onClick={() => navigate(`/fahrzeug/${v.id}`)}
-                  onMouseEnter={() => setHoveredCol(i)}
-                  onMouseLeave={() => setHoveredCol(null)}
-                  className="flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-all duration-300"
-                  style={{
-                    backgroundColor: "rgba(74,222,128,0.10)",
-                    border: "1px solid rgba(74,222,128,0.25)",
-                    color: "#4ade80",
-                    opacity: isDimmed(i) ? 0.4 : 1,
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(74,222,128,0.18)";
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(74,222,128,0.10)";
-                  }}
+                  className="flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-colors bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   Fahrzeug ansehen <ArrowRight className="h-4 w-4" />
                 </button>

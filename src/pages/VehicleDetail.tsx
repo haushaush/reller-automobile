@@ -7,7 +7,7 @@ import DealerLocation from "@/components/DealerLocation";
 import DownloadExposeButton from "@/components/DownloadExposeButton";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Send, Check } from "lucide-react";
+import { ArrowLeft, Send, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useInquiry, MAX_INQUIRY_ITEMS } from "@/contexts/InquiryContext";
 import { toast } from "sonner";
 
@@ -54,6 +54,21 @@ const VehicleDetail = () => {
     ? vehicle.price.toLocaleString("de-DE") + " " + (vehicle.currency || "€")
     : null;
 
+  const goPrevImage = () =>
+    setSelectedImage((i) => (i - 1 + images.length) % images.length);
+  const goNextImage = () => setSelectedImage((i) => (i + 1) % images.length);
+
+  const handleInquiry = () => {
+    if (inquiryCount >= MAX_INQUIRY_ITEMS) {
+      toast.error(`Maximal ${MAX_INQUIRY_ITEMS} Fahrzeuge pro Anfrage`);
+      return;
+    }
+    addToInquiry(vehicle);
+    toast.success("Zur Anfrage hinzugefügt");
+  };
+
+  const inInquiry = isInInquiry(vehicle.id);
+
   const specs: [string, string | null][] = [
     ["Baujahr", vehicle.year],
     ["Kilometerstand", vehicle.mileage ? vehicle.mileage.toLocaleString("de-DE") + " km" : null],
@@ -76,21 +91,43 @@ const VehicleDetail = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="max-w-7xl mx-auto px-4 py-10">
+      <div className="max-w-7xl mx-auto px-4 py-10 pb-32">
         <Button onClick={() => navigate(-1)} variant="outline" size="sm" className="gap-1.5 mb-6">
           <ArrowLeft className="h-4 w-4" /> Zurück
         </Button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left: Images + Details */}
+          {/* Left: Images + Specs + Description */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Main image */}
-            <div className="rounded-xl overflow-hidden">
+            {/* Main image with arrows */}
+            <div className="relative rounded-xl overflow-hidden">
               <img
                 src={images[selectedImage]}
                 alt={vehicle.title}
+                loading="lazy"
                 className="w-full h-[400px] md:h-[500px] object-cover"
               />
+              {images.length > 1 && (
+                <>
+                  <button
+                    onClick={goPrevImage}
+                    aria-label="Vorheriges Bild"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={goNextImage}
+                    aria-label="Nächstes Bild"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-black/50 text-white text-xs font-medium">
+                    {selectedImage + 1} / {images.length}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Thumbnails */}
@@ -104,19 +141,11 @@ const VehicleDetail = () => {
                       i === selectedImage ? "border-primary" : "border-transparent"
                     }`}
                   >
-                    <img src={url} alt="" className="w-20 h-14 object-cover" />
+                    <img src={url} alt="" loading="lazy" className="w-20 h-14 object-cover" />
                   </button>
                 ))}
               </div>
             )}
-
-            {/* Title + Price */}
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-3">{vehicle.title}</h1>
-              {formattedPrice && (
-                <p className="text-primary font-bold text-2xl">{formattedPrice}</p>
-              )}
-            </div>
 
             {/* Specs */}
             <div className="bg-card border border-border rounded-xl p-6">
@@ -124,7 +153,10 @@ const VehicleDetail = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
                 {specs.map(([label, value]) =>
                   value ? (
-                    <div key={label} className="flex justify-between py-2 border-b border-border text-sm">
+                    <div
+                      key={label}
+                      className="flex justify-between py-2 border-b border-border text-sm"
+                    >
                       <span className="text-muted-foreground">{label}</span>
                       <span className="text-foreground font-medium">{value}</span>
                     </div>
@@ -142,51 +174,63 @@ const VehicleDetail = () => {
                 </p>
               </div>
             )}
-
-            {/* Actions */}
-            <div className="flex flex-wrap gap-3">
-              {!vehicle.is_sold && (
-                isInInquiry(vehicle.id) ? (
-                  <Button
-                    onClick={() => removeFromInquiry(vehicle.id)}
-                    variant="outline"
-                    size="lg"
-                    className="gap-2 rounded-full"
-                  >
-                    <Check className="h-4 w-4" />
-                    Aus Anfrage entfernen
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => {
-                      if (inquiryCount >= MAX_INQUIRY_ITEMS) {
-                        toast.error(`Maximal ${MAX_INQUIRY_ITEMS} Fahrzeuge pro Anfrage`);
-                        return;
-                      }
-                      addToInquiry(vehicle);
-                      toast.success("Zur Anfrage hinzugefügt");
-                    }}
-                    size="lg"
-                    className="gap-2 rounded-full"
-                  >
-                    <Send className="h-4 w-4" />
-                    Jetzt Fahrzeug anfragen
-                  </Button>
-                )
-              )}
-              <DownloadExposeButton vehicle={vehicle} />
-              {vehicle.detail_page_url && (
-                <Button asChild variant="outline" className="gap-2">
-                  <a href={vehicle.detail_page_url} target="_blank" rel="noopener noreferrer">
-                    Auf Mobile.de ansehen
-                  </a>
-                </Button>
-              )}
-            </div>
           </div>
 
           {/* Right sidebar */}
           <div className="space-y-6">
+            {/* Summary + Inquiry */}
+            <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+              {vehicle.brand && (
+                <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                  {vehicle.brand}
+                </p>
+              )}
+              <h1 className="text-2xl font-bold text-foreground leading-tight">
+                {vehicle.title}
+              </h1>
+              {formattedPrice ? (
+                <p className="text-3xl font-bold text-primary">{formattedPrice}</p>
+              ) : (
+                <p className="text-xl font-semibold text-muted-foreground">Auf Anfrage</p>
+              )}
+
+              {!vehicle.is_sold && (
+                <Button
+                  onClick={inInquiry ? () => removeFromInquiry(vehicle.id) : handleInquiry}
+                  size="lg"
+                  variant={inInquiry ? "outline" : "default"}
+                  className="w-full rounded-full gap-2 text-base font-semibold"
+                >
+                  {inInquiry ? (
+                    <>
+                      <Check className="h-4 w-4" />
+                      Aus Anfrage entfernen
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      Jetzt Fahrzeug anfragen
+                    </>
+                  )}
+                </Button>
+              )}
+
+              <div className="flex flex-col gap-2 pt-2">
+                <DownloadExposeButton vehicle={vehicle} />
+                {vehicle.detail_page_url && (
+                  <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
+                    <a
+                      href={vehicle.detail_page_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Auf Mobile.de ansehen
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <PriceHistoryWidget vehicle={vehicle} />
             <DealerLocation />
           </div>
