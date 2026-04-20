@@ -147,96 +147,80 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
           {modelTitle}
         </h3>
 
-        {/* Price pill */}
+        {/* Price — plain text in primary color */}
         <div className="mb-4">
           {formattedPrice ? (
-            <span
+            <p
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                width: "fit-content",
-                backgroundColor: "hsl(var(--primary))",
-                color: "hsl(var(--primary-foreground))",
-                padding: "8px 18px",
-                borderRadius: "24px",
-                fontSize: "18px",
+                fontSize: "22px",
                 fontWeight: 700,
+                color: "hsl(var(--primary))",
+                lineHeight: 1.2,
               }}
             >
               {formattedPrice}
-            </span>
+            </p>
           ) : (
-            <span className="text-muted-foreground font-medium" style={{ fontSize: "16px" }}>
+            <p className="text-muted-foreground font-medium" style={{ fontSize: "16px" }}>
               Auf Anfrage
-            </span>
+            </p>
           )}
         </div>
 
-        {/* Spec chips */}
+        {/* Specs — typographic row with dot separators */}
         {visibleChips.length > 0 && (
           <div
+            className="mb-4"
             style={{
               display: "flex",
               flexWrap: "wrap",
+              alignItems: "center",
               gap: "8px",
-              justifyContent: "flex-start",
+              color: "hsl(var(--muted-foreground))",
+              fontSize: "13px",
+              fontWeight: 400,
             }}
           >
             {visibleChips.map((chip, i) => (
-              <span
-                key={i}
-                style={{
-                  backgroundColor: "hsl(var(--secondary))",
-                  border: "1px solid hsl(var(--border))",
-                  color: "hsl(var(--muted-foreground))",
-                  padding: "6px 14px",
-                  borderRadius: "20px",
-                  fontSize: "13px",
-                  fontWeight: 400,
-                  display: "inline-block",
-                }}
-              >
-                {chip}
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <span>{chip}</span>
+                {i < visibleChips.length - 1 && (
+                  <span style={{ color: "rgba(255,255,255,0.25)" }}>·</span>
+                )}
               </span>
             ))}
           </div>
         )}
 
-        {/* CTA Button */}
-        <button
-          onClick={handleCtaClick}
-          disabled={isSold}
-          className={`mt-4 inline-flex items-center gap-2 transition-opacity ${
-            isSold
-              ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
-              : "bg-foreground text-background hover:opacity-90"
-          }`}
-          style={{
-            width: "fit-content",
-            padding: "12px 20px",
-            borderRadius: "24px",
-            fontSize: "14px",
-            fontWeight: 600,
-          }}
-        >
-          {isSold ? (
-            "Fahrzeug nicht mehr verfügbar"
-          ) : (
-            <>
-              Jetzt Fahrzeug anfragen <ArrowRight className="h-4 w-4" />
-            </>
-          )}
-        </button>
-
-        {/* Secondary link */}
-        <button
-          onClick={handleSecondaryClick}
-          className="block mt-2.5 text-left text-muted-foreground hover:text-foreground transition-colors"
-          style={{ width: "fit-content", fontSize: "13px", fontWeight: 500 }}
-        >
-          Mehr erfahren →
-        </button>
+        {/* Subtle CTA link */}
+        {isSold ? (
+          <p className="text-muted-foreground" style={{ fontSize: "14px", fontWeight: 500 }}>
+            Fahrzeug nicht mehr verfügbar
+          </p>
+        ) : (
+          <button
+            onClick={handleCtaClick}
+            className="cta-link inline-flex items-center gap-1.5 hover:underline transition-colors"
+            style={{
+              width: "fit-content",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "hsl(var(--primary))",
+              background: "transparent",
+              padding: 0,
+            }}
+          >
+            Fahrzeug ansehen
+            <ArrowRight
+              className="h-4 w-4 cta-arrow"
+              style={{ transition: "transform 200ms ease" }}
+            />
+          </button>
+        )}
       </div>
+      <style>{`
+        .group:hover .cta-arrow { transform: translateX(4px); }
+      `}</style>
     </div>
   );
 });
