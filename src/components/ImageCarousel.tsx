@@ -121,7 +121,7 @@ const ImageCarousel = memo(({ images, alt, vehicleId, totalImages }: ImageCarous
 
       {/* Pagination dots */}
       {hasMultiple && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
           {displayImages.map((_, i) => (
             <button
               key={i}
@@ -129,7 +129,7 @@ const ImageCarousel = memo(({ images, alt, vehicleId, totalImages }: ImageCarous
               className={`w-2 h-2 rounded-full transition-colors ${
                 i === currentIndex
                   ? "bg-[hsl(var(--primary))]"
-                  : "bg-white/50 hover:bg-white/80"
+                  : "bg-white/30 hover:bg-white/60"
               }`}
             />
           ))}
