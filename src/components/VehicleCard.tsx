@@ -221,7 +221,6 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
       <style>{`
         .group:hover .cta-arrow { transform: translateX(4px); }
       `}</style>
-      </div>
     </div>
   );
 });
