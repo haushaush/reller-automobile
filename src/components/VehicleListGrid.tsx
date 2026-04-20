@@ -12,14 +12,13 @@ import CategoryQuickTabs, { QuickTabOption } from "@/components/CategoryQuickTab
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useItemsPerPage } from "@/hooks/useItemsPerPage";
 import {
   toLabelOptions,
   getBodyTypeLabel,
   getFuelLabel,
   getGearboxLabel,
 } from "@/lib/mobileDeLabels";
-
-const ITEMS_PER_PAGE = 8;
 
 const defaultFilters: Filters = {
   search: "",
