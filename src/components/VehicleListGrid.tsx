@@ -3,6 +3,7 @@ import { useVehicles, Vehicle } from "@/hooks/useVehicles";
 import { vehicles as staticVehicles } from "@/data/vehicles";
 import { deriveVehicleCategory, VehicleCategoryKey } from "@/lib/categories";
 import { useFuzzySearch } from "@/hooks/useFuzzySearch";
+import { calculateRelevanceScore } from "@/lib/relevanceScore";
 import VehicleCard from "@/components/VehicleCard";
 import FilterBar, { Filters } from "@/components/FilterBar";
 import ActiveFilters from "@/components/ActiveFilters";
@@ -192,6 +193,7 @@ const VehicleListGrid = ({
 
   // Apply fuzzy search BEFORE the rest of the filters
   const searched = useFuzzySearch(scopedVehicles, filters.search);
+  const isSearchActive = filters.search.trim().length >= 2;
 
   const filtered = useMemo(() => {
     let result = [...searched];
@@ -224,6 +226,23 @@ const VehicleListGrid = ({
       result = result.filter((v) => (v.power || 0) <= kwMax);
     }
 
+    // When a search query is active → ALWAYS sort by relevance (ignoring user-sort).
+    if (isSearchActive) {
+      const query = filters.search.trim();
+      const scoreMap = new Map<string, number>();
+      for (const v of result) scoreMap.set(v.id, calculateRelevanceScore(v, query));
+
+      // Drop zero-score items (fuse may have surfaced weak matches)
+      result = result.filter((v) => (scoreMap.get(v.id) || 0) > 0);
+
+      result.sort((a, b) => {
+        if (a.is_sold !== b.is_sold) return a.is_sold ? 1 : -1;
+        return (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0);
+      });
+
+      return result;
+    }
+
     const sortFn = (a: Vehicle, b: Vehicle): number => {
       switch (filters.sort) {
         case "year-asc":
@@ -249,7 +268,7 @@ const VehicleListGrid = ({
     });
 
     return result;
-  }, [filters, searched]);
+  }, [filters, searched, isSearchActive]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice(
