@@ -5,8 +5,7 @@ import { useEffect, useState } from "react";
  * current viewport. Aligns with the breakpoints used by VehicleListGrid:
  *   - <640px      → 1 col  → 6 items
  *   - 640–1279px  → 2 cols → 8 items
- *   - 1280–1535px → 3 cols → 12 items
- *   - ≥1536px     → 4 cols → 16 items
+ *   - ≥1280px     → 3 cols → 12 items
  */
 export function useItemsPerPage(): number {
   const compute = (): number => {
@@ -14,8 +13,7 @@ export function useItemsPerPage(): number {
     const w = window.innerWidth;
     if (w < 640) return 6;
     if (w < 1280) return 8;
-    if (w < 1536) return 12;
-    return 16;
+    return 12;
   };
 
   const [itemsPerPage, setItemsPerPage] = useState<number>(compute);
