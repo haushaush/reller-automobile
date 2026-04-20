@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Menu, X, ChevronDown } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import FavoritesDrawer from "@/components/FavoritesDrawer";
@@ -23,7 +23,6 @@ const externalLinks = [
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  useLocation();
 
   return (
     <nav className="sticky top-0 z-50 backdrop-blur-sm border-b transition-colors bg-background/95 border-border">
