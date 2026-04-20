@@ -41,14 +41,56 @@ export interface Vehicle {
   vehicle_category: string | null;
 }
 
+// Explicit column list — avoid select("*") so payload size is predictable
+// and we don't ship internal columns to the client.
+const VEHICLE_COLUMNS = [
+  "id",
+  "mobile_de_id",
+  "title",
+  "category",
+  "brand",
+  "model",
+  "model_description",
+  "body_type",
+  "year",
+  "mileage",
+  "price",
+  "currency",
+  "price_type",
+  "vatable",
+  "image_urls",
+  "description",
+  "exterior_color",
+  "fuel",
+  "power",
+  "gearbox",
+  "climatisation",
+  "num_seats",
+  "cubic_capacity",
+  "condition",
+  "usage_type",
+  "interior_color",
+  "interior_type",
+  "damage_unrepaired",
+  "detail_page_url",
+  "creation_date",
+  "modification_date",
+  "seller_city",
+  "seller_zipcode",
+  "is_sold",
+  "sold_at",
+  "synced_at",
+  "vehicle_category",
+].join(",");
+
 async function fetchVehicles(): Promise<Vehicle[]> {
   const { data, error } = await supabase
     .from("vehicles")
-    .select("*")
+    .select(VEHICLE_COLUMNS)
     .order("synced_at", { ascending: false });
 
   if (error) throw error;
-  return data as Vehicle[];
+  return (data as unknown as Vehicle[]) ?? [];
 }
 
 export function useVehicles() {

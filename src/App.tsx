@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -9,14 +10,30 @@ import { InquiryProvider } from "@/contexts/InquiryContext";
 import CompareBar from "@/components/CompareBar";
 import InquiryBar from "@/components/InquiryBar";
 import Hub from "./pages/Hub";
-import CategoryPage, { AllVehiclesPage } from "./pages/CategoryPage";
-import VehicleDetail from "./pages/VehicleDetail.tsx";
-import ComparePage from "./pages/ComparePage.tsx";
-import InquiryPage from "./pages/InquiryPage.tsx";
-import InquirySuccessPage from "./pages/InquirySuccessPage.tsx";
-import NotFound from "./pages/NotFound.tsx";
 
-const queryClient = new QueryClient();
+const CategoryPage = lazy(() => import("./pages/CategoryPage"));
+const AllVehiclesPage = lazy(() =>
+  import("./pages/CategoryPage").then((m) => ({ default: m.AllVehiclesPage }))
+);
+const VehicleDetail = lazy(() => import("./pages/VehicleDetail"));
+const ComparePage = lazy(() => import("./pages/ComparePage"));
+const InquiryPage = lazy(() => import("./pages/InquiryPage"));
+const InquirySuccessPage = lazy(() => import("./pages/InquirySuccessPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+const RouteFallback = () => (
+  <div className="min-h-screen bg-background" />
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -27,16 +44,18 @@ const App = () => (
         <FavoritesProvider>
           <CompareProvider>
             <InquiryProvider>
-              <Routes>
-                <Route path="/" element={<Hub />} />
-                <Route path="/fahrzeuge" element={<AllVehiclesPage />} />
-                <Route path="/fahrzeuge/:category" element={<CategoryPage />} />
-                <Route path="/fahrzeug/:id" element={<VehicleDetail />} />
-                <Route path="/vergleich" element={<ComparePage />} />
-                <Route path="/anfrage" element={<InquiryPage />} />
-                <Route path="/anfrage/erfolg" element={<InquirySuccessPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route path="/" element={<Hub />} />
+                  <Route path="/fahrzeuge" element={<AllVehiclesPage />} />
+                  <Route path="/fahrzeuge/:category" element={<CategoryPage />} />
+                  <Route path="/fahrzeug/:id" element={<VehicleDetail />} />
+                  <Route path="/vergleich" element={<ComparePage />} />
+                  <Route path="/anfrage" element={<InquiryPage />} />
+                  <Route path="/anfrage/erfolg" element={<InquirySuccessPage />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
               <CompareBar />
               <InquiryBar />
             </InquiryProvider>

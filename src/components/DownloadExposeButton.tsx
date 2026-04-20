@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { pdf } from "@react-pdf/renderer";
 import { FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import VehicleExpose from "./VehicleExpose";
 import type { Vehicle } from "@/hooks/useVehicles";
 
 interface DownloadExposeButtonProps {
@@ -15,6 +13,12 @@ const DownloadExposeButton = ({ vehicle }: DownloadExposeButtonProps) => {
   const handleDownload = async () => {
     setLoading(true);
     try {
+      // Lazy-load PDF deps only when the user actually wants the PDF.
+      const [{ pdf }, { default: VehicleExpose }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("./VehicleExpose"),
+      ]);
+
       const blob = await pdf(<VehicleExpose vehicle={vehicle} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -43,7 +43,7 @@ interface FilterBarProps {
   showCategorySelect?: boolean;
 }
 
-const FilterBar = ({ filters, onFilterChange, brands, bodyTypes, categories, fuels, gearboxes, colors, showCategorySelect = false }: FilterBarProps) => {
+const FilterBar = memo(({ filters, onFilterChange, brands, bodyTypes, categories, fuels, gearboxes, colors, showCategorySelect = false }: FilterBarProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
@@ -223,6 +223,7 @@ const FilterBar = ({ filters, onFilterChange, brands, bodyTypes, categories, fue
       </div>
     </div>
   );
-};
+});
 
+FilterBar.displayName = "FilterBar";
 export default FilterBar;

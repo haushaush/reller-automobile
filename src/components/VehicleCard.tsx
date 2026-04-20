@@ -110,7 +110,7 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
         )}
 
         {/* Favorite heart */}
-        <div className="absolute top-3 right-3 z-20">
+        <div className="absolute top-3 right-3 z-30">
           {isSold ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -138,7 +138,7 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
         {/* Compare button */}
         <button
           onClick={handleCompareClick}
-          className={`absolute top-3 left-3 z-20 p-2 rounded-full transition-colors ${
+          className={`absolute top-3 left-3 z-30 p-2 rounded-full transition-colors ${
             selected
               ? "bg-primary text-primary-foreground"
               : "bg-background/80 text-muted-foreground hover:bg-primary hover:text-primary-foreground"
