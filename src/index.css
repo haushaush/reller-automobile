@@ -1,3 +1,59 @@
+@font-face {
+  font-family: 'JustSans';
+  src: url('/fonts/JustSans-ExtraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JustSans';
+  src: url('/fonts/JustSans-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JustSans';
+  src: url('/fonts/JustSans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JustSans';
+  src: url('/fonts/JustSans-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JustSans';
+  src: url('/fonts/JustSans-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JustSans';
+  src: url('/fonts/JustSans-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JustSans';
+  src: url('/fonts/JustSans-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -89,14 +145,21 @@
     @apply border-border;
   }
 
+  html {
+    font-family: 'JustSans', system-ui, -apple-system, sans-serif;
+  }
+
   body {
     @apply bg-background text-foreground;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: 'JustSans', system-ui, -apple-system, sans-serif;
+    font-feature-settings: "kern", "liga", "clig", "calt";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     transition: background-color 200ms ease, color 200ms ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Lora', serif;
+    font-family: 'JustSans', system-ui, -apple-system, sans-serif;
   }
 }
 
