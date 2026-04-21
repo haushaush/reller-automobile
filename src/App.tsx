@@ -7,8 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { CompareProvider } from "@/contexts/CompareContext";
 import { FavoritesProvider } from "@/contexts/FavoritesContext";
 import { InquiryProvider } from "@/contexts/InquiryContext";
-import CompareBar from "@/components/CompareBar";
-import InquiryBar from "@/components/InquiryBar";
+import FloatingActionBar from "@/components/FloatingActionBar";
 import Hub from "./pages/Hub";
 
 const CategoryPage = lazy(() => import("./pages/CategoryPage"));
@@ -56,8 +55,7 @@ const App = () => (
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
-              <CompareBar />
-              <InquiryBar />
+              <FloatingActionBar />
             </InquiryProvider>
           </CompareProvider>
         </FavoritesProvider>
