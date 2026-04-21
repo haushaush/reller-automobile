@@ -1,4 +1,5 @@
 import { useCompare } from "@/contexts/CompareContext";
+import { useInquiry } from "@/contexts/InquiryContext";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -79,13 +80,18 @@ function getBestIndices(vehicles: Vehicle[], row: RowDef): Set<number> {
 
 const ComparePage = () => {
   const { selected, remove, clear } = useCompare();
+  const { inquiryList } = useInquiry();
   const navigate = useNavigate();
+
+  // FloatingActionBar hides its compare section on /vergleich, so only the
+  // inquiry section can overlap content here. Reserve space when active.
+  const stickyPadding = inquiryList.length > 0 ? "pb-40 md:pb-32" : "pb-12";
 
   if (selected.length < 2) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+        <div className={`max-w-7xl mx-auto px-4 py-20 text-center ${stickyPadding}`}>
           <p className="text-muted-foreground text-lg mb-6">
             Bitte wählen Sie mindestens 2 Fahrzeuge zum Vergleichen aus.
           </p>
@@ -111,7 +117,10 @@ const ComparePage = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10" style={{ maxWidth: "1400px" }}>
+      <div
+        className={`mx-auto px-4 sm:px-6 lg:px-8 pt-6 md:pt-10 transition-[padding] duration-300 ${stickyPadding}`}
+        style={{ maxWidth: "1400px" }}
+      >
         {/* Header */}
         <div className="flex items-start justify-between mb-6 md:mb-10 gap-3 flex-wrap">
           <div className="flex items-center gap-3 md:gap-4 min-w-0">
