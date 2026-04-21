@@ -21,8 +21,8 @@ const Hub = () => {
         </p>
       </header>
 
-      <section className="max-w-5xl mx-auto px-4 mb-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+      <section className="max-w-7xl mx-auto px-4 mb-12">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           {CATEGORIES.map((cat) => {
             const count = counts?.[cat.slug];
             return (
