@@ -14,8 +14,11 @@ const Hub = () => {
 
       <header className="py-12 md:py-16 px-4 max-w-3xl mx-auto text-center">
         <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight tracking-tight">
-          Finden Sie das Fahrzeug, das zu Ihnen passt
+          Unser Fahrzeugbestand
         </h1>
+        <p className="mt-3 text-lg md:text-xl text-muted-foreground">
+          Reller Automobile GmbH
+        </p>
       </header>
 
       <section className="max-w-5xl mx-auto px-4 mb-12">
