@@ -33,7 +33,6 @@ const Navbar = () => {
                 key={cat.slug}
                 to={`/fahrzeuge/${cat.slug}`}
                 className="px-3 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors rounded-md whitespace-nowrap"
-                style={{ fontFamily: "'Instrument Sans', sans-serif" }}
               >
                 {cat.title}
               </Link>
@@ -41,7 +40,6 @@ const Navbar = () => {
             <a
               href="https://reller-automobile.de"
               className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md whitespace-nowrap inline-flex items-center gap-1.5"
-              style={{ fontFamily: "'Instrument Sans', sans-serif" }}
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Zurück zur Website

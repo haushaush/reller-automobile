@@ -7,7 +7,7 @@ const DealerLocation = () => {
       <div className="p-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Besichtigung & Probefahrt</h3>
 
-        <div className="space-y-3 text-sm" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
+        <div className="space-y-3 text-sm">
           <div className="flex items-start gap-3">
             <MapPin className="h-4 w-4 text-primary mt-0.5 shrink-0" />
             <span className="text-foreground">Steinbruchweg 16-22, 33106 Paderborn</span>
