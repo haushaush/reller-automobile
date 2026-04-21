@@ -345,10 +345,7 @@ const VehicleListGrid = ({
       </div>
 
       <div className="flex items-center justify-between mb-6">
-        <p
-          className="text-sm text-muted-foreground"
-          style={{ fontFamily: "'Instrument Sans', sans-serif" }}
-        >
+        <p className="text-sm text-muted-foreground">
           {isLoading ? "Lade Fahrzeuge..." : `${filtered.length} Fahrzeuge gefunden`}
         </p>
         {isError && (

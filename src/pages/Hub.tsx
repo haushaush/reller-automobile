@@ -27,16 +27,10 @@ const Hub = () => {
                 to={`/fahrzeuge/${cat.slug}`}
                 className="group rounded-xl border border-border bg-card px-5 py-5 sm:py-6 text-center hover:border-primary hover:-translate-y-0.5 transition-all min-h-[88px] flex flex-col items-center justify-center"
               >
-                <h2
-                  className="text-base md:text-lg font-semibold text-foreground"
-                  style={{ fontFamily: "'Instrument Sans', sans-serif" }}
-                >
+                <h2 className="text-base md:text-lg font-semibold text-foreground">
                   {cat.title}
                 </h2>
-                <p
-                  className="mt-1.5 text-xs text-muted-foreground"
-                  style={{ fontFamily: "'Instrument Sans', sans-serif" }}
-                >
+                <p className="mt-1.5 text-xs text-muted-foreground">
                   {count === undefined
                     ? "–"
                     : `${count} ${count === 1 ? "Fahrzeug" : "Fahrzeuge"}`}
@@ -53,23 +47,16 @@ const Hub = () => {
 
       <footer className="border-t border-border py-8 px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <p
-            className="text-sm text-muted-foreground"
-            style={{ fontFamily: "'Instrument Sans', sans-serif" }}
-          >
+          <p className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} Reller Automobile. Alle Rechte vorbehalten.
           </p>
           <a
             href="https://reller-automobile.de"
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            style={{ fontFamily: "'Instrument Sans', sans-serif" }}
           >
             Zur Hauptwebsite
           </a>
-          <div
-            className="flex items-center gap-6 text-sm text-muted-foreground"
-            style={{ fontFamily: "'Instrument Sans', sans-serif" }}
-          >
+          <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <a
               href="https://reller-automobile.de/impressum"
               className="hover:text-foreground transition-colors"
