@@ -5,15 +5,12 @@ import { useLocation } from "react-router-dom";
  * Returns true when the page <footer> is in (or near) the viewport, so
  * sticky bottom bars can slide out of the way and never cover the footer.
  *
- * Implementation notes:
- * - Uses a scroll-position check (rAF-throttled) instead of IntersectionObserver
- *   so it remains reliable when navigating between routes that mount/unmount
- *   the footer at different times.
- * - When the page has no <footer> at all, falls back to detecting the very
- *   bottom of the document so the bar still hides at the end of long pages.
+ * Uses a scroll-position check (rAF-throttled) for maximum reliability
+ * across SPA route changes. Re-runs the check whenever the pathname
+ * changes so a freshly-mounted footer is always picked up.
  *
  * `barHeight` (default 96px) is the buffer kept between the bottom of the
- * viewport and the footer before we start hiding the bar.
+ * viewport and the top of the footer before the bar starts hiding.
  */
 export function useFooterVisible(barHeight: number = 96): boolean {
   const [visible, setVisible] = useState(false);
@@ -21,6 +18,7 @@ export function useFooterVisible(barHeight: number = 96): boolean {
 
   useEffect(() => {
     let rafId: number | null = null;
+    let cancelled = false;
 
     const findFooter = (): HTMLElement | null =>
       (document.querySelector("footer") as HTMLElement | null) ||
@@ -29,22 +27,21 @@ export function useFooterVisible(barHeight: number = 96): boolean {
 
     const check = () => {
       rafId = null;
-      const footer = findFooter();
-      const viewportH = window.innerHeight;
-      const threshold = viewportH - barHeight;
+      if (cancelled) return;
 
-      if (footer) {
-        const rect = footer.getBoundingClientRect();
-        // Footer top has crossed into the bottom `barHeight` band of the viewport.
-        setVisible(rect.top < threshold);
+      const footer = findFooter();
+      if (!footer) {
+        // No footer found yet (still mounting). Keep the bar visible
+        // until we can actually measure something.
+        setVisible(false);
         return;
       }
 
-      // No semantic footer on this page → hide bar near absolute bottom of doc.
-      const scrollY = window.scrollY || window.pageYOffset;
-      const docHeight = document.documentElement.scrollHeight;
-      const distanceFromBottom = docHeight - (scrollY + viewportH);
-      setVisible(distanceFromBottom < barHeight);
+      const rect = footer.getBoundingClientRect();
+      const viewportH = window.innerHeight;
+      const triggerPoint = viewportH - barHeight;
+      // Bar hides when the footer's top edge crosses the trigger line.
+      setVisible(rect.top < triggerPoint);
     };
 
     const onScroll = () => {
@@ -52,17 +49,18 @@ export function useFooterVisible(barHeight: number = 96): boolean {
       rafId = window.requestAnimationFrame(check);
     };
 
-    // Initial check (defer so the new route's DOM is mounted)
-    const initial = window.requestAnimationFrame(check);
+    // Defer initial check so the new route's DOM (incl. footer) is mounted
+    const initialTimer = window.setTimeout(check, 80);
 
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
 
     return () => {
+      cancelled = true;
+      window.clearTimeout(initialTimer);
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
-      if (rafId !== null) window.cancelAnimationFrame(rafId);
-      window.cancelAnimationFrame(initial);
     };
   }, [barHeight, pathname]);
 

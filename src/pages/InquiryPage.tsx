@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, X, Send, Loader2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import SiteFooter from "@/components/SiteFooter";
 import { useInquiry } from "@/contexts/InquiryContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -377,6 +378,7 @@ const InquiryPage = () => {
           </section>
         </div>
       </div>
+      <SiteFooter />
     </div>
   );
 };
