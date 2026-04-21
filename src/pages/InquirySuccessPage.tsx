@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, ArrowRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import SiteFooter from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
 
 interface ConfirmationData {
@@ -87,6 +88,7 @@ const InquirySuccessPage = () => {
           </Button>
         </div>
       </div>
+      <SiteFooter />
     </div>
   );
 };

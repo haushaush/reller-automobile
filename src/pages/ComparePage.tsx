@@ -2,6 +2,7 @@ import { useCompare } from "@/contexts/CompareContext";
 import { useInquiry } from "@/contexts/InquiryContext";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
+import SiteFooter from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, X, ArrowRight } from "lucide-react";
 import type { Vehicle } from "@/hooks/useVehicles";
@@ -89,9 +90,9 @@ const ComparePage = () => {
 
   if (selected.length < 2) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
-        <div className={`max-w-7xl mx-auto px-4 py-20 text-center ${stickyPadding}`}>
+        <div className={`max-w-7xl mx-auto px-4 py-20 text-center flex-1 ${stickyPadding}`}>
           <p className="text-muted-foreground text-lg mb-6">
             Bitte wählen Sie mindestens 2 Fahrzeuge zum Vergleichen aus.
           </p>
@@ -99,6 +100,7 @@ const ComparePage = () => {
             <ArrowLeft className="h-4 w-4" /> Zurück zur Übersicht
           </Button>
         </div>
+        <SiteFooter />
       </div>
     );
   }
@@ -115,7 +117,7 @@ const ComparePage = () => {
   const ACCENT = "hsl(var(--primary))";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
       <div
         className={`mx-auto px-4 sm:px-6 lg:px-8 pt-6 md:pt-10 transition-[padding] duration-300 ${stickyPadding}`}
@@ -305,6 +307,7 @@ const ComparePage = () => {
           z-index: 5;
         }
       `}</style>
+      <SiteFooter />
     </div>
   );
 };

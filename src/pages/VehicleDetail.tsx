@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useVehicle } from "@/hooks/useVehicle";
 import Navbar from "@/components/Navbar";
-
+import SiteFooter from "@/components/SiteFooter";
 import DealerLocation from "@/components/DealerLocation";
 import DownloadExposeButton from "@/components/DownloadExposeButton";
 import { Button } from "@/components/ui/button";
@@ -29,9 +29,9 @@ const VehicleDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
-        <div className="max-w-7xl mx-auto px-4 py-10 space-y-6">
+        <div className="max-w-7xl mx-auto px-4 py-10 space-y-6 flex-1 w-full">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-96 w-full rounded-xl" />
           <div className="grid grid-cols-2 gap-4">
@@ -39,20 +39,22 @@ const VehicleDetail = () => {
             <Skeleton className="h-40" />
           </div>
         </div>
+        <SiteFooter />
       </div>
     );
   }
 
   if (!vehicle) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
-        <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+        <div className="max-w-7xl mx-auto px-4 py-20 text-center flex-1 w-full">
           <p className="text-muted-foreground text-lg mb-6">Fahrzeug nicht gefunden.</p>
           <Button onClick={() => navigate("/")} variant="outline" className="gap-2">
             <ArrowLeft className="h-4 w-4" /> Zurück zur Übersicht
           </Button>
         </div>
+        <SiteFooter />
       </div>
     );
   }
@@ -317,6 +319,7 @@ const VehicleDetail = () => {
           </div>
         </div>
       )}
+      <SiteFooter />
     </div>
   );
 };
