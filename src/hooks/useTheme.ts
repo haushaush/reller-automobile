@@ -3,11 +3,10 @@ import { useEffect, useState } from "react";
 type Theme = "dark" | "light";
 
 function getInitialTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   const stored = localStorage.getItem("theme") as Theme | null;
   if (stored === "dark" || stored === "light") return stored;
-  if (window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
-  return "dark";
+  return "light";
 }
 
 export function useTheme() {
