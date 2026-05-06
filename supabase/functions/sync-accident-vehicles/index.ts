@@ -344,11 +344,52 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const supabaseLock = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  const lockName = "sync-accident-vehicles";
+  const startTime = Date.now();
+  const nowDate = new Date();
+  const lockTimeout = new Date(nowDate.getTime() + 4 * 60 * 1000);
+
+  const { data: lockData } = await supabaseLock
+    .from("sync_locks")
+    .select("locked_until")
+    .eq("lock_name", lockName)
+    .maybeSingle();
+
+  if (lockData && new Date(lockData.locked_until) > nowDate) {
+    console.log(`[accident] Sync already running until ${lockData.locked_until}, skipping`);
+    return new Response(
+      JSON.stringify({ skipped: true, reason: "Another accident sync is already running" }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  await supabaseLock
+    .from("sync_locks")
+    .update({ locked_at: nowDate.toISOString(), locked_until: lockTimeout.toISOString() })
+    .eq("lock_name", lockName);
+
+  const { data: logEntry } = await supabaseLock
+    .from("sync_logs")
+    .insert({ sync_name: lockName, status: "running" })
+    .select("id")
+    .single();
+
+  let logStatus: "success" | "failed" | "skipped" = "failed";
+  let logError: string | null = null;
+  let logTotal = 0;
+
   try {
     const username = Deno.env.get("MOBILE_DE_ACCIDENT_USERNAME");
     const password = Deno.env.get("MOBILE_DE_ACCIDENT_PASSWORD");
 
     if (!username || !password) {
+      logStatus = "skipped";
+      logError = "Missing accident credentials";
       return new Response(
         JSON.stringify({ error: "Missing Mobile.de accident-account credentials (MOBILE_DE_ACCIDENT_USERNAME / MOBILE_DE_ACCIDENT_PASSWORD)" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
