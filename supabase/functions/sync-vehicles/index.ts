@@ -314,25 +314,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const apiUrl = `https://services.mobile.de/search-api/search?page.size=200`;
     const authHeader = "Basic " + btoa(`${username}:${password}`);
-
-    const response = await fetch(apiUrl, {
-      headers: {
-        Authorization: authHeader,
-        Accept: "application/xml",
-        "Accept-Language": "de",
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Mobile.de API error:", response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: `Mobile.de API returned ${response.status}`, details: errorText }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     console.log(`=== Sync Start === ${new Date().toISOString()}`);
 
