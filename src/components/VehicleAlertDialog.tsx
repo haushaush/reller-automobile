@@ -139,6 +139,26 @@ const VehicleAlertDialog = ({ brands, bodyTypes }: VehicleAlertDialogProps) => {
               <Input type="number" value={form.max_mileage} onChange={(e) => setForm((f) => ({ ...f, max_mileage: e.target.value }))} placeholder="z.B. 100000" />
             </div>
           </div>
+          <div>
+            <Label htmlFor="alert-message">Zusätzliche Wünsche oder Anmerkungen</Label>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-1.5">
+              Optional — hilft uns, passendere Fahrzeuge für Sie zu finden
+            </p>
+            <Textarea
+              id="alert-message"
+              value={form.message}
+              onChange={(e) => {
+                const val = e.target.value.slice(0, 1000);
+                setForm((f) => ({ ...f, message: val }));
+              }}
+              maxLength={1000}
+              placeholder="Z.B. besondere Ausstattung, gewünschte Farbe, Zustandsanforderungen, oder andere Wünsche, die wir bei der Suche berücksichtigen sollen..."
+              className="min-h-[100px] max-h-[250px] resize-y"
+            />
+            <p className="text-xs text-muted-foreground mt-1 text-right">
+              {form.message.length} / 1000 Zeichen
+            </p>
+          </div>
           <div className="flex items-start gap-2">
             <Checkbox
               id="consent"
