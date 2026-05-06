@@ -436,6 +436,7 @@ Deno.serve(async (req) => {
       console.error("Failed to trigger sync-accident-vehicles:", e);
     }
 
+    console.log(`=== Sync Complete ===`);
     return new Response(
       JSON.stringify({ success: true, synced: vehicleRows.length, totalImages }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
