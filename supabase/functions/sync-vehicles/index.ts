@@ -334,11 +334,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const xmlText = await response.text();
-    console.log("Received XML, length:", xmlText.length);
+    console.log(`=== Sync Start === ${new Date().toISOString()}`);
 
-    const vehicleRows = parseAds(xmlText);
-    console.log(`Parsed ${vehicleRows.length} ads from search`);
+    const allXmlPages = await fetchAllAdsPages(authHeader, 100);
+    const vehicleRows: VehicleRow[] = [];
+    for (const xmlText of allXmlPages) {
+      vehicleRows.push(...parseAds(xmlText));
+    }
+    console.log(`Total fetched: ${vehicleRows.length} vehicles across ${allXmlPages.length} pages`);
 
     // Fetch detail pages to get all images per vehicle
     console.log("Fetching detail images for each vehicle...");
@@ -350,6 +353,15 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // SAFETY: never run soft-delete with empty result — would mass-mark all as sold
+    if (vehicleRows.length === 0) {
+      console.warn("No vehicles returned from Mobile.de API — skipping soft-delete");
+      return new Response(
+        JSON.stringify({ success: false, reason: "No vehicles returned from API, soft-delete skipped" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (vehicleRows.length > 0) {
       const { error: upsertError } = await supabase
