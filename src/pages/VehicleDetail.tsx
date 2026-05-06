@@ -263,17 +263,6 @@ const VehicleDetail = () => {
 
               <div className="flex flex-col gap-2 pt-2">
                 <DownloadExposeButton vehicle={vehicle} />
-                {vehicle.detail_page_url && (
-                  <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-                    <a
-                      href={vehicle.detail_page_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Auf Mobile.de ansehen
-                    </a>
-                  </Button>
-                )}
               </div>
             </div>
 

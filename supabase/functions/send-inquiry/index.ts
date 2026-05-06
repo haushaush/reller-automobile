@@ -120,7 +120,6 @@ function dealerEmailHtml(contact: ContactInput, vehicles: VehicleRow[], message:
                   <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#da1b1e;">${formatPrice(v.price, v.currency)}</p>
                   <p style="margin:0;font-size:12px;">
                     <a href="${APP_BASE_URL}/fahrzeug/${v.id}" style="color:#da1b1e;text-decoration:none;font-weight:600;">Im Portal ansehen →</a>
-                    ${v.detail_page_url ? `&nbsp;&nbsp;<a href="${escapeHtml(v.detail_page_url)}" style="color:#888;text-decoration:none;">Mobile.de</a>` : ""}
                   </p>
                 </td>
               </tr>
