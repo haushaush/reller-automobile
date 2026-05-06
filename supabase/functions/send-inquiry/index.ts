@@ -381,10 +381,12 @@ Deno.serve(async (req) => {
   const dealerHtml = dealerEmailHtml(contact, vehicles as VehicleRow[], message ?? null, inquiry.id);
   const customerHtml = customerEmailHtml(contact, vehicles as VehicleRow[]);
 
-  const dealerRecipients = [DEALER_EMAIL_PRIMARY];
-  if (DEALER_EMAIL_SECONDARY && DEALER_EMAIL_SECONDARY !== DEALER_EMAIL_PRIMARY) {
-    dealerRecipients.push(DEALER_EMAIL_SECONDARY);
-  }
+  const SALES_EMAIL = "verkauf@reller-automobile.de";
+  const dealerRecipients = Array.from(
+    new Set(
+      [DEALER_EMAIL_PRIMARY, DEALER_EMAIL_SECONDARY, SALES_EMAIL].filter(Boolean) as string[],
+    ),
+  );
 
   const [dealerRes, customerRes] = await Promise.all([
     sendResendMail({
