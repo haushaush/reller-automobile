@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -41,6 +42,7 @@ const VehicleAlertDialog = ({ brands, bodyTypes }: VehicleAlertDialogProps) => {
     max_price: "",
     min_year: "",
     max_mileage: "",
+    message: "",
     consent: false,
   });
 
@@ -60,11 +62,12 @@ const VehicleAlertDialog = ({ brands, bodyTypes }: VehicleAlertDialogProps) => {
         max_price: form.max_price ? parseInt(form.max_price) : null,
         min_year: form.min_year || null,
         max_mileage: form.max_mileage ? parseInt(form.max_mileage) : null,
+        message: form.message.trim() ? form.message.trim() : null,
       });
       if (error) throw error;
-      toast.success("Suchauftrag erstellt! Wir benachrichtigen Sie per E-Mail.");
+      toast.success("Suchauftrag erstellt! Wir benachrichtigen Sie per E-Mail, sobald ein passendes Fahrzeug verfügbar ist.");
       setOpen(false);
-      setForm({ name: "", email: "", brand: "all", category: "all", body_type: "all", max_price: "", min_year: "", max_mileage: "", consent: false });
+      setForm({ name: "", email: "", brand: "all", category: "all", body_type: "all", max_price: "", min_year: "", max_mileage: "", message: "", consent: false });
     } catch {
       toast.error("Fehler beim Erstellen des Suchauftrags.");
     } finally {
