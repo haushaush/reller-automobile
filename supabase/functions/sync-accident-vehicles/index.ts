@@ -344,11 +344,52 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const supabaseLock = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  const lockName = "sync-accident-vehicles";
+  const startTime = Date.now();
+  const nowDate = new Date();
+  const lockTimeout = new Date(nowDate.getTime() + 4 * 60 * 1000);
+
+  const { data: lockData } = await supabaseLock
+    .from("sync_locks")
+    .select("locked_until")
+    .eq("lock_name", lockName)
+    .maybeSingle();
+
+  if (lockData && new Date(lockData.locked_until) > nowDate) {
+    console.log(`[accident] Sync already running until ${lockData.locked_until}, skipping`);
+    return new Response(
+      JSON.stringify({ skipped: true, reason: "Another accident sync is already running" }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  await supabaseLock
+    .from("sync_locks")
+    .update({ locked_at: nowDate.toISOString(), locked_until: lockTimeout.toISOString() })
+    .eq("lock_name", lockName);
+
+  const { data: logEntry } = await supabaseLock
+    .from("sync_logs")
+    .insert({ sync_name: lockName, status: "running" })
+    .select("id")
+    .single();
+
+  let logStatus: "success" | "failed" | "skipped" = "failed";
+  let logError: string | null = null;
+  let logTotal = 0;
+
   try {
     const username = Deno.env.get("MOBILE_DE_ACCIDENT_USERNAME");
     const password = Deno.env.get("MOBILE_DE_ACCIDENT_PASSWORD");
 
     if (!username || !password) {
+      logStatus = "skipped";
+      logError = "Missing accident credentials";
       return new Response(
         JSON.stringify({ error: "Missing Mobile.de accident-account credentials (MOBILE_DE_ACCIDENT_USERNAME / MOBILE_DE_ACCIDENT_PASSWORD)" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -360,39 +401,64 @@ Deno.serve(async (req) => {
 
     const allXmlPages = await fetchAllAdsPages(authHeader, 100);
 
-    if (allXmlPages.length > 0) {
-      console.log("=== [accident] DEBUG XML SAMPLE (first 3000 chars of page 1) ===");
-      console.log(allXmlPages[0].substring(0, 3000));
-      console.log("=== END DEBUG ===");
-    }
-
     const rawVehicleRows: VehicleRow[] = [];
     for (const xmlText of allXmlPages) {
       rawVehicleRows.push(...parseAds(xmlText));
     }
     console.log(`[accident] After XML status filter: ${rawVehicleRows.length} vehicles across ${allXmlPages.length} pages`);
 
-    console.log("[accident] Validating public visibility via URL HEAD checks...");
-    const vehicleRows = await validateVehiclesArePublic(rawVehicleRows);
-    console.log(`[accident] After URL validation: ${vehicleRows.length} public vehicles`);
-
-    await enrichWithDetailImages(vehicleRows, authHeader);
-    const totalImages = vehicleRows.reduce((sum, v) => sum + v.image_urls.length, 0);
-    console.log(`[accident] Total images after detail enrichment: ${totalImages}`);
+    // URL HEAD-validation deactivated for cron performance.
+    const vehicleRows = rawVehicleRows;
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // SAFETY: never run soft-delete with empty result
     if (vehicleRows.length === 0) {
       console.warn("[accident] No vehicles returned from API — skipping soft-delete");
+      logStatus = "skipped";
+      logError = "No vehicles returned";
       return new Response(
         JSON.stringify({ success: false, scope: "accident", reason: "No vehicles returned, soft-delete skipped" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Diff-sync: only enrich new/changed/image-less vehicles
+    const { data: existingVehicles } = await supabase
+      .from("vehicles")
+      .select("mobile_de_id, image_urls, modification_date")
+      .in("mobile_de_id", vehicleRows.map((v) => v.mobile_de_id));
+
+    const existingMap = new Map<string, { image_urls: string[] | null; modification_date: string | null }>(
+      (existingVehicles || []).map((v) => [v.mobile_de_id, { image_urls: v.image_urls, modification_date: v.modification_date }])
+    );
+
+    const toEnrich = vehicleRows.filter((v) => {
+      const existing = existingMap.get(v.mobile_de_id);
+      if (!existing) return true;
+      if (!existing.image_urls || existing.image_urls.length === 0) return true;
+      if (existing.modification_date !== v.modification_date) return true;
+      return false;
+    });
+
+    console.log(`[accident] Enriching ${toEnrich.length} of ${vehicleRows.length} vehicles`);
+    if (toEnrich.length > 0) {
+      await enrichWithDetailImages(toEnrich, authHeader);
+    }
+
+    for (const v of vehicleRows) {
+      if (!toEnrich.includes(v)) {
+        const existing = existingMap.get(v.mobile_de_id);
+        if (existing?.image_urls && existing.image_urls.length > 0) {
+          v.image_urls = existing.image_urls;
+        }
+      }
+    }
+
+    const totalImages = vehicleRows.reduce((sum, v) => sum + v.image_urls.length, 0);
+    console.log(`[accident] Total images: ${totalImages}`);
 
     const { error: upsertError } = await supabase
       .from("vehicles")
@@ -400,14 +466,15 @@ Deno.serve(async (req) => {
 
     if (upsertError) {
       console.error("[accident] Upsert error:", upsertError);
+      logError = `Upsert: ${JSON.stringify(upsertError)}`;
       return new Response(
         JSON.stringify({ error: "Failed to upsert vehicles", details: upsertError }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
     console.log(`[accident] Upserted ${vehicleRows.length} vehicles`);
+    logTotal = vehicleRows.length;
 
-    // Sanity check
     const { count: activeCount } = await supabase
       .from("vehicles")
       .select("*", { count: "exact", head: true })
@@ -422,6 +489,7 @@ Deno.serve(async (req) => {
         `[accident] Sync returned ${vehicleRows.length} but DB has ${expectedCount} active. ` +
         `Drop ratio: ${(droppedRatio * 100).toFixed(1)}%. Skipping soft-delete.`
       );
+      logStatus = "success";
       return new Response(
         JSON.stringify({
           success: true,
@@ -433,7 +501,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Soft-delete: only touch ACCIDENT vehicles
     const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
     const { data: allDbVehicles } = await supabase
       .from("vehicles")
@@ -454,8 +521,6 @@ Deno.serve(async (req) => {
       console.log(`[accident] Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
     }
 
-    console.log(`=== [accident] Sync Complete ===`);
-
     try {
       const alertsUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/check-alerts`;
       await fetch(alertsUrl, {
@@ -470,15 +535,37 @@ Deno.serve(async (req) => {
       console.error("[accident] Failed to trigger check-alerts:", e);
     }
 
+    logStatus = "success";
+    console.log(`=== [accident] Sync Complete ===`);
     return new Response(
       JSON.stringify({ success: true, scope: "accident", synced: vehicleRows.length, totalImages }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("[accident] Sync error:", error);
+    logError = String(error);
     return new Response(
       JSON.stringify({ error: "Internal error", details: String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+  } finally {
+    await supabaseLock
+      .from("sync_locks")
+      .update({ locked_until: new Date().toISOString() })
+      .eq("lock_name", lockName);
+
+    if (logEntry?.id) {
+      await supabaseLock
+        .from("sync_logs")
+        .update({
+          completed_at: new Date().toISOString(),
+          duration_ms: Date.now() - startTime,
+          vehicles_total: logTotal,
+          status: logStatus,
+          error_message: logError,
+        })
+        .eq("id", logEntry.id);
+    }
+    console.log(`[accident] Sync lock released (status=${logStatus}, duration=${Date.now() - startTime}ms)`);
   }
 });

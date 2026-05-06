@@ -133,6 +133,69 @@ export type Database = {
           },
         ]
       }
+      sync_locks: {
+        Row: {
+          lock_name: string
+          locked_at: string
+          locked_until: string
+        }
+        Insert: {
+          lock_name: string
+          locked_at?: string
+          locked_until: string
+        }
+        Update: {
+          lock_name?: string
+          locked_at?: string
+          locked_until?: string
+        }
+        Relationships: []
+      }
+      sync_logs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          started_at: string
+          status: string | null
+          sync_name: string
+          vehicles_added: number | null
+          vehicles_marked_sold: number | null
+          vehicles_total: number | null
+          vehicles_updated: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          started_at?: string
+          status?: string | null
+          sync_name: string
+          vehicles_added?: number | null
+          vehicles_marked_sold?: number | null
+          vehicles_total?: number | null
+          vehicles_updated?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          started_at?: string
+          status?: string | null
+          sync_name?: string
+          vehicles_added?: number | null
+          vehicles_marked_sold?: number | null
+          vehicles_total?: number | null
+          vehicles_updated?: number | null
+        }
+        Relationships: []
+      }
       vehicle_alerts: {
         Row: {
           body_type: string | null
