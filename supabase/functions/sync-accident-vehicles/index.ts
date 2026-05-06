@@ -456,6 +456,20 @@ Deno.serve(async (req) => {
 
     console.log(`=== [accident] Sync Complete ===`);
 
+    try {
+      const alertsUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/check-alerts`;
+      await fetch(alertsUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "Content-Type": "application/json",
+        },
+      });
+      console.log("[accident] check-alerts triggered");
+    } catch (e) {
+      console.error("[accident] Failed to trigger check-alerts:", e);
+    }
+
     return new Response(
       JSON.stringify({ success: true, scope: "accident", synced: vehicleRows.length, totalImages }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

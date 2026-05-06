@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -41,6 +42,7 @@ const VehicleAlertDialog = ({ brands, bodyTypes }: VehicleAlertDialogProps) => {
     max_price: "",
     min_year: "",
     max_mileage: "",
+    message: "",
     consent: false,
   });
 
@@ -60,11 +62,12 @@ const VehicleAlertDialog = ({ brands, bodyTypes }: VehicleAlertDialogProps) => {
         max_price: form.max_price ? parseInt(form.max_price) : null,
         min_year: form.min_year || null,
         max_mileage: form.max_mileage ? parseInt(form.max_mileage) : null,
+        message: form.message.trim() ? form.message.trim() : null,
       });
       if (error) throw error;
-      toast.success("Suchauftrag erstellt! Wir benachrichtigen Sie per E-Mail.");
+      toast.success("Suchauftrag erstellt! Wir benachrichtigen Sie per E-Mail, sobald ein passendes Fahrzeug verfügbar ist.");
       setOpen(false);
-      setForm({ name: "", email: "", brand: "all", category: "all", body_type: "all", max_price: "", min_year: "", max_mileage: "", consent: false });
+      setForm({ name: "", email: "", brand: "all", category: "all", body_type: "all", max_price: "", min_year: "", max_mileage: "", message: "", consent: false });
     } catch {
       toast.error("Fehler beim Erstellen des Suchauftrags.");
     } finally {
@@ -135,6 +138,26 @@ const VehicleAlertDialog = ({ brands, bodyTypes }: VehicleAlertDialogProps) => {
               <Label>Max. KM</Label>
               <Input type="number" value={form.max_mileage} onChange={(e) => setForm((f) => ({ ...f, max_mileage: e.target.value }))} placeholder="z.B. 100000" />
             </div>
+          </div>
+          <div>
+            <Label htmlFor="alert-message">Zusätzliche Wünsche oder Anmerkungen</Label>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-1.5">
+              Optional — hilft uns, passendere Fahrzeuge für Sie zu finden
+            </p>
+            <Textarea
+              id="alert-message"
+              value={form.message}
+              onChange={(e) => {
+                const val = e.target.value.slice(0, 1000);
+                setForm((f) => ({ ...f, message: val }));
+              }}
+              maxLength={1000}
+              placeholder="Z.B. besondere Ausstattung, gewünschte Farbe, Zustandsanforderungen, oder andere Wünsche, die wir bei der Suche berücksichtigen sollen..."
+              className="min-h-[100px] max-h-[250px] resize-y"
+            />
+            <p className="text-xs text-muted-foreground mt-1 text-right">
+              {form.message.length} / 1000 Zeichen
+            </p>
           </div>
           <div className="flex items-start gap-2">
             <Checkbox
