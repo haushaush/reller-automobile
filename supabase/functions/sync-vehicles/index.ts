@@ -401,11 +401,24 @@ Deno.serve(async (req) => {
     console.log(`=== Sync Start === ${new Date().toISOString()}`);
 
     const allXmlPages = await fetchAllAdsPages(authHeader, 100);
-    const vehicleRows: VehicleRow[] = [];
-    for (const xmlText of allXmlPages) {
-      vehicleRows.push(...parseAds(xmlText));
+
+    // DEBUG: log first XML page sample to inspect status fields
+    if (allXmlPages.length > 0) {
+      console.log("=== DEBUG XML SAMPLE (first 3000 chars of page 1) ===");
+      console.log(allXmlPages[0].substring(0, 3000));
+      console.log("=== END DEBUG ===");
     }
-    console.log(`Total fetched: ${vehicleRows.length} vehicles across ${allXmlPages.length} pages`);
+
+    const rawVehicleRows: VehicleRow[] = [];
+    for (const xmlText of allXmlPages) {
+      rawVehicleRows.push(...parseAds(xmlText));
+    }
+    console.log(`After XML status filter: ${rawVehicleRows.length} vehicles across ${allXmlPages.length} pages`);
+
+    // URL validation: drop ads not publicly accessible on mobile.de
+    console.log("Validating public visibility via URL HEAD checks...");
+    const vehicleRows = await validateVehiclesArePublic(rawVehicleRows);
+    console.log(`After URL validation: ${vehicleRows.length} public vehicles`);
 
     // Fetch detail pages to get all images per vehicle
     console.log("Fetching detail images for each vehicle...");
