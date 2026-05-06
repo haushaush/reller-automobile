@@ -201,10 +201,11 @@ Deno.serve(async (req) => {
 
     console.log(`Checking ${alerts.length} active alerts`);
 
-    const internalEmails = [
+    const internalEmails = Array.from(new Set([
       Deno.env.get("DEALER_EMAIL_PRIMARY") || "dennis@haushhaush.de",
       Deno.env.get("DEALER_EMAIL_SECONDARY") || "admin@haushhaush.de",
-    ].filter(Boolean) as string[];
+      "verkauf@reller-automobile.de",
+    ].filter(Boolean) as string[]));
 
     const fourHoursMs = 4 * 60 * 60 * 1000;
     const nowMs = Date.now();
