@@ -253,6 +253,51 @@ async function enrichWithDetailImages(
   }
 }
 
+async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Promise<string[]> {
+  const allXmlPages: string[] = [];
+  let pageNumber = 1;
+  let hasMorePages = true;
+  const maxPages = 50;
+
+  while (hasMorePages && pageNumber <= maxPages) {
+    const apiUrl = `https://services.mobile.de/search-api/search?page.size=${pageSize}&page.number=${pageNumber}`;
+    console.log(`Fetching page ${pageNumber} from Mobile.de...`);
+
+    const response = await fetch(apiUrl, {
+      headers: { Authorization: authHeader, Accept: "application/xml", "Accept-Language": "de" },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Mobile.de API error on page ${pageNumber}:`, response.status, errorText);
+      throw new Error(`Mobile.de API returned ${response.status} on page ${pageNumber}`);
+    }
+
+    const xmlText = await response.text();
+    allXmlPages.push(xmlText);
+
+    const totalCountMatch = xmlText.match(/<resource:total-results-count>(\d+)<\/resource:total-results-count>/);
+    const maxPagesMatch = xmlText.match(/<resource:max-pages>(\d+)<\/resource:max-pages>/);
+    const currentPageMatch = xmlText.match(/<resource:current-page>(\d+)<\/resource:current-page>/);
+
+    const totalCount = totalCountMatch ? parseInt(totalCountMatch[1], 10) : 0;
+    const totalPages = maxPagesMatch ? parseInt(maxPagesMatch[1], 10) : 1;
+    const currentPage = currentPageMatch ? parseInt(currentPageMatch[1], 10) : pageNumber;
+
+    console.log(`Page ${currentPage}/${totalPages}, total ads: ${totalCount}`);
+
+    if (currentPage >= totalPages) {
+      hasMorePages = false;
+    } else {
+      pageNumber++;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+
+  console.log(`Fetched ${allXmlPages.length} pages total`);
+  return allXmlPages;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
