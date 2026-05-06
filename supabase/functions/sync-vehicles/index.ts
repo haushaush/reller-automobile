@@ -253,6 +253,51 @@ async function enrichWithDetailImages(
   }
 }
 
+async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Promise<string[]> {
+  const allXmlPages: string[] = [];
+  let pageNumber = 1;
+  let hasMorePages = true;
+  const maxPages = 50;
+
+  while (hasMorePages && pageNumber <= maxPages) {
+    const apiUrl = `https://services.mobile.de/search-api/search?page.size=${pageSize}&page.number=${pageNumber}`;
+    console.log(`Fetching page ${pageNumber} from Mobile.de...`);
+
+    const response = await fetch(apiUrl, {
+      headers: { Authorization: authHeader, Accept: "application/xml", "Accept-Language": "de" },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Mobile.de API error on page ${pageNumber}:`, response.status, errorText);
+      throw new Error(`Mobile.de API returned ${response.status} on page ${pageNumber}`);
+    }
+
+    const xmlText = await response.text();
+    allXmlPages.push(xmlText);
+
+    const totalCountMatch = xmlText.match(/<resource:total-results-count>(\d+)<\/resource:total-results-count>/);
+    const maxPagesMatch = xmlText.match(/<resource:max-pages>(\d+)<\/resource:max-pages>/);
+    const currentPageMatch = xmlText.match(/<resource:current-page>(\d+)<\/resource:current-page>/);
+
+    const totalCount = totalCountMatch ? parseInt(totalCountMatch[1], 10) : 0;
+    const totalPages = maxPagesMatch ? parseInt(maxPagesMatch[1], 10) : 1;
+    const currentPage = currentPageMatch ? parseInt(currentPageMatch[1], 10) : pageNumber;
+
+    console.log(`Page ${currentPage}/${totalPages}, total ads: ${totalCount}`);
+
+    if (currentPage >= totalPages) {
+      hasMorePages = false;
+    } else {
+      pageNumber++;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+
+  console.log(`Fetched ${allXmlPages.length} pages total`);
+  return allXmlPages;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -269,31 +314,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    const apiUrl = `https://services.mobile.de/search-api/search?page.size=200`;
     const authHeader = "Basic " + btoa(`${username}:${password}`);
 
-    const response = await fetch(apiUrl, {
-      headers: {
-        Authorization: authHeader,
-        Accept: "application/xml",
-        "Accept-Language": "de",
-      },
-    });
+    console.log(`=== Sync Start === ${new Date().toISOString()}`);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Mobile.de API error:", response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: `Mobile.de API returned ${response.status}`, details: errorText }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const allXmlPages = await fetchAllAdsPages(authHeader, 100);
+    const vehicleRows: VehicleRow[] = [];
+    for (const xmlText of allXmlPages) {
+      vehicleRows.push(...parseAds(xmlText));
     }
-
-    const xmlText = await response.text();
-    console.log("Received XML, length:", xmlText.length);
-
-    const vehicleRows = parseAds(xmlText);
-    console.log(`Parsed ${vehicleRows.length} ads from search`);
+    console.log(`Total fetched: ${vehicleRows.length} vehicles across ${allXmlPages.length} pages`);
 
     // Fetch detail pages to get all images per vehicle
     console.log("Fetching detail images for each vehicle...");
@@ -306,43 +336,73 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    if (vehicleRows.length > 0) {
-      const { error: upsertError } = await supabase
-        .from("vehicles")
-        .upsert(vehicleRows, { onConflict: "mobile_de_id" });
+    // SAFETY: never run soft-delete with empty result — would mass-mark all as sold
+    if (vehicleRows.length === 0) {
+      console.warn("No vehicles returned from Mobile.de API — skipping soft-delete");
+      return new Response(
+        JSON.stringify({ success: false, reason: "No vehicles returned from API, soft-delete skipped" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-      if (upsertError) {
-        console.error("Upsert error:", upsertError);
-        return new Response(
-          JSON.stringify({ error: "Failed to upsert vehicles", details: upsertError }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    const { error: upsertError } = await supabase
+      .from("vehicles")
+      .upsert(vehicleRows, { onConflict: "mobile_de_id" });
+
+    if (upsertError) {
+      console.error("Upsert error:", upsertError);
+      return new Response(
+        JSON.stringify({ error: "Failed to upsert vehicles", details: upsertError }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    console.log(`Upserted ${vehicleRows.length} vehicles`);
+
+    // Sanity check: if currently-active count is much higher than what we got, skip soft-delete.
+    const { count: activeCount } = await supabase
+      .from("vehicles")
+      .select("*", { count: "exact", head: true })
+      .eq("is_sold", false)
+      .neq("vehicle_category", "accident");
+
+    const expectedCount = activeCount ?? 0;
+    const droppedRatio = expectedCount > 0 ? (expectedCount - vehicleRows.length) / expectedCount : 0;
+
+    if (expectedCount > 50 && droppedRatio > 0.5) {
+      console.warn(
+        `Sync returned ${vehicleRows.length} vehicles but DB has ${expectedCount} active. ` +
+        `Drop ratio: ${(droppedRatio * 100).toFixed(1)}%. Skipping soft-delete.`
+      );
+      return new Response(
+        JSON.stringify({
+          success: true,
+          synced: vehicleRows.length,
+          warning: "Soft-delete skipped due to suspicious drop in vehicle count",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Soft-delete: mark vehicles no longer on Mobile.de as sold.
+    // IMPORTANT: only touch vehicles owned by THIS sync (vehicle_category != 'accident').
+    const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
+    const { data: allDbVehicles } = await supabase
+      .from("vehicles")
+      .select("id, mobile_de_id, is_sold, vehicle_category")
+      .neq("vehicle_category", "accident");
+
+    if (allDbVehicles) {
+      const syncedSet = new Set(mobileDeIds);
+      const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
+      const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
+
+      for (const v of toMarkSold) {
+        await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
       }
-
-      // Soft-delete: mark vehicles no longer on Mobile.de as sold.
-      // IMPORTANT: only touch vehicles owned by THIS sync (vehicle_category != 'accident'),
-      // so the accident-vehicles sync and the main sync don't clobber each other.
-      const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
-      const { data: allDbVehicles } = await supabase
-        .from("vehicles")
-        .select("id, mobile_de_id, is_sold, vehicle_category")
-        .neq("vehicle_category", "accident");
-
-      if (allDbVehicles) {
-        const syncedSet = new Set(mobileDeIds);
-        const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
-        const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
-
-        for (const v of toMarkSold) {
-          await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
-        }
-        for (const v of toMarkAvailable) {
-          await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
-        }
-        if (toMarkSold.length > 0) console.log(`Marked ${toMarkSold.length} vehicles as sold`);
-        if (toMarkAvailable.length > 0) console.log(`Marked ${toMarkAvailable.length} vehicles as available again`);
+      for (const v of toMarkAvailable) {
+        await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
       }
-
+      console.log(`Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
     }
 
     // Call check-alerts function
@@ -376,6 +436,7 @@ Deno.serve(async (req) => {
       console.error("Failed to trigger sync-accident-vehicles:", e);
     }
 
+    console.log(`=== Sync Complete ===`);
     return new Response(
       JSON.stringify({ success: true, synced: vehicleRows.length, totalImages }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

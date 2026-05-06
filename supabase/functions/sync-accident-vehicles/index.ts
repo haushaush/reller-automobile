@@ -213,6 +213,51 @@ async function enrichWithDetailImages(vehicles: VehicleRow[], authHeader: string
   }
 }
 
+async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Promise<string[]> {
+  const allXmlPages: string[] = [];
+  let pageNumber = 1;
+  let hasMorePages = true;
+  const maxPages = 50;
+
+  while (hasMorePages && pageNumber <= maxPages) {
+    const apiUrl = `https://services.mobile.de/search-api/search?page.size=${pageSize}&page.number=${pageNumber}`;
+    console.log(`[accident] Fetching page ${pageNumber}...`);
+
+    const response = await fetch(apiUrl, {
+      headers: { Authorization: authHeader, Accept: "application/xml", "Accept-Language": "de" },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[accident] Mobile.de API error on page ${pageNumber}:`, response.status, errorText);
+      throw new Error(`Mobile.de API returned ${response.status} on page ${pageNumber}`);
+    }
+
+    const xmlText = await response.text();
+    allXmlPages.push(xmlText);
+
+    const totalCountMatch = xmlText.match(/<resource:total-results-count>(\d+)<\/resource:total-results-count>/);
+    const maxPagesMatch = xmlText.match(/<resource:max-pages>(\d+)<\/resource:max-pages>/);
+    const currentPageMatch = xmlText.match(/<resource:current-page>(\d+)<\/resource:current-page>/);
+
+    const totalCount = totalCountMatch ? parseInt(totalCountMatch[1], 10) : 0;
+    const totalPages = maxPagesMatch ? parseInt(maxPagesMatch[1], 10) : 1;
+    const currentPage = currentPageMatch ? parseInt(currentPageMatch[1], 10) : pageNumber;
+
+    console.log(`[accident] Page ${currentPage}/${totalPages}, total ads: ${totalCount}`);
+
+    if (currentPage >= totalPages) {
+      hasMorePages = false;
+    } else {
+      pageNumber++;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+
+  console.log(`[accident] Fetched ${allXmlPages.length} pages total`);
+  return allXmlPages;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -229,27 +274,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    const apiUrl = `https://services.mobile.de/search-api/search?page.size=200`;
     const authHeader = "Basic " + btoa(`${username}:${password}`);
+    console.log(`=== [accident] Sync Start === ${new Date().toISOString()}`);
 
-    const response = await fetch(apiUrl, {
-      headers: { Authorization: authHeader, Accept: "application/xml", "Accept-Language": "de" },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Mobile.de API error:", response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: `Mobile.de API returned ${response.status}`, details: errorText }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const allXmlPages = await fetchAllAdsPages(authHeader, 100);
+    const vehicleRows: VehicleRow[] = [];
+    for (const xmlText of allXmlPages) {
+      vehicleRows.push(...parseAds(xmlText));
     }
-
-    const xmlText = await response.text();
-    console.log("[accident] Received XML, length:", xmlText.length);
-
-    const vehicleRows = parseAds(xmlText);
-    console.log(`[accident] Parsed ${vehicleRows.length} ads`);
+    console.log(`[accident] Total fetched: ${vehicleRows.length} vehicles across ${allXmlPages.length} pages`);
 
     await enrichWithDetailImages(vehicleRows, authHeader);
     const totalImages = vehicleRows.reduce((sum, v) => sum + v.image_urls.length, 0);
@@ -260,43 +293,76 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    if (vehicleRows.length > 0) {
-      const { error: upsertError } = await supabase
-        .from("vehicles")
-        .upsert(vehicleRows, { onConflict: "mobile_de_id" });
-
-      if (upsertError) {
-        console.error("[accident] Upsert error:", upsertError);
-        return new Response(
-          JSON.stringify({ error: "Failed to upsert vehicles", details: upsertError }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Soft-delete: only touch ACCIDENT vehicles (vehicle_category = 'accident').
-      // Main sync-vehicles handles all other categories.
-      const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
-      const { data: allDbVehicles } = await supabase
-        .from("vehicles")
-        .select("id, mobile_de_id, is_sold")
-        .eq("vehicle_category", "accident");
-
-      if (allDbVehicles) {
-        const syncedSet = new Set(mobileDeIds);
-        const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
-        const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
-
-        for (const v of toMarkSold) {
-          await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
-        }
-        for (const v of toMarkAvailable) {
-          await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
-        }
-        if (toMarkSold.length > 0) console.log(`[accident] Marked ${toMarkSold.length} vehicles as sold`);
-        if (toMarkAvailable.length > 0) console.log(`[accident] Marked ${toMarkAvailable.length} vehicles as available`);
-      }
-
+    // SAFETY: never run soft-delete with empty result
+    if (vehicleRows.length === 0) {
+      console.warn("[accident] No vehicles returned from API — skipping soft-delete");
+      return new Response(
+        JSON.stringify({ success: false, scope: "accident", reason: "No vehicles returned, soft-delete skipped" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    const { error: upsertError } = await supabase
+      .from("vehicles")
+      .upsert(vehicleRows, { onConflict: "mobile_de_id" });
+
+    if (upsertError) {
+      console.error("[accident] Upsert error:", upsertError);
+      return new Response(
+        JSON.stringify({ error: "Failed to upsert vehicles", details: upsertError }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    console.log(`[accident] Upserted ${vehicleRows.length} vehicles`);
+
+    // Sanity check
+    const { count: activeCount } = await supabase
+      .from("vehicles")
+      .select("*", { count: "exact", head: true })
+      .eq("is_sold", false)
+      .eq("vehicle_category", "accident");
+
+    const expectedCount = activeCount ?? 0;
+    const droppedRatio = expectedCount > 0 ? (expectedCount - vehicleRows.length) / expectedCount : 0;
+
+    if (expectedCount > 50 && droppedRatio > 0.5) {
+      console.warn(
+        `[accident] Sync returned ${vehicleRows.length} but DB has ${expectedCount} active. ` +
+        `Drop ratio: ${(droppedRatio * 100).toFixed(1)}%. Skipping soft-delete.`
+      );
+      return new Response(
+        JSON.stringify({
+          success: true,
+          scope: "accident",
+          synced: vehicleRows.length,
+          warning: "Soft-delete skipped due to suspicious drop in vehicle count",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Soft-delete: only touch ACCIDENT vehicles
+    const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
+    const { data: allDbVehicles } = await supabase
+      .from("vehicles")
+      .select("id, mobile_de_id, is_sold")
+      .eq("vehicle_category", "accident");
+
+    if (allDbVehicles) {
+      const syncedSet = new Set(mobileDeIds);
+      const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
+      const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
+
+      for (const v of toMarkSold) {
+        await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
+      }
+      for (const v of toMarkAvailable) {
+        await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
+      }
+      console.log(`[accident] Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
+    }
+
+    console.log(`=== [accident] Sync Complete ===`);
 
     return new Response(
       JSON.stringify({ success: true, scope: "accident", synced: vehicleRows.length, totalImages }),
