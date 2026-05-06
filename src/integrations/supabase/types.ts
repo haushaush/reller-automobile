@@ -145,6 +145,7 @@ export type Database = {
           last_notified_at: string | null
           max_mileage: number | null
           max_price: number | null
+          message: string | null
           min_year: string | null
           name: string | null
         }
@@ -159,6 +160,7 @@ export type Database = {
           last_notified_at?: string | null
           max_mileage?: number | null
           max_price?: number | null
+          message?: string | null
           min_year?: string | null
           name?: string | null
         }
@@ -173,6 +175,7 @@ export type Database = {
           last_notified_at?: string | null
           max_mileage?: number | null
           max_price?: number | null
+          message?: string | null
           min_year?: string | null
           name?: string | null
         }
