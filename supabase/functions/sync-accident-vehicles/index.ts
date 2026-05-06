@@ -252,6 +252,9 @@ function parseAds(xmlText: string): VehicleRow[] {
     });
   }
 
+  if (skippedCount > 0) {
+    console.log(`[accident] parseAds: kept ${rows.length} public ads, skipped ${skippedCount} non-public ads`);
+  }
   return rows;
 }
 
