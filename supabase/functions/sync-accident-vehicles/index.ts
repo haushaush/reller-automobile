@@ -106,15 +106,93 @@ interface VehicleRow {
   vehicle_category: string;
 }
 
+function getAdStatus(xml: string): string | null {
+  const stateMatch = xml.match(/<ad:state[^>]*>(?:\s*<resource:local-description[^>]*>)?([^<]+)/i);
+  if (stateMatch) return stateMatch[1].trim().toUpperCase();
+  const statusMatch = xml.match(/<ad:status[^>]*>(?:\s*<resource:local-description[^>]*>)?([^<]+)/i);
+  if (statusMatch) return statusMatch[1].trim().toUpperCase();
+  const visibilityMatch = xml.match(/<ad:visibility[^>]*>(?:\s*<resource:local-description[^>]*>)?([^<]+)/i);
+  if (visibilityMatch) return visibilityMatch[1].trim().toUpperCase();
+  return null;
+}
+
+function isPubliclyVisible(adXml: string): boolean {
+  const status = getAdStatus(adXml);
+  if (!status) return true;
+  return ["ACTIVE", "PUBLISHED", "ONLINE"].includes(status);
+}
+
+async function isUrlPubliclyAccessible(detailPageUrl: string): Promise<boolean> {
+  try {
+    const publicUrl = detailPageUrl.split("?")[0];
+    const response = await fetch(publicUrl, {
+      method: "HEAD",
+      redirect: "manual",
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; RellerSync/1.0)" },
+    });
+    if (response.status === 200) return true;
+    if (response.status === 404 || response.status === 410) return false;
+    if (response.status >= 300 && response.status < 400) {
+      const location = (response.headers.get("location") || "").toLowerCase();
+      if (location.includes("404") || location.includes("not-found") || location.includes("nicht-gefunden")) {
+        return false;
+      }
+      return true;
+    }
+    return true;
+  } catch (e) {
+    console.error(`[accident] URL check failed for ${detailPageUrl}:`, e);
+    return true;
+  }
+}
+
+async function validateVehiclesArePublic(
+  vehicles: VehicleRow[],
+  batchSize = 10,
+  delayMs = 200
+): Promise<VehicleRow[]> {
+  const validVehicles: VehicleRow[] = [];
+  let removedCount = 0;
+  for (let i = 0; i < vehicles.length; i += batchSize) {
+    const batch = vehicles.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map(async (v) => {
+        if (!v.detail_page_url) return { vehicle: v, isPublic: true };
+        const isPublic = await isUrlPubliclyAccessible(v.detail_page_url);
+        return { vehicle: v, isPublic };
+      })
+    );
+    for (const { vehicle, isPublic } of results) {
+      if (isPublic) {
+        validVehicles.push(vehicle);
+      } else {
+        removedCount++;
+        console.log(`[accident] Removed non-public vehicle: ${vehicle.mobile_de_id} - ${vehicle.title}`);
+      }
+    }
+    if (i + batchSize < vehicles.length) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  console.log(`[accident] URL validation: ${validVehicles.length} public, ${removedCount} non-public removed`);
+  return validVehicles;
+}
+
 function parseAds(xmlText: string): VehicleRow[] {
   const rows: VehicleRow[] = [];
   const adRegex = /<ad:ad\b[^>]*>([\s\S]*?)<\/ad:ad>/gi;
   let adMatch;
+  let skippedCount = 0;
   const now = new Date().toISOString();
 
   while ((adMatch = adRegex.exec(xmlText)) !== null) {
     const full = adMatch[0];
     const content = adMatch[1];
+
+    if (!isPubliclyVisible(full)) {
+      skippedCount++;
+      continue;
+    }
 
     const rawId = attr(full, "ad:ad", "key") || `unknown-${rows.length}`;
     const mobileDeId = `${ID_PREFIX}${rawId}`;
