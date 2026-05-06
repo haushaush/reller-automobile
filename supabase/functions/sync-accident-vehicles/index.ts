@@ -359,11 +359,22 @@ Deno.serve(async (req) => {
     console.log(`=== [accident] Sync Start === ${new Date().toISOString()}`);
 
     const allXmlPages = await fetchAllAdsPages(authHeader, 100);
-    const vehicleRows: VehicleRow[] = [];
-    for (const xmlText of allXmlPages) {
-      vehicleRows.push(...parseAds(xmlText));
+
+    if (allXmlPages.length > 0) {
+      console.log("=== [accident] DEBUG XML SAMPLE (first 3000 chars of page 1) ===");
+      console.log(allXmlPages[0].substring(0, 3000));
+      console.log("=== END DEBUG ===");
     }
-    console.log(`[accident] Total fetched: ${vehicleRows.length} vehicles across ${allXmlPages.length} pages`);
+
+    const rawVehicleRows: VehicleRow[] = [];
+    for (const xmlText of allXmlPages) {
+      rawVehicleRows.push(...parseAds(xmlText));
+    }
+    console.log(`[accident] After XML status filter: ${rawVehicleRows.length} vehicles across ${allXmlPages.length} pages`);
+
+    console.log("[accident] Validating public visibility via URL HEAD checks...");
+    const vehicleRows = await validateVehiclesArePublic(rawVehicleRows);
+    console.log(`[accident] After URL validation: ${vehicleRows.length} public vehicles`);
 
     await enrichWithDetailImages(vehicleRows, authHeader);
     const totalImages = vehicleRows.reduce((sum, v) => sum + v.image_urls.length, 0);
