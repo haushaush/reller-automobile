@@ -127,16 +127,95 @@ interface ParseOpts {
   idPrefix?: string;
 }
 
+function getAdStatus(xml: string): string | null {
+  const stateMatch = xml.match(/<ad:state[^>]*>(?:\s*<resource:local-description[^>]*>)?([^<]+)/i);
+  if (stateMatch) return stateMatch[1].trim().toUpperCase();
+  const statusMatch = xml.match(/<ad:status[^>]*>(?:\s*<resource:local-description[^>]*>)?([^<]+)/i);
+  if (statusMatch) return statusMatch[1].trim().toUpperCase();
+  const visibilityMatch = xml.match(/<ad:visibility[^>]*>(?:\s*<resource:local-description[^>]*>)?([^<]+)/i);
+  if (visibilityMatch) return visibilityMatch[1].trim().toUpperCase();
+  return null;
+}
+
+function isPubliclyVisible(adXml: string): boolean {
+  const status = getAdStatus(adXml);
+  if (!status) return true;
+  const publicStatuses = ["ACTIVE", "PUBLISHED", "ONLINE"];
+  return publicStatuses.includes(status);
+}
+
+async function isUrlPubliclyAccessible(detailPageUrl: string): Promise<boolean> {
+  try {
+    const publicUrl = detailPageUrl.split("?")[0];
+    const response = await fetch(publicUrl, {
+      method: "HEAD",
+      redirect: "manual",
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; RellerSync/1.0)" },
+    });
+    if (response.status === 200) return true;
+    if (response.status === 404 || response.status === 410) return false;
+    if (response.status >= 300 && response.status < 400) {
+      const location = (response.headers.get("location") || "").toLowerCase();
+      if (location.includes("404") || location.includes("not-found") || location.includes("nicht-gefunden")) {
+        return false;
+      }
+      return true;
+    }
+    return true;
+  } catch (e) {
+    console.error(`URL check failed for ${detailPageUrl}:`, e);
+    return true;
+  }
+}
+
+async function validateVehiclesArePublic(
+  vehicles: VehicleRow[],
+  batchSize = 10,
+  delayMs = 200
+): Promise<VehicleRow[]> {
+  const validVehicles: VehicleRow[] = [];
+  let removedCount = 0;
+  for (let i = 0; i < vehicles.length; i += batchSize) {
+    const batch = vehicles.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map(async (v) => {
+        if (!v.detail_page_url) return { vehicle: v, isPublic: true };
+        const isPublic = await isUrlPubliclyAccessible(v.detail_page_url);
+        return { vehicle: v, isPublic };
+      })
+    );
+    for (const { vehicle, isPublic } of results) {
+      if (isPublic) {
+        validVehicles.push(vehicle);
+      } else {
+        removedCount++;
+        console.log(`Removed non-public vehicle: ${vehicle.mobile_de_id} - ${vehicle.title}`);
+      }
+    }
+    if (i + batchSize < vehicles.length) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  console.log(`URL validation: ${validVehicles.length} public, ${removedCount} non-public removed`);
+  return validVehicles;
+}
+
 function parseAds(xmlText: string, opts: ParseOpts = {}): VehicleRow[] {
   const { isAccident = false, idPrefix = "" } = opts;
   const rows: VehicleRow[] = [];
   const adRegex = /<ad:ad\b[^>]*>([\s\S]*?)<\/ad:ad>/gi;
   let adMatch;
+  let skippedCount = 0;
   const now = new Date().toISOString();
 
   while ((adMatch = adRegex.exec(xmlText)) !== null) {
     const full = adMatch[0];
     const content = adMatch[1];
+
+    if (!isPubliclyVisible(full)) {
+      skippedCount++;
+      continue;
+    }
 
     const rawId = attr(full, "ad:ad", "key") || `unknown-${rows.length}`;
     const mobileDeId = `${idPrefix}${rawId}`;
@@ -200,6 +279,9 @@ function parseAds(xmlText: string, opts: ParseOpts = {}): VehicleRow[] {
     });
   }
 
+  if (skippedCount > 0) {
+    console.log(`parseAds: kept ${rows.length} public ads, skipped ${skippedCount} non-public ads`);
+  }
   return rows;
 }
 
@@ -319,11 +401,24 @@ Deno.serve(async (req) => {
     console.log(`=== Sync Start === ${new Date().toISOString()}`);
 
     const allXmlPages = await fetchAllAdsPages(authHeader, 100);
-    const vehicleRows: VehicleRow[] = [];
-    for (const xmlText of allXmlPages) {
-      vehicleRows.push(...parseAds(xmlText));
+
+    // DEBUG: log first XML page sample to inspect status fields
+    if (allXmlPages.length > 0) {
+      console.log("=== DEBUG XML SAMPLE (first 3000 chars of page 1) ===");
+      console.log(allXmlPages[0].substring(0, 3000));
+      console.log("=== END DEBUG ===");
     }
-    console.log(`Total fetched: ${vehicleRows.length} vehicles across ${allXmlPages.length} pages`);
+
+    const rawVehicleRows: VehicleRow[] = [];
+    for (const xmlText of allXmlPages) {
+      rawVehicleRows.push(...parseAds(xmlText));
+    }
+    console.log(`After XML status filter: ${rawVehicleRows.length} vehicles across ${allXmlPages.length} pages`);
+
+    // URL validation: drop ads not publicly accessible on mobile.de
+    console.log("Validating public visibility via URL HEAD checks...");
+    const vehicleRows = await validateVehiclesArePublic(rawVehicleRows);
+    console.log(`After URL validation: ${vehicleRows.length} public vehicles`);
 
     // Fetch detail pages to get all images per vehicle
     console.log("Fetching detail images for each vehicle...");
