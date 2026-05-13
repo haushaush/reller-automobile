@@ -198,15 +198,15 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   const fuel = vehicle.fuel || "—";
   const gearbox = vehicle.gearbox || "—";
 
-  // Layout constants — header 480px tall, image overlaps by 60px
-  const HEADER_H = 480;
-  const IMAGE_Y = HEADER_H - 60; // 420
-  const IMAGE_H = 720;
-  const IMAGE_BOTTOM = IMAGE_Y + IMAGE_H; // 1140
+  // Layout constants — header 400px tall, image overlaps by 80px
+  const HEADER_H = 400;
+  const IMAGE_Y = 320;
+  const IMAGE_H = 700;
+  const IMAGE_BOTTOM = IMAGE_Y + IMAGE_H; // 1020
 
   // Generous whitespace below image
-  const brandY = IMAGE_BOTTOM + 90; // 1230
-  const titleStartY = brandY + 80; // 1310 — baseline of first title line
+  const brandY = IMAGE_BOTTOM + 90; // 1110
+  const titleStartY = brandY + 140; // 1250 — baseline of first title line
   const titleBlockHeight = title.lines.length * title.lineHeight;
   const priceY = titleStartY - title.fontSize + titleBlockHeight + 60;
   const specY = priceY + 200;
@@ -232,18 +232,18 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   <!-- White body -->
   <rect width="1080" height="1920" fill="#FFFFFF"/>
 
-  <!-- Header bar: full width, 480px tall -->
+  <!-- Header bar: full width, 400px tall -->
   <rect x="0" y="0" width="1080" height="${HEADER_H}" fill="#10182d"/>
 
   <!-- Header line 1 -->
-  <text x="540" y="240" font-family="Inter" font-weight="900" font-style="italic"
-        font-size="120" fill="#FFFFFF" text-anchor="middle">Aktuell verfügbar</text>
+  <text x="540" y="200" font-family="Inter" font-weight="900" font-style="italic"
+        font-size="100" fill="#FFFFFF" text-anchor="middle">Aktuell verfügbar</text>
 
   <!-- Header line 2 -->
-  <text x="540" y="340" font-family="Inter" font-weight="400" font-style="italic"
+  <text x="540" y="290" font-family="Inter" font-weight="400" font-style="italic"
         font-size="50" fill="#FFFFFF" text-anchor="middle">fahrzeuge.reller-automobile.de</text>
 
-  <!-- Vehicle image (overlaps header by 60px) -->
+  <!-- Vehicle image (overlaps header by 80px) -->
   ${
     imageDataUrl
       ? `<image x="60" y="${IMAGE_Y}" width="960" height="${IMAGE_H}" href="${imageDataUrl}" preserveAspectRatio="xMidYMid slice" clip-path="url(#imageClip)"/>`
