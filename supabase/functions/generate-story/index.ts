@@ -138,34 +138,10 @@ async function fetchImageAsDataUrl(url: string): Promise<string | null> {
 // Dynamic title sizing: pick the largest font that fits within `maxWidth` and
 // at most `maxLines`. Approximation uses avgCharWidth ≈ fontSize * 0.52 for
 // Inter Black Italic.
-function fitTitle(text: string, maxWidth: number, maxLines: number) {
+function wrapLines(text: string, maxWidth: number, fontSize: number, charRatio = 0.52): string[] {
+  const charW = fontSize * charRatio;
+  const maxChars = Math.max(1, Math.floor(maxWidth / charW));
   const words = text.trim().split(/\s+/);
-  // Try sizes from large to small
-  const sizes = [100, 90, 82, 76, 70, 64, 58];
-  for (const size of sizes) {
-    const charW = size * 0.52;
-    const maxChars = Math.floor(maxWidth / charW);
-    // Greedy line-wrap
-    const lines: string[] = [];
-    let current = "";
-    for (const w of words) {
-      const candidate = current ? `${current} ${w}` : w;
-      if (candidate.length <= maxChars) {
-        current = candidate;
-      } else {
-        if (current) lines.push(current);
-        current = w;
-      }
-    }
-    if (current) lines.push(current);
-    if (lines.length <= maxLines && lines.every((l) => l.length <= maxChars)) {
-      return { lines, fontSize: size, lineHeight: Math.round(size * 1.1) };
-    }
-  }
-  // Last resort: smallest size, truncate
-  const size = 58;
-  const charW = size * 0.52;
-  const maxChars = Math.floor(maxWidth / charW);
   const lines: string[] = [];
   let current = "";
   for (const w of words) {
@@ -174,14 +150,39 @@ function fitTitle(text: string, maxWidth: number, maxLines: number) {
     else {
       if (current) lines.push(current);
       current = w;
-      if (lines.length >= maxLines) break;
     }
   }
-  if (current && lines.length < maxLines) lines.push(current);
-  if (lines.length === maxLines && lines[maxLines - 1].length > maxChars) {
-    lines[maxLines - 1] = lines[maxLines - 1].slice(0, maxChars - 1) + "…";
+  if (current) lines.push(current);
+  return lines;
+}
+
+// Pick the largest font that fits within maxWidth, maxLines AND availableHeight.
+// More lines force smaller font sizes so the entire composition fits in 1920px.
+function fitTitle(text: string, maxWidth: number, availableHeight: number) {
+  const configs: Array<{ maxLines: number; fontSize: number }> = [
+    { maxLines: 1, fontSize: 100 },
+    { maxLines: 1, fontSize: 90 },
+    { maxLines: 2, fontSize: 90 },
+    { maxLines: 2, fontSize: 80 },
+    { maxLines: 2, fontSize: 72 },
+    { maxLines: 3, fontSize: 70 },
+    { maxLines: 3, fontSize: 64 },
+    { maxLines: 3, fontSize: 56 },
+    { maxLines: 4, fontSize: 50 },
+    { maxLines: 4, fontSize: 44 },
+  ];
+  for (const c of configs) {
+    const lines = wrapLines(text, maxWidth, c.fontSize);
+    const lineHeight = Math.round(c.fontSize * 1.1);
+    const totalH = lines.length * lineHeight;
+    if (lines.length <= c.maxLines && totalH <= availableHeight) {
+      return { lines, fontSize: c.fontSize, lineHeight };
+    }
   }
-  return { lines: lines.slice(0, maxLines), fontSize: size, lineHeight: Math.round(size * 1.1) };
+  // Ultimate fallback
+  const size = 38;
+  const lines = wrapLines(text, maxWidth, size).slice(0, 4);
+  return { lines, fontSize: size, lineHeight: Math.round(size * 1.1) };
 }
 
 function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
