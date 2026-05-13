@@ -39,16 +39,64 @@ export default function StoryArchive() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    const { data } = await supabase
+    const { data: storiesData, error: storiesError } = await supabase
       .from("vehicle_stories")
-      .select(`*, vehicle:vehicles(id, title, brand, price)`)
+      .select("*")
       .order("generated_at", { ascending: false });
-    setStories((data as unknown as StoryWithVehicle[]) || []);
+
+    if (storiesError) {
+      toast.error("Stories konnten nicht geladen werden", {
+        description: storiesError.message,
+      });
+      setStories([]);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!storiesData || storiesData.length === 0) {
+      setStories([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const vehicleIds = Array.from(new Set(storiesData.map((s) => s.vehicle_id)));
+    const { data: vehiclesData } = await supabase
+      .from("vehicles")
+      .select("id, title, brand, price")
+      .in("id", vehicleIds);
+
+    const vehiclesMap = new Map((vehiclesData || []).map((v) => [v.id, v]));
+
+    const combined: StoryWithVehicle[] = storiesData.map((s) => ({
+      ...s,
+      vehicle:
+        vehiclesMap.get(s.vehicle_id) ?? {
+          id: s.vehicle_id,
+          title: "Fahrzeug nicht mehr verfügbar",
+          brand: null,
+          price: null,
+        },
+    }));
+
+    setStories(combined);
     setIsLoading(false);
   }, []);
 
   useEffect(() => {
     loadData();
+
+    const channel = supabase
+      .channel("vehicle_stories_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "vehicle_stories" },
+        () => loadData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [loadData]);
 
   const downloadStory = async (story: StoryWithVehicle) => {
