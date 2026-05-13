@@ -404,7 +404,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // admin client already created above
     const { data: vehicles } = await admin
       .from("vehicles")
       .select(
