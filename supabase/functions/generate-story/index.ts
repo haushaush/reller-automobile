@@ -20,6 +20,7 @@ const SALES_EMAIL = "verkauf@reller-automobile.de";
 
 interface RequestBody {
   vehicleIds: string[];
+  forceResend?: boolean;
 }
 
 interface VehicleRow {
