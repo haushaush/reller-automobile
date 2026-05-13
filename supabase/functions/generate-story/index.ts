@@ -20,6 +20,7 @@ const SALES_EMAIL = "verkauf@reller-automobile.de";
 
 interface RequestBody {
   vehicleIds: string[];
+  forceResend?: boolean;
 }
 
 interface VehicleRow {
@@ -175,8 +176,29 @@ Deno.serve(async (req) => {
       .in("id", body.vehicleIds);
 
     let generated = 0;
+    let resent = 0;
     for (const v of (vehicles ?? []) as VehicleRow[]) {
       try {
+        if (body.forceResend) {
+          // Find latest existing story and re-send the email
+          const { data: existing } = await admin
+            .from("vehicle_stories")
+            .select("id, story_image_url")
+            .eq("vehicle_id", v.id)
+            .order("generated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (existing?.story_image_url) {
+            await sendDealerEmail(v, existing.story_image_url);
+            await admin
+              .from("vehicle_stories")
+              .update({ sent_to_dealer: true, sent_at: new Date().toISOString() })
+              .eq("id", existing.id);
+            resent++;
+            continue;
+          }
+        }
+
         const dataUrl = await generateStoryImage(v);
         if (!dataUrl) continue;
         const publicUrl = await uploadStoryImage(admin, v.id, dataUrl);
@@ -195,7 +217,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ generated }), {
+    return new Response(JSON.stringify({ generated, resent }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
