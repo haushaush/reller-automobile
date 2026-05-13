@@ -63,6 +63,25 @@ export default function StoryGenerator() {
 
   useEffect(() => {
     loadVehicles();
+
+    const channel = supabase
+      .channel("story_generator_sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "vehicle_stories" },
+        () => {
+          loadVehicles();
+        },
+      )
+      .subscribe();
+
+    const handleFocus = () => loadVehicles();
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const filteredVehicles = vehicles.filter((v) => {
