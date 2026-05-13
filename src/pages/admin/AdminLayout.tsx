@@ -1,17 +1,54 @@
+import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ImageIcon, LogOut, ArrowLeft } from "lucide-react";
+import {
+  LayoutDashboard,
+  ImageIcon,
+  RefreshCw,
+  Mail,
+  Bell,
+  Archive,
+  LogOut,
+  ArrowLeft,
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+
+interface NavItem {
+  label: string;
+  path: string;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+  badgeKey?: "inquiries";
+}
+
+const navItems: NavItem[] = [
+  { label: "Übersicht", path: "/admin", icon: LayoutDashboard, exact: true },
+  { label: "Sync-Status", path: "/admin/sync", icon: RefreshCw },
+  { label: "Anfragen", path: "/admin/inquiries", icon: Mail, badgeKey: "inquiries" },
+  { label: "Suchaufträge", path: "/admin/alerts", icon: Bell },
+  { label: "Story-Generator", path: "/admin/stories", icon: ImageIcon },
+  { label: "Story-Archiv", path: "/admin/story-archive", icon: Archive },
+];
 
 export default function AdminLayout() {
   const { user, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [counts, setCounts] = useState<{ inquiries: number }>({ inquiries: 0 });
 
-  const navItems = [
-    { label: "Übersicht", path: "/admin", icon: LayoutDashboard, exact: true },
-    { label: "Story-Generator", path: "/admin/stories", icon: ImageIcon, exact: false },
-  ];
+  useEffect(() => {
+    const loadCounts = async () => {
+      const { count } = await supabase
+        .from("inquiries")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "new");
+      setCounts({ inquiries: count || 0 });
+    };
+    loadCounts();
+    const i = setInterval(loadCounts, 60000);
+    return () => clearInterval(i);
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
@@ -32,6 +69,7 @@ export default function AdminLayout() {
               ? location.pathname === item.path
               : location.pathname.startsWith(item.path);
             const Icon = item.icon;
+            const badge = item.badgeKey ? counts[item.badgeKey] : 0;
             return (
               <Link
                 key={item.path}
@@ -43,7 +81,18 @@ export default function AdminLayout() {
                 }`}
               >
                 <Icon className="h-4 w-4" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {badge > 0 && (
+                  <span
+                    className={`text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center ${
+                      isActive
+                        ? "bg-primary-foreground/20 text-primary-foreground"
+                        : "bg-destructive text-destructive-foreground"
+                    }`}
+                  >
+                    {badge}
+                  </span>
+                )}
               </Link>
             );
           })}
