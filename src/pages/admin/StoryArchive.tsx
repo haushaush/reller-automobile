@@ -116,35 +116,51 @@ export default function StoryArchive() {
   const downloadStory = async (story: StoryWithVehicle, e?: React.MouseEvent) => {
     e?.stopPropagation();
     e?.preventDefault();
+
+    const brand = story.vehicle?.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Reller";
+    const title = (story.vehicle?.title || "Story")
+      .substring(0, 30)
+      .replace(/[^a-zA-Z0-9]/g, "-");
+    const filename = `${brand}-${title}-Story.png`;
+
+    // Strategy 1: Supabase SDK download (gibt Blob zurück, umgeht CORS-Probleme)
     try {
-      const response = await fetch(story.story_image_url, {
-        mode: "cors",
-        credentials: "omit",
-      });
-      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
-      const blob = await response.blob();
+      const path = story.story_image_url.split("/vehicle-stories/")[1];
+      if (path) {
+        const { data: blob, error } = await supabase.storage
+          .from("vehicle-stories")
+          .download(path);
+        if (!error && blob) {
+          const blobUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = filename;
+          link.rel = "noopener";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+          toast.success("Download gestartet");
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("SDK download failed, falling back:", err);
+    }
 
-      const brand = story.vehicle?.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Reller";
-      const title = (story.vehicle?.title || "Story")
-        .substring(0, 30)
-        .replace(/[^a-zA-Z0-9]/g, "-");
-      const filename = `${brand}-${title}-Story.png`;
-
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = filename;
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
-
+    // Strategy 2: Fallback — Supabase setzt bei ?download=<filename>
+    // automatisch Content-Disposition: attachment. Öffnen in neuem Tab
+    // umgeht iframe-Download-Restriktionen der Preview.
+    try {
+      const url = new URL(story.story_image_url);
+      url.searchParams.set("download", filename);
+      const win = window.open(url.toString(), "_blank", "noopener,noreferrer");
+      if (!win) throw new Error("Popup blocked");
       toast.success("Download gestartet");
     } catch (error) {
       console.error("Download error:", error);
       toast.error("Download fehlgeschlagen", {
-        description: "Bitte prüfe die Konsole für Details.",
+        description: "Bitte rechtsklick auf das Bild → Speichern unter…",
       });
     }
   };
