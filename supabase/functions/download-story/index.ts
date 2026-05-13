@@ -30,16 +30,26 @@ Deno.serve(async (req) => {
 
     const { data: story, error: storyError } = await supabase
       .from("vehicle_stories")
-      .select("story_image_url, vehicle:vehicles(title, brand)")
+      .select("story_image_url, vehicle_id")
       .eq("id", storyId)
-      .single();
+      .maybeSingle();
 
     if (storyError || !story) {
-      return new Response(JSON.stringify({ error: "Story not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("Story lookup failed:", storyError, "id:", storyId);
+      return new Response(
+        JSON.stringify({ error: "Story not found", details: storyError?.message }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
+
+    const { data: vehicle } = await supabase
+      .from("vehicles")
+      .select("title, brand")
+      .eq("id", story.vehicle_id)
+      .maybeSingle();
 
     const pathMatch = (story.story_image_url as string).match(
       /\/vehicle-stories\/(.+?)(\?|$)/
@@ -56,17 +66,14 @@ Deno.serve(async (req) => {
       .download(pathMatch[1]);
 
     if (imageError || !imageData) {
+      console.error("Storage download failed:", imageError, "path:", pathMatch[1]);
       return new Response(JSON.stringify({ error: "Image not found in storage" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const vehicle = (story.vehicle as { title: string; brand: string | null } | null) ?? {
-      title: "Story",
-      brand: "Reller",
-    };
-    const safeName = `${vehicle.brand || "Reller"}-${vehicle.title}`
+    const safeName = `${vehicle?.brand || "Reller"}-${vehicle?.title || "Story"}`
       .replace(/[^a-zA-Z0-9\-]/g, "-")
       .replace(/-+/g, "-")
       .substring(0, 60);
