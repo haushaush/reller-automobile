@@ -37,7 +37,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       if (newSession?.user) {
-        // Defer to avoid deadlock
+        // Mark as loading until role check completes, otherwise consumers
+        // (e.g. Login redirect) may act on a stale isAdmin=false value.
+        setIsLoading(true);
         setTimeout(() => {
           checkAdminRole(newSession.user.id).finally(() => setIsLoading(false));
         }, 0);
