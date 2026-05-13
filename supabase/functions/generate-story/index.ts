@@ -188,7 +188,6 @@ function fitTitle(text: string, maxWidth: number, availableHeight: number) {
 function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   const brand = (vehicle.brand || "").toUpperCase();
   const titleRaw = vehicle.model_description || vehicle.title || "";
-  const title = fitTitle(titleRaw, 960, 3);
 
   const price = vehicle.price ? `${vehicle.price.toLocaleString("de-DE")}€` : "Auf Anfrage";
   const year = vehicle.year || "—";
@@ -199,18 +198,30 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   const fuel = vehicle.fuel || "—";
   const gearbox = vehicle.gearbox || "—";
 
-  // Layout constants — header 400px tall, image overlaps by 80px
+  // === Y-POSITIONS ===
+  const TOTAL_HEIGHT = 1920;
+  const BOTTOM_MARGIN = 60;
+
   const HEADER_H = 400;
   const IMAGE_Y = 320;
   const IMAGE_H = 700;
   const IMAGE_BOTTOM = IMAGE_Y + IMAGE_H; // 1020
 
-  // Generous whitespace below image
   const brandY = IMAGE_BOTTOM + 90; // 1110
-  const titleStartY = brandY + 140; // 1250 — baseline of first title line
-  const titleBlockHeight = title.lines.length * title.lineHeight;
-  const priceY = titleStartY - title.fontSize + titleBlockHeight + 60;
-  const specY = priceY + 200;
+
+  // Spec table pinned to bottom
+  const SPEC_ROW_HEIGHT = 50;
+  const SPEC_BOX_HEIGHT = 290;
+  const specY = TOTAL_HEIGHT - BOTTOM_MARGIN - SPEC_BOX_HEIGHT; // 1570
+
+  // Price box directly above spec table
+  const PRICE_BOX_HEIGHT = 150;
+  const priceY = specY - 60 - PRICE_BOX_HEIGHT; // 1360
+
+  // Title fits in the space between brand and price box
+  const titleAvailableHeight = priceY - brandY - 220; // padding above & below
+  const title = fitTitle(titleRaw, 960, Math.max(120, titleAvailableHeight));
+  const titleStartY = brandY + 140;
 
   const specs: Array<[string, string]> = [
     ["Baujahr", year],
@@ -219,7 +230,7 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
     ["Kraftstoff", fuel],
     ["Getriebe", gearbox],
   ];
-  const rowHeight = 50;
+  const rowHeight = SPEC_ROW_HEIGHT;
   const firstRowY = specY + 65;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
