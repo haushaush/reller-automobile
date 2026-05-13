@@ -117,50 +117,46 @@ export default function StoryArchive() {
     e?.stopPropagation();
     e?.preventDefault();
 
-    const brand = story.vehicle?.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Reller";
-    const title = (story.vehicle?.title || "Story")
-      .substring(0, 30)
-      .replace(/[^a-zA-Z0-9]/g, "-");
-    const filename = `${brand}-${title}-Story.png`;
+    const filename = `Reller-Story-${
+      story.vehicle?.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Fahrzeug"
+    }-${
+      (story.vehicle?.title || "Story").substring(0, 40).replace(/[^a-zA-Z0-9]/g, "-")
+    }.png`;
 
-    // Strategy 1: Supabase SDK download (gibt Blob zurück, umgeht CORS-Probleme)
     try {
-      const path = story.story_image_url.split("/vehicle-stories/")[1];
-      if (path) {
-        const { data: blob, error } = await supabase.storage
-          .from("vehicle-stories")
-          .download(path);
-        if (!error && blob) {
-          const blobUrl = window.URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = blobUrl;
-          link.download = filename;
-          link.rel = "noopener";
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
-          toast.success("Download gestartet");
-          return;
-        }
+      const pathMatch = story.story_image_url.match(/\/vehicle-stories\/(.+?)(\?|$)/);
+      if (!pathMatch) {
+        window.open(story.story_image_url, "_blank", "noopener,noreferrer");
+        toast.info("Datei in neuem Tab geöffnet — rechts-klicken → speichern unter");
+        return;
       }
-    } catch (err) {
-      console.warn("SDK download failed, falling back:", err);
-    }
 
-    // Strategy 2: Fallback — Supabase setzt bei ?download=<filename>
-    // automatisch Content-Disposition: attachment. Öffnen in neuem Tab
-    // umgeht iframe-Download-Restriktionen der Preview.
-    try {
-      const url = new URL(story.story_image_url);
-      url.searchParams.set("download", filename);
-      const win = window.open(url.toString(), "_blank", "noopener,noreferrer");
-      if (!win) throw new Error("Popup blocked");
+      // Signed URL mit Download-Header (Content-Disposition: attachment)
+      // → umgeht CORS und zwingt Browser zum Download statt Inline-Anzeige
+      const { data, error } = await supabase.storage
+        .from("vehicle-stories")
+        .createSignedUrl(pathMatch[1], 60, { download: filename });
+
+      if (error || !data?.signedUrl) {
+        console.error("Signed URL error:", error);
+        window.open(story.story_image_url, "_blank", "noopener,noreferrer");
+        toast.info("Datei in neuem Tab geöffnet — rechts-klicken → speichern unter");
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.href = data.signedUrl;
+      link.download = filename;
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
       toast.success("Download gestartet");
     } catch (error) {
       console.error("Download error:", error);
       toast.error("Download fehlgeschlagen", {
-        description: "Bitte rechtsklick auf das Bild → Speichern unter…",
+        description: (error as Error)?.message || "Bitte später erneut versuchen",
       });
     }
   };
