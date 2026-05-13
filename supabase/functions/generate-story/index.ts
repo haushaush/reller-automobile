@@ -136,7 +136,7 @@ async function fetchImageAsDataUrl(url: string): Promise<string | null> {
 function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   const brand = (vehicle.brand || "").toUpperCase();
   const titleRaw = vehicle.model_description || vehicle.title || "";
-  const titleLines = wrapTextSmart(titleRaw, 18);
+  const titleLines = wrapTextSmart(titleRaw, 16);
   const titleIs2Lines = titleLines.length > 1;
 
   const price = vehicle.price ? `${vehicle.price.toLocaleString("de-DE")}€` : "Auf Anfrage";
@@ -148,10 +148,10 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   const fuel = vehicle.fuel || "—";
   const gearbox = vehicle.gearbox || "—";
 
-  // Position constants — derived from template (1080×1920)
-  const titleY1 = titleIs2Lines ? 1140 : 1200;
-  const priceY = titleIs2Lines ? 1430 : 1310;
-  const specY = titleIs2Lines ? 1640 : 1520;
+  // Y positions per spec
+  const titleY1 = titleIs2Lines ? 1210 : 1240;
+  const priceY = titleIs2Lines ? 1390 : 1310;
+  const specY = titleIs2Lines ? 1590 : 1510;
 
   const specs: Array<[string, string]> = [
     ["Baujahr", year],
@@ -160,71 +160,67 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
     ["Kraftstoff", fuel],
     ["Getriebe", gearbox],
   ];
+  const rowHeight = 50;
+  const firstRowY = specY + 65;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920">
   <defs>
     <clipPath id="imageClip">
-      <rect x="120" y="320" width="840" height="620" rx="32" ry="32"/>
+      <rect x="60" y="320" width="960" height="720" rx="32" ry="32"/>
     </clipPath>
-    <filter id="imgShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.18"/>
-    </filter>
   </defs>
 
   <!-- White body -->
   <rect width="1080" height="1920" fill="#FFFFFF"/>
 
-  <!-- Header bar (dark blue) -->
-  <rect x="0" y="0" width="1080" height="440" fill="#10182d"/>
+  <!-- Header bar: full width, 380px tall -->
+  <rect x="0" y="0" width="1080" height="380" fill="#10182d"/>
 
   <!-- Header line 1 -->
-  <text x="540" y="200" font-family="Inter" font-weight="900" font-style="italic"
+  <text x="540" y="180" font-family="Inter" font-weight="900" font-style="italic"
         font-size="120" fill="#FFFFFF" text-anchor="middle">Aktuell verfügbar</text>
 
   <!-- Header line 2 -->
-  <text x="540" y="285" font-family="Inter" font-weight="400" font-style="italic"
-        font-size="48" fill="#FFFFFF" text-anchor="middle">fahrzeuge.reller-automobile.de</text>
+  <text x="540" y="265" font-family="Inter" font-weight="400" font-style="italic"
+        font-size="50" fill="#FFFFFF" text-anchor="middle">fahrzeuge.reller-automobile.de</text>
 
-  <!-- Vehicle image (overlaps header) -->
-  <g filter="url(#imgShadow)">
-    ${
-      imageDataUrl
-        ? `<image x="120" y="320" width="840" height="620" href="${imageDataUrl}" preserveAspectRatio="xMidYMid slice" clip-path="url(#imageClip)"/>`
-        : `<rect x="120" y="320" width="840" height="620" rx="32" fill="#E5E5E5"/>`
-    }
-    <rect x="120" y="320" width="840" height="620" rx="32" fill="none" stroke="#10182d" stroke-width="3"/>
-  </g>
+  <!-- Vehicle image (overlaps header by 60px) -->
+  ${
+    imageDataUrl
+      ? `<image x="60" y="320" width="960" height="720" href="${imageDataUrl}" preserveAspectRatio="xMidYMid slice" clip-path="url(#imageClip)"/>`
+      : `<rect x="60" y="320" width="960" height="720" rx="32" fill="#E5E5E5"/>`
+  }
 
   <!-- Brand label -->
-  <text x="540" y="1030" font-family="Inter" font-weight="400" font-style="italic"
-        font-size="50" fill="#10182d" text-anchor="middle" letter-spacing="10">${escapeXml(brand)}</text>
+  <text x="540" y="1120" font-family="Inter" font-weight="400" font-style="italic"
+        font-size="52" fill="#10182d" text-anchor="middle" letter-spacing="10">${escapeXml(brand)}</text>
 
   <!-- Model title -->
   ${titleLines
     .map(
       (line, i) =>
-        `<text x="540" y="${titleY1 + i * 120}" font-family="Inter" font-weight="900" font-style="italic"
+        `<text x="540" y="${titleY1 + i * 110}" font-family="Inter" font-weight="900" font-style="italic"
               font-size="100" fill="#000000" text-anchor="middle">${escapeXml(line)}</text>`,
     )
     .join("\n  ")}
 
   <!-- Price box -->
-  <rect x="230" y="${priceY}" width="620" height="160" rx="36" fill="#10182d"/>
-  <text x="540" y="${priceY + 112}" font-family="Inter" font-weight="900"
-        font-size="92" fill="#FFFFFF" text-anchor="middle">${escapeXml(price)}</text>
+  <rect x="240" y="${priceY}" width="600" height="150" rx="32" fill="#10182d"/>
+  <text x="540" y="${priceY + 102}" font-family="Inter" font-weight="900"
+        font-size="84" fill="#FFFFFF" text-anchor="middle">${escapeXml(price)}</text>
 
   <!-- Spec table border -->
-  <rect x="80" y="${specY}" width="920" height="260" rx="32" fill="none" stroke="#10182d" stroke-width="5"/>
+  <rect x="60" y="${specY}" width="960" height="290" rx="32" fill="none" stroke="#10182d" stroke-width="5"/>
 
   <!-- Spec rows -->
   ${specs
     .map(([label, value], i) => {
-      const rowY = specY + 65 + i * 42;
-      return `<text x="130" y="${rowY}" font-family="Inter" font-weight="900" font-style="italic"
-                  font-size="38" fill="#10182d">${escapeXml(label)}</text>
-  <text x="950" y="${rowY}" font-family="Inter" font-weight="400"
-        font-size="38" fill="#333333" text-anchor="end">${escapeXml(value)}</text>`;
+      const rowY = firstRowY + i * rowHeight;
+      return `<text x="120" y="${rowY}" font-family="Inter" font-weight="900" font-style="italic"
+                  font-size="44" fill="#10182d">${escapeXml(label)}</text>
+  <text x="960" y="${rowY}" font-family="Inter" font-weight="400"
+        font-size="44" fill="#333333" text-anchor="end">${escapeXml(value)}</text>`;
     })
     .join("\n  ")}
 </svg>`;
