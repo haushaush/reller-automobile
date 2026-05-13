@@ -4,9 +4,11 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { CompareProvider } from "@/contexts/CompareContext";
 import { FavoritesProvider } from "@/contexts/FavoritesContext";
 import { InquiryProvider } from "@/contexts/InquiryContext";
+import { AdminRoute } from "@/components/AdminRoute";
 import FloatingActionBar from "@/components/FloatingActionBar";
 import Hub from "./pages/Hub";
 
@@ -19,6 +21,10 @@ const ComparePage = lazy(() => import("./pages/ComparePage"));
 const InquiryPage = lazy(() => import("./pages/InquiryPage"));
 const InquirySuccessPage = lazy(() => import("./pages/InquirySuccessPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const Login = lazy(() => import("./pages/Login"));
+const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const StoryGenerator = lazy(() => import("./pages/admin/StoryGenerator"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,25 +46,39 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <FavoritesProvider>
-          <CompareProvider>
-            <InquiryProvider>
-              <Suspense fallback={<RouteFallback />}>
-                <Routes>
-                  <Route path="/" element={<Hub />} />
-                  <Route path="/fahrzeuge" element={<AllVehiclesPage />} />
-                  <Route path="/fahrzeuge/:category" element={<CategoryPage />} />
-                  <Route path="/fahrzeug/:id" element={<VehicleDetail />} />
-                  <Route path="/vergleich" element={<ComparePage />} />
-                  <Route path="/anfrage" element={<InquiryPage />} />
-                  <Route path="/anfrage/erfolg" element={<InquirySuccessPage />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-              <FloatingActionBar />
-            </InquiryProvider>
-          </CompareProvider>
-        </FavoritesProvider>
+        <AuthProvider>
+          <FavoritesProvider>
+            <CompareProvider>
+              <InquiryProvider>
+                <Suspense fallback={<RouteFallback />}>
+                  <Routes>
+                    <Route path="/" element={<Hub />} />
+                    <Route path="/fahrzeuge" element={<AllVehiclesPage />} />
+                    <Route path="/fahrzeuge/:category" element={<CategoryPage />} />
+                    <Route path="/fahrzeug/:id" element={<VehicleDetail />} />
+                    <Route path="/vergleich" element={<ComparePage />} />
+                    <Route path="/anfrage" element={<InquiryPage />} />
+                    <Route path="/anfrage/erfolg" element={<InquirySuccessPage />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route
+                      path="/admin"
+                      element={
+                        <AdminRoute>
+                          <AdminLayout />
+                        </AdminRoute>
+                      }
+                    >
+                      <Route index element={<AdminDashboard />} />
+                      <Route path="stories" element={<StoryGenerator />} />
+                    </Route>
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+                <FloatingActionBar />
+              </InquiryProvider>
+            </CompareProvider>
+          </FavoritesProvider>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
