@@ -1,8 +1,13 @@
+import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+
 /**
  * Shared site footer used on every page so the FloatingActionBar's
  * footer-visibility detection works consistently across the app.
  */
 const SiteFooter = () => {
+  const { user, isAdmin } = useAuth();
+
   return (
     <footer className="border-t border-border py-8 px-4 mt-auto">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
@@ -28,6 +33,12 @@ const SiteFooter = () => {
           >
             Datenschutz
           </a>
+          <Link
+            to={user && isAdmin ? "/admin" : "/login"}
+            className="text-xs opacity-60 hover:opacity-100 hover:text-foreground transition-all"
+          >
+            {user && isAdmin ? "Admin-Bereich" : "Anmelden"}
+          </Link>
         </div>
       </div>
     </footer>
