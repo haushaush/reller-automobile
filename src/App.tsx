@@ -25,6 +25,11 @@ const Login = lazy(() => import("./pages/Login"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const StoryGenerator = lazy(() => import("./pages/admin/StoryGenerator"));
+const SyncStatus = lazy(() => import("./pages/admin/SyncStatus"));
+const InquiriesAdmin = lazy(() => import("./pages/admin/InquiriesAdmin"));
+const InquiryDetail = lazy(() => import("./pages/admin/InquiryDetail"));
+const AlertsAdmin = lazy(() => import("./pages/admin/AlertsAdmin"));
+const StoryArchive = lazy(() => import("./pages/admin/StoryArchive"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
