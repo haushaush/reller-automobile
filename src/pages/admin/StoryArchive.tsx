@@ -128,6 +128,34 @@ export default function StoryArchive() {
     }
   };
 
+  const deleteStory = async (story: StoryWithVehicle) => {
+    setBusyId(story.id);
+    try {
+      const fileName = story.story_image_url.split("/vehicle-stories/")[1];
+      if (fileName) {
+        const { error: storageError } = await supabase.storage
+          .from("vehicle-stories")
+          .remove([fileName]);
+        if (storageError) console.error("Storage delete failed:", storageError);
+      }
+      const { error: dbError } = await supabase
+        .from("vehicle_stories")
+        .delete()
+        .eq("id", story.id);
+      if (dbError) {
+        toast.error("Story konnte nicht gelöscht werden", { description: dbError.message });
+        return;
+      }
+      toast.success("Story gelöscht");
+      await loadData();
+    } catch (e) {
+      console.error(e);
+      toast.error("Fehler beim Löschen");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const regenerateStory = async (vehicleId: string) => {
     setBusyId(vehicleId);
     await supabase.from("vehicle_stories").delete().eq("vehicle_id", vehicleId);
