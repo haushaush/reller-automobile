@@ -442,7 +442,7 @@ Deno.serve(async (req) => {
         await admin.from("vehicle_stories").insert({
           vehicle_id: v.id,
           story_image_url: publicUrl,
-          generated_by: user.id,
+          generated_by: userId,
           sent_to_dealer: !!RESEND_API_KEY,
           sent_at: RESEND_API_KEY ? new Date().toISOString() : null,
         });
