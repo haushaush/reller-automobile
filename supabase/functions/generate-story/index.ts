@@ -243,7 +243,7 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   <text x="540" y="290" font-family="Inter" font-weight="400" font-style="italic"
         font-size="50" fill="#FFFFFF" text-anchor="middle">fahrzeuge.reller-automobile.de</text>
 
-  <!-- Vehicle image (overlaps header by 60px) -->
+  <!-- Vehicle image (overlaps header by 80px) -->
   ${
     imageDataUrl
       ? `<image x="60" y="${IMAGE_Y}" width="960" height="${IMAGE_H}" href="${imageDataUrl}" preserveAspectRatio="xMidYMid slice" clip-path="url(#imageClip)"/>`
