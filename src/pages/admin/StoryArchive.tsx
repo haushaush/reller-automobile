@@ -117,78 +117,45 @@ export default function StoryArchive() {
     e?.stopPropagation();
     e?.preventDefault();
 
-    console.log("=========================================");
-    console.log("DOWNLOAD ATTEMPT");
-    console.log("=========================================");
-    console.log("1. Story object:", story);
-    console.log("2. Story image URL:", story.story_image_url);
-    console.log("3. Vehicle:", story.vehicle);
-
-    toast.info("Download wird gestartet...");
-
     try {
-      console.log("4. Extracting storage path...");
       const pathMatch = story.story_image_url.match(/\/vehicle-stories\/(.+?)(\?|$)/);
-
-      if (!pathMatch) {
-        throw new Error("File-Path nicht extrahierbar");
-      }
-
+      if (!pathMatch) throw new Error("File-Path nicht extrahierbar");
       const filePath = decodeURIComponent(pathMatch[1]);
-      console.log("5. Extracted path:", filePath);
-
-      console.log("6. Attempting Supabase Storage download...");
-      const { data, error } = await supabase.storage
-        .from("vehicle-stories")
-        .download(filePath);
-
-      if (error) {
-        console.error("7a. Storage download error:", error);
-        throw error;
-      }
-
-      if (!data) {
-        throw new Error("Keine Daten empfangen");
-      }
-
-      console.log("7b. Blob received:", data.size, "bytes");
 
       const brand = story.vehicle?.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Fahrzeug";
       const title =
         story.vehicle?.title?.substring(0, 40).replace(/[^a-zA-Z0-9]/g, "-") || "Story";
       const filename = `Reller-Story-${brand}-${title}.png`;
-      const blobUrl = window.URL.createObjectURL(data);
 
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = filename;
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Supabase serves the file with Content-Disposition: attachment when ?download= is set.
+      // This works reliably even inside the Lovable preview iframe (which blocks blob downloads).
+      const { data } = supabase.storage
+        .from("vehicle-stories")
+        .getPublicUrl(filePath, { download: filename });
 
-      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+      const downloadUrl = data.publicUrl;
 
-      console.log("8. Download triggered for:", filename);
-      toast.success("Download gestartet");
-    } catch (error) {
-      console.error("DOWNLOAD FAILED:", error);
-      console.log("9. Falling back to window.open...");
-
-      const newTab = window.open(story.story_image_url, "_blank", "noopener,noreferrer");
-
-      if (newTab === null) {
-        console.error("10a. window.open returned NULL → Pop-up blocker!");
-        toast.error("Pop-up blockiert", {
-          description:
-            "Bitte Pop-up-Blocker für diese Seite deaktivieren oder rechtsklick auf das Bild → 'Bild speichern unter'",
-        });
+      // Try direct navigation in a new top-level tab — browser handles the attachment header.
+      const newTab = window.open(downloadUrl, "_blank", "noopener,noreferrer");
+      if (newTab) {
+        toast.success("Download gestartet");
         return;
       }
 
-      console.log("10b. New tab opened successfully");
-      toast.info("Bild in neuem Tab geöffnet", {
-        description: "Rechtsklick auf das Bild → 'Bild speichern unter'",
+      // Fallback: anchor click (works on the published site outside the iframe)
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      link.rel = "noopener noreferrer";
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Download gestartet");
+    } catch (error) {
+      console.error("Download failed:", error);
+      toast.error("Download fehlgeschlagen", {
+        description: error instanceof Error ? error.message : "Unbekannter Fehler",
       });
     }
   };
