@@ -135,11 +135,59 @@ async function fetchImageAsDataUrl(url: string): Promise<string | null> {
 }
 
 // ─── SVG composition ────────────────────────────────────────────────────────
+// Dynamic title sizing: pick the largest font that fits within `maxWidth` and
+// at most `maxLines`. Approximation uses avgCharWidth ≈ fontSize * 0.52 for
+// Inter Black Italic.
+function fitTitle(text: string, maxWidth: number, maxLines: number) {
+  const words = text.trim().split(/\s+/);
+  // Try sizes from large to small
+  const sizes = [100, 90, 82, 76, 70, 64, 58];
+  for (const size of sizes) {
+    const charW = size * 0.52;
+    const maxChars = Math.floor(maxWidth / charW);
+    // Greedy line-wrap
+    const lines: string[] = [];
+    let current = "";
+    for (const w of words) {
+      const candidate = current ? `${current} ${w}` : w;
+      if (candidate.length <= maxChars) {
+        current = candidate;
+      } else {
+        if (current) lines.push(current);
+        current = w;
+      }
+    }
+    if (current) lines.push(current);
+    if (lines.length <= maxLines && lines.every((l) => l.length <= maxChars)) {
+      return { lines, fontSize: size, lineHeight: Math.round(size * 1.1) };
+    }
+  }
+  // Last resort: smallest size, truncate
+  const size = 58;
+  const charW = size * 0.52;
+  const maxChars = Math.floor(maxWidth / charW);
+  const lines: string[] = [];
+  let current = "";
+  for (const w of words) {
+    const candidate = current ? `${current} ${w}` : w;
+    if (candidate.length <= maxChars) current = candidate;
+    else {
+      if (current) lines.push(current);
+      current = w;
+      if (lines.length >= maxLines) break;
+    }
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  if (lines.length === maxLines && lines[maxLines - 1].length > maxChars) {
+    lines[maxLines - 1] = lines[maxLines - 1].slice(0, maxChars - 1) + "…";
+  }
+  return { lines: lines.slice(0, maxLines), fontSize: size, lineHeight: Math.round(size * 1.1) };
+}
+
 function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   const brand = (vehicle.brand || "").toUpperCase();
   const titleRaw = vehicle.model_description || vehicle.title || "";
-  const titleLines = wrapTextSmart(titleRaw, 16);
-  const titleIs2Lines = titleLines.length > 1;
+  const title = fitTitle(titleRaw, 960, 3);
 
   const price = vehicle.price ? `${vehicle.price.toLocaleString("de-DE")}€` : "Auf Anfrage";
   const year = vehicle.year || "—";
@@ -150,10 +198,18 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   const fuel = vehicle.fuel || "—";
   const gearbox = vehicle.gearbox || "—";
 
-  // Y positions per spec
-  const titleY1 = titleIs2Lines ? 1210 : 1240;
-  const priceY = titleIs2Lines ? 1390 : 1310;
-  const specY = titleIs2Lines ? 1590 : 1510;
+  // Layout constants — header 480px tall, image overlaps by 60px
+  const HEADER_H = 480;
+  const IMAGE_Y = HEADER_H - 60; // 420
+  const IMAGE_H = 720;
+  const IMAGE_BOTTOM = IMAGE_Y + IMAGE_H; // 1140
+
+  // Generous whitespace below image
+  const brandY = IMAGE_BOTTOM + 90; // 1230
+  const titleStartY = brandY + 80; // 1310 — baseline of first title line
+  const titleBlockHeight = title.lines.length * title.lineHeight;
+  const priceY = titleStartY - title.fontSize + titleBlockHeight + 60;
+  const specY = priceY + 200;
 
   const specs: Array<[string, string]> = [
     ["Baujahr", year],
@@ -169,41 +225,41 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
 <svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920">
   <defs>
     <clipPath id="imageClip">
-      <rect x="60" y="320" width="960" height="720" rx="32" ry="32"/>
+      <rect x="60" y="${IMAGE_Y}" width="960" height="${IMAGE_H}" rx="32" ry="32"/>
     </clipPath>
   </defs>
 
   <!-- White body -->
   <rect width="1080" height="1920" fill="#FFFFFF"/>
 
-  <!-- Header bar: full width, 380px tall -->
-  <rect x="0" y="0" width="1080" height="380" fill="#10182d"/>
+  <!-- Header bar: full width, 480px tall -->
+  <rect x="0" y="0" width="1080" height="${HEADER_H}" fill="#10182d"/>
 
   <!-- Header line 1 -->
-  <text x="540" y="180" font-family="Inter" font-weight="900" font-style="italic"
+  <text x="540" y="240" font-family="Inter" font-weight="900" font-style="italic"
         font-size="120" fill="#FFFFFF" text-anchor="middle">Aktuell verfügbar</text>
 
   <!-- Header line 2 -->
-  <text x="540" y="265" font-family="Inter" font-weight="400" font-style="italic"
+  <text x="540" y="340" font-family="Inter" font-weight="400" font-style="italic"
         font-size="50" fill="#FFFFFF" text-anchor="middle">fahrzeuge.reller-automobile.de</text>
 
   <!-- Vehicle image (overlaps header by 60px) -->
   ${
     imageDataUrl
-      ? `<image x="60" y="320" width="960" height="720" href="${imageDataUrl}" preserveAspectRatio="xMidYMid slice" clip-path="url(#imageClip)"/>`
-      : `<rect x="60" y="320" width="960" height="720" rx="32" fill="#E5E5E5"/>`
+      ? `<image x="60" y="${IMAGE_Y}" width="960" height="${IMAGE_H}" href="${imageDataUrl}" preserveAspectRatio="xMidYMid slice" clip-path="url(#imageClip)"/>`
+      : `<rect x="60" y="${IMAGE_Y}" width="960" height="${IMAGE_H}" rx="32" fill="#E5E5E5"/>`
   }
 
   <!-- Brand label -->
-  <text x="540" y="1120" font-family="Inter" font-weight="400" font-style="italic"
+  <text x="540" y="${brandY}" font-family="Inter" font-weight="400" font-style="italic"
         font-size="52" fill="#10182d" text-anchor="middle" letter-spacing="10">${escapeXml(brand)}</text>
 
-  <!-- Model title -->
-  ${titleLines
+  <!-- Model title (dynamic size) -->
+  ${title.lines
     .map(
       (line, i) =>
-        `<text x="540" y="${titleY1 + i * 110}" font-family="Inter" font-weight="900" font-style="italic"
-              font-size="100" fill="#000000" text-anchor="middle">${escapeXml(line)}</text>`,
+        `<text x="540" y="${titleStartY + i * title.lineHeight}" font-family="Inter" font-weight="900" font-style="italic"
+              font-size="${title.fontSize}" fill="#000000" text-anchor="middle">${escapeXml(line)}</text>`,
     )
     .join("\n  ")}
 
