@@ -117,46 +117,51 @@ export default function StoryArchive() {
     e?.stopPropagation();
     e?.preventDefault();
 
-    const filename = `Reller-Story-${
-      story.vehicle?.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Fahrzeug"
-    }-${
-      (story.vehicle?.title || "Story").substring(0, 40).replace(/[^a-zA-Z0-9]/g, "-")
-    }.png`;
-
     try {
-      const pathMatch = story.story_image_url.match(/\/vehicle-stories\/(.+?)(\?|$)/);
-      if (!pathMatch) {
-        window.open(story.story_image_url, "_blank", "noopener,noreferrer");
-        toast.info("Datei in neuem Tab geöffnet — rechts-klicken → speichern unter");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const downloadUrl = `${supabaseUrl}/functions/v1/download-story?storyId=${story.id}`;
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        toast.error("Bitte erneut anmelden");
         return;
       }
 
-      // Signed URL mit Download-Header (Content-Disposition: attachment)
-      // → umgeht CORS und zwingt Browser zum Download statt Inline-Anzeige
-      const { data, error } = await supabase.storage
-        .from("vehicle-stories")
-        .createSignedUrl(pathMatch[1], 60, { download: filename });
+      const response = await fetch(downloadUrl, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      });
 
-      if (error || !data?.signedUrl) {
-        console.error("Signed URL error:", error);
-        window.open(story.story_image_url, "_blank", "noopener,noreferrer");
-        toast.info("Datei in neuem Tab geöffnet — rechts-klicken → speichern unter");
-        return;
+      if (!response.ok) {
+        throw new Error(`Download fehlgeschlagen: ${response.status}`);
       }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const filenameMatch = contentDisposition?.match(/filename="(.+?)"/);
+      const filename = filenameMatch?.[1] || "Reller-Story.png";
 
       const link = document.createElement("a");
-      link.href = data.signedUrl;
+      link.href = blobUrl;
       link.download = filename;
-      link.rel = "noopener noreferrer";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
 
       toast.success("Download gestartet");
     } catch (error) {
       console.error("Download error:", error);
       toast.error("Download fehlgeschlagen", {
-        description: (error as Error)?.message || "Bitte später erneut versuchen",
+        description: (error as Error)?.message,
       });
     }
   };
