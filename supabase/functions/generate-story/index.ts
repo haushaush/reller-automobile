@@ -269,9 +269,7 @@ async function uploadStoryImage(
 
 async function sendDealerEmail(vehicle: VehicleRow, storyUrl: string) {
   if (!RESEND_API_KEY) return;
-  const recipients = Array.from(
-    new Set([DEALER_EMAIL_PRIMARY, DEALER_EMAIL_SECONDARY, SALES_EMAIL].filter(Boolean)),
-  );
+  const recipients = [STORY_EMAIL_RECIPIENT];
   const html = `
     <h2>Neue Story für ${escapeXml(vehicle.title)}</h2>
     <p>Eine neue Story wurde generiert.</p>
