@@ -117,51 +117,78 @@ export default function StoryArchive() {
     e?.stopPropagation();
     e?.preventDefault();
 
+    console.log("=========================================");
+    console.log("DOWNLOAD ATTEMPT");
+    console.log("=========================================");
+    console.log("1. Story object:", story);
+    console.log("2. Story image URL:", story.story_image_url);
+    console.log("3. Vehicle:", story.vehicle);
+
+    toast.info("Download wird gestartet...");
+
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const downloadUrl = `${supabaseUrl}/functions/v1/download-story?storyId=${story.id}`;
+      console.log("4. Extracting storage path...");
+      const pathMatch = story.story_image_url.match(/\/vehicle-stories\/(.+?)(\?|$)/);
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        toast.error("Bitte erneut anmelden");
-        return;
+      if (!pathMatch) {
+        throw new Error("File-Path nicht extrahierbar");
       }
 
-      const response = await fetch(downloadUrl, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-      });
+      const filePath = decodeURIComponent(pathMatch[1]);
+      console.log("5. Extracted path:", filePath);
 
-      if (!response.ok) {
-        throw new Error(`Download fehlgeschlagen: ${response.status}`);
+      console.log("6. Attempting Supabase Storage download...");
+      const { data, error } = await supabase.storage
+        .from("vehicle-stories")
+        .download(filePath);
+
+      if (error) {
+        console.error("7a. Storage download error:", error);
+        throw error;
       }
 
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
+      if (!data) {
+        throw new Error("Keine Daten empfangen");
+      }
 
-      const contentDisposition = response.headers.get("Content-Disposition");
-      const filenameMatch = contentDisposition?.match(/filename="(.+?)"/);
-      const filename = filenameMatch?.[1] || "Reller-Story.png";
+      console.log("7b. Blob received:", data.size, "bytes");
+
+      const brand = story.vehicle?.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Fahrzeug";
+      const title =
+        story.vehicle?.title?.substring(0, 40).replace(/[^a-zA-Z0-9]/g, "-") || "Story";
+      const filename = `Reller-Story-${brand}-${title}.png`;
+      const blobUrl = window.URL.createObjectURL(data);
 
       const link = document.createElement("a");
       link.href = blobUrl;
       link.download = filename;
+      link.style.display = "none";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
       setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
 
+      console.log("8. Download triggered for:", filename);
       toast.success("Download gestartet");
     } catch (error) {
-      console.error("Download error:", error);
-      toast.error("Download fehlgeschlagen", {
-        description: (error as Error)?.message,
+      console.error("DOWNLOAD FAILED:", error);
+      console.log("9. Falling back to window.open...");
+
+      const newTab = window.open(story.story_image_url, "_blank", "noopener,noreferrer");
+
+      if (newTab === null) {
+        console.error("10a. window.open returned NULL → Pop-up blocker!");
+        toast.error("Pop-up blockiert", {
+          description:
+            "Bitte Pop-up-Blocker für diese Seite deaktivieren oder rechtsklick auf das Bild → 'Bild speichern unter'",
+        });
+        return;
+      }
+
+      console.log("10b. New tab opened successfully");
+      toast.info("Bild in neuem Tab geöffnet", {
+        description: "Rechtsklick auf das Bild → 'Bild speichern unter'",
       });
     }
   };
@@ -430,8 +457,12 @@ export default function StoryArchive() {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={(e) => downloadStory(story, e)}
-                    title="Download"
+                    onClick={(e) => {
+                      console.log("DOWNLOAD BUTTON CLICKED for story:", story.id);
+                      downloadStory(story, e);
+                    }}
+                    title="Herunterladen"
+                    type="button"
                   >
                     <Download className="h-4 w-4" />
                   </Button>
