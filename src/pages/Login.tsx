@@ -41,7 +41,24 @@ export default function Login() {
       return;
     }
     toast.success("Erfolgreich angemeldet");
-    // Redirect handled by useEffect once isAdmin is loaded
+
+    // Sofortige Weiterleitung: Session holen und Admin-Status direkt prüfen
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user?.id;
+    if (userId) {
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      const state = location.state as LocationState | null;
+      const fromPath = state?.from?.pathname;
+      const target = roleData ? fromPath || "/admin" : "/";
+      navigate(target, { replace: true });
+    }
+
     setIsLoading(false);
   };
 
