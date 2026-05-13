@@ -11,7 +11,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Download, RefreshCw, Send, Image as ImageIcon, Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Download, RefreshCw, Send, Image as ImageIcon, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
@@ -114,6 +125,34 @@ export default function StoryArchive() {
       window.URL.revokeObjectURL(url);
     } catch {
       toast.error("Download fehlgeschlagen");
+    }
+  };
+
+  const deleteStory = async (story: StoryWithVehicle) => {
+    setBusyId(story.id);
+    try {
+      const fileName = story.story_image_url.split("/vehicle-stories/")[1];
+      if (fileName) {
+        const { error: storageError } = await supabase.storage
+          .from("vehicle-stories")
+          .remove([fileName]);
+        if (storageError) console.error("Storage delete failed:", storageError);
+      }
+      const { error: dbError } = await supabase
+        .from("vehicle_stories")
+        .delete()
+        .eq("id", story.id);
+      if (dbError) {
+        toast.error("Story konnte nicht gelöscht werden", { description: dbError.message });
+        return;
+      }
+      toast.success("Story gelöscht");
+      await loadData();
+    } catch (e) {
+      console.error(e);
+      toast.error("Fehler beim Löschen");
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -258,6 +297,42 @@ export default function StoryArchive() {
                   >
                     <Send className="h-4 w-4" />
                   </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={busyId === story.id}
+                        title="Löschen"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 ml-auto"
+                      >
+                        {busyId === story.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Story löschen?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Die Story für „{story.vehicle?.title}" wird unwiderruflich gelöscht.
+                          Du kannst sie aber jederzeit neu generieren, solange das Fahrzeug noch
+                          verfügbar ist.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deleteStory(story)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Löschen
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </Card>
