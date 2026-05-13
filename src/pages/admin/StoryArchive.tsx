@@ -297,6 +297,42 @@ export default function StoryArchive() {
                   >
                     <Send className="h-4 w-4" />
                   </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={busyId === story.id}
+                        title="Löschen"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 ml-auto"
+                      >
+                        {busyId === story.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Story löschen?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Die Story für „{story.vehicle?.title}" wird unwiderruflich gelöscht.
+                          Du kannst sie aber jederzeit neu generieren, solange das Fahrzeug noch
+                          verfügbar ist.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deleteStory(story)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Löschen
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </Card>
