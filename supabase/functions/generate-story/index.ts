@@ -14,9 +14,11 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
-const DEALER_EMAIL_PRIMARY = "dennis@haushhaush.de";
-const DEALER_EMAIL_SECONDARY = "admin@haushhaush.de";
-const SALES_EMAIL = "verkauf@reller-automobile.de";
+// Story-E-Mails gehen NUR an digital@haushhaush.de.
+// Optional via Edge-Secret STORY_EMAIL_RECIPIENT überschreibbar.
+// (Inquiries und Alerts haben separate Empfänger in ihren eigenen Functions.)
+const STORY_EMAIL_RECIPIENT =
+  Deno.env.get("STORY_EMAIL_RECIPIENT") || "digital@haushhaush.de";
 
 // Font URLs — fallback Inter (italic) from jsdelivr fontsource CDN.
 // To swap to JustSans: upload TTF files to a public storage bucket and replace these URLs.
@@ -267,9 +269,7 @@ async function uploadStoryImage(
 
 async function sendDealerEmail(vehicle: VehicleRow, storyUrl: string) {
   if (!RESEND_API_KEY) return;
-  const recipients = Array.from(
-    new Set([DEALER_EMAIL_PRIMARY, DEALER_EMAIL_SECONDARY, SALES_EMAIL].filter(Boolean)),
-  );
+  const recipients = [STORY_EMAIL_RECIPIENT];
   const html = `
     <h2>Neue Story für ${escapeXml(vehicle.title)}</h2>
     <p>Eine neue Story wurde generiert.</p>

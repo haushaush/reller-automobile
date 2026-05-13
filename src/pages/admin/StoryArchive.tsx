@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -48,6 +49,8 @@ export default function StoryArchive() {
   const [dateFilter, setDateFilter] = useState("all");
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
     const { data: storiesData, error: storiesError } = await supabase
@@ -110,21 +113,39 @@ export default function StoryArchive() {
     };
   }, [loadData]);
 
-  const downloadStory = async (story: StoryWithVehicle) => {
+  const downloadStory = async (story: StoryWithVehicle, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    e?.preventDefault();
     try {
-      const response = await fetch(story.story_image_url);
+      const response = await fetch(story.story_image_url, {
+        mode: "cors",
+        credentials: "omit",
+      });
+      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+
+      const brand = story.vehicle?.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Reller";
+      const title = (story.vehicle?.title || "Story")
+        .substring(0, 30)
+        .replace(/[^a-zA-Z0-9]/g, "-");
+      const filename = `${brand}-${title}-Story.png`;
+
+      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url;
-      const name = story.vehicle?.title?.substring(0, 30).replace(/[^a-z0-9]/gi, "-") || "story";
-      link.download = `${story.vehicle?.brand || "Reller"}-${name}.png`;
+      link.href = blobUrl;
+      link.download = filename;
+      link.style.display = "none";
       document.body.appendChild(link);
       link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      toast.error("Download fehlgeschlagen");
+      document.body.removeChild(link);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+
+      toast.success("Download gestartet");
+    } catch (error) {
+      console.error("Download error:", error);
+      toast.error("Download fehlgeschlagen", {
+        description: "Bitte prüfe die Konsole für Details.",
+      });
     }
   };
 
@@ -156,6 +177,47 @@ export default function StoryArchive() {
     }
   };
 
+  const deleteSelectedStories = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    const storiesToDelete = stories.filter((s) => selectedIds.has(s.id));
+    let successCount = 0;
+    let failCount = 0;
+    const toastId = toast.loading(
+      `Lösche ${storiesToDelete.length} Stor${storiesToDelete.length === 1 ? "y" : "ies"}...`
+    );
+
+    for (const story of storiesToDelete) {
+      try {
+        const fileName = story.story_image_url.split("/vehicle-stories/")[1];
+        if (fileName) {
+          await supabase.storage.from("vehicle-stories").remove([fileName]);
+        }
+        const { error } = await supabase
+          .from("vehicle_stories")
+          .delete()
+          .eq("id", story.id);
+        if (error) failCount++;
+        else successCount++;
+      } catch (e) {
+        failCount++;
+        console.error(`Failed to delete story ${story.id}:`, e);
+      }
+    }
+
+    toast.dismiss(toastId);
+    if (failCount === 0) {
+      toast.success(`${successCount} Stor${successCount === 1 ? "y" : "ies"} gelöscht`);
+    } else {
+      toast.error(`${successCount} gelöscht, ${failCount} fehlgeschlagen`, {
+        description: "Konsole für Details prüfen",
+      });
+    }
+    setSelectedIds(new Set());
+    setBulkDeleting(false);
+    await loadData();
+  };
+
   const regenerateStory = async (vehicleId: string) => {
     setBusyId(vehicleId);
     await supabase.from("vehicle_stories").delete().eq("vehicle_id", vehicleId);
@@ -184,6 +246,15 @@ export default function StoryArchive() {
     toast.success("E-Mail erneut versendet");
   };
 
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      return newSet;
+    });
+  };
+
   const filtered = stories.filter((s) => {
     if (!s.vehicle) return true;
     if (searchQuery) {
@@ -205,6 +276,9 @@ export default function StoryArchive() {
     }
     return true;
   });
+
+  const allSelected = filtered.length > 0 && selectedIds.size === filtered.length;
+  const someSelected = selectedIds.size > 0 && selectedIds.size < filtered.length;
 
   return (
     <div className="space-y-6">
@@ -237,6 +311,68 @@ export default function StoryArchive() {
         </div>
       </Card>
 
+      {!isLoading && filtered.length > 0 && (
+        <Card className="p-3 flex items-center justify-between gap-3 sticky top-2 z-10 bg-card/95 backdrop-blur">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={allSelected}
+              ref={(el) => {
+                if (el) (el as unknown as HTMLInputElement).indeterminate = someSelected;
+              }}
+              onCheckedChange={(checked) => {
+                if (checked) setSelectedIds(new Set(filtered.map((s) => s.id)));
+                else setSelectedIds(new Set());
+              }}
+            />
+            <span className="text-sm text-muted-foreground">
+              {selectedIds.size === 0
+                ? `${filtered.length} Stor${filtered.length === 1 ? "y" : "ies"}`
+                : `${selectedIds.size} von ${filtered.length} ausgewählt`}
+            </span>
+          </div>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                Auswahl aufheben
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={bulkDeleting}>
+                    {bulkDeleting ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-2" />
+                    )}
+                    {selectedIds.size} löschen
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {selectedIds.size} Stor{selectedIds.size === 1 ? "y" : "ies"} löschen?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Die ausgewählten Stories werden unwiderruflich gelöscht. Die
+                      Original-Fahrzeuge bleiben unverändert und Stories können jederzeit neu
+                      generiert werden.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={deleteSelectedStories}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Alle löschen
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
+        </Card>
+      )}
+
       {isLoading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       ) : filtered.length === 0 ? (
@@ -247,7 +383,14 @@ export default function StoryArchive() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((story) => (
-            <Card key={story.id} className="overflow-hidden">
+            <Card key={story.id} className="overflow-hidden relative">
+              <div className="absolute top-2 left-2 z-10">
+                <Checkbox
+                  checked={selectedIds.has(story.id)}
+                  onCheckedChange={() => toggleSelection(story.id)}
+                  className="bg-background/90 backdrop-blur-sm border-2 h-5 w-5"
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => setLightboxImage(story.story_image_url)}
@@ -270,7 +413,7 @@ export default function StoryArchive() {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => downloadStory(story)}
+                    onClick={(e) => downloadStory(story, e)}
                     title="Download"
                   >
                     <Download className="h-4 w-4" />
