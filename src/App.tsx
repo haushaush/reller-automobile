@@ -74,7 +74,12 @@ const App = () => (
                       }
                     >
                       <Route index element={<AdminDashboard />} />
+                      <Route path="sync" element={<SyncStatus />} />
+                      <Route path="inquiries" element={<InquiriesAdmin />} />
+                      <Route path="inquiries/:id" element={<InquiryDetail />} />
+                      <Route path="alerts" element={<AlertsAdmin />} />
                       <Route path="stories" element={<StoryGenerator />} />
+                      <Route path="story-archive" element={<StoryArchive />} />
                     </Route>
                     <Route path="*" element={<NotFound />} />
                   </Routes>
