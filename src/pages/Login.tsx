@@ -1,5 +1,5 @@
-import { useState, FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect, FormEvent } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,27 +8,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 
+interface LocationState {
+  from?: { pathname: string };
+}
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, user, isAdmin, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const state = location.state as LocationState | null;
+    const fromPath = state?.from?.pathname;
+    const target = isAdmin ? fromPath || "/admin" : "/";
+    navigate(target, { replace: true });
+  }, [user, isAdmin, authLoading, navigate, location.state]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     const { error } = await signIn(email, password);
-    setIsLoading(false);
     if (error) {
+      setIsLoading(false);
       toast.error("Anmeldung fehlgeschlagen", {
         description: "Bitte E-Mail und Passwort prüfen.",
       });
       return;
     }
     toast.success("Erfolgreich angemeldet");
-    navigate("/admin");
+    // Redirect handled by useEffect once isAdmin is loaded
+    setIsLoading(false);
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
