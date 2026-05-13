@@ -146,7 +146,7 @@ export default function StoryArchive() {
   };
 
   const filtered = stories.filter((s) => {
-    if (!s.vehicle) return false;
+    if (!s.vehicle) return true;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       if (
