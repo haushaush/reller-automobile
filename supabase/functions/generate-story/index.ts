@@ -198,15 +198,15 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   const fuel = vehicle.fuel || "—";
   const gearbox = vehicle.gearbox || "—";
 
-  // Layout constants — header 480px tall, image overlaps by 60px
-  const HEADER_H = 480;
-  const IMAGE_Y = HEADER_H - 60; // 420
-  const IMAGE_H = 720;
-  const IMAGE_BOTTOM = IMAGE_Y + IMAGE_H; // 1140
+  // Layout constants — header 400px tall, image overlaps by 80px
+  const HEADER_H = 400;
+  const IMAGE_Y = 320;
+  const IMAGE_H = 700;
+  const IMAGE_BOTTOM = IMAGE_Y + IMAGE_H; // 1020
 
   // Generous whitespace below image
-  const brandY = IMAGE_BOTTOM + 90; // 1230
-  const titleStartY = brandY + 80; // 1310 — baseline of first title line
+  const brandY = IMAGE_BOTTOM + 90; // 1110
+  const titleStartY = brandY + 140; // 1250 — baseline of first title line
   const titleBlockHeight = title.lines.length * title.lineHeight;
   const priceY = titleStartY - title.fontSize + titleBlockHeight + 60;
   const specY = priceY + 200;
