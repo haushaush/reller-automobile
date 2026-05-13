@@ -12,9 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mail, Phone, ExternalLink, Loader2 } from "lucide-react";
+import { Mail, Phone, Clock, ExternalLink, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
+
+interface InquiryVehicle {
+  id: string;
+  title: string;
+  brand: string | null;
+  price: number | null;
+  image_urls: string[];
+}
 
 interface Inquiry {
   id: string;
@@ -26,7 +34,7 @@ interface Inquiry {
   status: string;
   created_at: string;
   message: string | null;
-  vehicleCount: number;
+  vehicles: InquiryVehicle[];
 }
 
 const statusLabels: Record<string, string> = {
@@ -46,6 +54,7 @@ export default function InquiriesAdmin() {
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(20);
 
   const loadData = useCallback(async () => {
     const { data: inquiriesData } = await supabase
@@ -53,19 +62,41 @@ export default function InquiriesAdmin() {
       .select("*")
       .order("created_at", { ascending: false });
 
-    const { data: vehicleCounts } = await supabase.from("inquiry_vehicles").select("inquiry_id");
+    if (!inquiriesData) {
+      setIsLoading(false);
+      return;
+    }
 
-    const countMap = new Map<string, number>();
-    (vehicleCounts || []).forEach((iv: { inquiry_id: string }) => {
-      countMap.set(iv.inquiry_id, (countMap.get(iv.inquiry_id) || 0) + 1);
+    const inquiryIds = inquiriesData.map((i) => i.id);
+
+    const { data: junctionData } = inquiryIds.length
+      ? await supabase
+          .from("inquiry_vehicles")
+          .select("inquiry_id, vehicle_snapshot")
+          .in("inquiry_id", inquiryIds)
+      : { data: [] as Array<{ inquiry_id: string; vehicle_snapshot: unknown }> };
+
+    const vehiclesByInquiry = new Map<string, InquiryVehicle[]>();
+    (junctionData || []).forEach((j) => {
+      const snapshot = j.vehicle_snapshot as Partial<InquiryVehicle> | null;
+      if (!snapshot || !snapshot.id) return;
+      const existing = vehiclesByInquiry.get(j.inquiry_id) || [];
+      existing.push({
+        id: snapshot.id,
+        title: snapshot.title ?? "",
+        brand: snapshot.brand ?? null,
+        price: snapshot.price ?? null,
+        image_urls: snapshot.image_urls ?? [],
+      });
+      vehiclesByInquiry.set(j.inquiry_id, existing);
     });
 
-    setInquiries(
-      (inquiriesData || []).map((i) => ({
-        ...i,
-        vehicleCount: countMap.get(i.id) || 0,
-      })) as Inquiry[],
-    );
+    const enriched: Inquiry[] = inquiriesData.map((i) => ({
+      ...i,
+      vehicles: vehiclesByInquiry.get(i.id) || [],
+    }));
+
+    setInquiries(enriched);
     setIsLoading(false);
   }, []);
 
@@ -128,11 +159,11 @@ export default function InquiriesAdmin() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filtered.map((inq) => (
+          {filtered.slice(0, visibleCount).map((inq) => (
             <Card key={inq.id} className="p-5">
-              <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
                     <h3 className="font-semibold">
                       {inq.first_name} {inq.last_name}
                     </h3>
@@ -141,29 +172,32 @@ export default function InquiriesAdmin() {
                     </Badge>
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                    <a href={`mailto:${inq.email}`} className="flex items-center gap-1 hover:text-foreground">
-                      <Mail className="h-3.5 w-3.5" /> {inq.email}
+                    <a href={`mailto:${inq.email}`} className="flex items-center gap-1.5 hover:text-foreground">
+                      <Mail className="h-3 w-3" /> {inq.email}
                     </a>
                     {inq.phone && (
-                      <a href={`tel:${inq.phone}`} className="flex items-center gap-1 hover:text-foreground">
-                        <Phone className="h-3.5 w-3.5" /> {inq.phone}
+                      <a href={`tel:${inq.phone}`} className="flex items-center gap-1.5 hover:text-foreground">
+                        <Phone className="h-3 w-3" /> {inq.phone}
                       </a>
                     )}
-                    <span>
-                      {inq.vehicleCount} Fahrzeug{inq.vehicleCount !== 1 ? "e" : ""}
-                    </span>
-                    <span>
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="h-3 w-3" />
                       {formatDistanceToNow(new Date(inq.created_at), { addSuffix: true, locale: de })}
                     </span>
+                    {inq.preferred_contact && (
+                      <span>
+                        Bevorzugt:{" "}
+                        {inq.preferred_contact === "email"
+                          ? "E-Mail"
+                          : inq.preferred_contact === "phone"
+                            ? "Telefon"
+                            : "Beides"}
+                      </span>
+                    )}
                   </div>
-                  {inq.message && (
-                    <p className="mt-3 text-sm bg-muted/50 rounded-md p-3 italic line-clamp-2">
-                      „{inq.message}"
-                    </p>
-                  )}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex gap-2 flex-shrink-0">
                   <Select value={inq.status} onValueChange={(v) => updateStatus(inq.id, v)}>
                     <SelectTrigger className="w-40">
                       <SelectValue />
@@ -174,15 +208,74 @@ export default function InquiriesAdmin() {
                       <SelectItem value="closed">Abgeschlossen</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button variant="outline" size="icon" asChild>
+                  <Button variant="outline" size="icon" asChild title="Details ansehen">
                     <Link to={`/admin/inquiries/${inq.id}`}>
                       <ExternalLink className="h-4 w-4" />
                     </Link>
                   </Button>
                 </div>
               </div>
+
+              {inq.message && (
+                <div className="mt-3 p-3 bg-muted/50 rounded-md border-l-2 border-primary">
+                  <p className="text-sm italic whitespace-pre-wrap break-words">„{inq.message}"</p>
+                </div>
+              )}
+
+              {inq.vehicles.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                    Angefragte Fahrzeuge ({inq.vehicles.length})
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {inq.vehicles.map((vehicle) => (
+                      <a
+                        key={vehicle.id}
+                        href={`/fahrzeug/${vehicle.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-2 bg-muted/30 rounded-md hover:bg-muted/50 transition-colors group"
+                      >
+                        {vehicle.image_urls?.[0] && (
+                          <img
+                            src={vehicle.image_urls[0]}
+                            alt={vehicle.title}
+                            className="w-16 h-16 rounded object-cover flex-shrink-0"
+                            loading="lazy"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          {vehicle.brand && (
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">
+                              {vehicle.brand}
+                            </p>
+                          )}
+                          <p className="text-sm font-medium truncate group-hover:text-primary">
+                            {vehicle.title}
+                          </p>
+                          <p className="text-sm font-semibold text-primary">
+                            {vehicle.price
+                              ? `${vehicle.price.toLocaleString("de-DE")} €`
+                              : "Auf Anfrage"}
+                          </p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Card>
           ))}
+
+          {filtered.length > visibleCount && (
+            <Button
+              variant="outline"
+              onClick={() => setVisibleCount((c) => c + 20)}
+              className="w-full mt-4"
+            >
+              Weitere 20 anzeigen ({filtered.length - visibleCount} verbleibend)
+            </Button>
+          )}
         </div>
       )}
     </div>
