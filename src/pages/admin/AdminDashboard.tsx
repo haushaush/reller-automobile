@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Car, Image as ImageIcon, Mail, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -41,11 +42,11 @@ export default function AdminDashboard() {
   }, []);
 
   const cards = [
-    { label: "Aktive Fahrzeuge", value: stats.activeVehicles, icon: Car },
-    { label: "Verkaufte Fahrzeuge", value: stats.soldVehicles, icon: Car },
-    { label: "Generierte Stories", value: stats.totalStories, icon: ImageIcon },
-    { label: "Offene Anfragen", value: stats.pendingInquiries, icon: Mail },
-    { label: "Aktive Suchaufträge", value: stats.activeAlerts, icon: Bell },
+    { label: "Aktive Fahrzeuge", value: stats.activeVehicles, icon: Car, to: "/admin/sync" },
+    { label: "Verkaufte Fahrzeuge", value: stats.soldVehicles, icon: Car, to: "/admin/sync" },
+    { label: "Generierte Stories", value: stats.totalStories, icon: ImageIcon, to: "/admin/story-archive" },
+    { label: "Offene Anfragen", value: stats.pendingInquiries, icon: Mail, to: "/admin/inquiries" },
+    { label: "Aktive Suchaufträge", value: stats.activeAlerts, icon: Bell, to: "/admin/alerts" },
   ];
 
   return (
@@ -59,13 +60,15 @@ export default function AdminDashboard() {
         {cards.map((c) => {
           const Icon = c.icon;
           return (
-            <Card key={c.label} className="p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-2 sm:mb-3">
-                <Icon className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <div className="text-2xl sm:text-3xl font-semibold">{c.value}</div>
-              <div className="text-xs sm:text-sm text-muted-foreground mt-1">{c.label}</div>
-            </Card>
+            <Link key={c.label} to={c.to} className="block group">
+              <Card className="p-4 sm:p-6 transition-all group-hover:border-primary/50 group-hover:shadow-md group-active:scale-[0.98] cursor-pointer h-full">
+                <div className="flex items-center justify-between mb-2 sm:mb-3">
+                  <Icon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+                <div className="text-2xl sm:text-3xl font-semibold">{c.value}</div>
+                <div className="text-xs sm:text-sm text-muted-foreground mt-1">{c.label}</div>
+              </Card>
+            </Link>
           );
         })}
       </div>
