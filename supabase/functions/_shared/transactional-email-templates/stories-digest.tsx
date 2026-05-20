@@ -95,4 +95,14 @@ const price = { fontSize: '14px', color: '#444', margin: '0 0 8px' }
 const img = { maxWidth: '240px', borderRadius: '12px', display: 'block' }
 const small = { margin: '8px 0 0', fontSize: '13px' }
 const link = { color: '#000', textDecoration: 'underline' }
+const button = {
+  display: 'inline-block',
+  padding: '10px 16px',
+  backgroundColor: '#000',
+  color: '#fff',
+  borderRadius: '8px',
+  textDecoration: 'none',
+  fontWeight: 600 as const,
+  fontSize: '13px',
+}
 const footer = { fontSize: '12px', color: '#888', marginTop: '24px' }
