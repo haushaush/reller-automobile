@@ -38,19 +38,24 @@ const StoriesDigestEmail = ({ stories = [], note, count }: StoriesDigestProps) =
               <Text style={noteText}>{note}</Text>
             </Section>
           ) : null}
-          {stories.map((s, i) => (
-            <Section key={i} style={item}>
-              {s.brand ? <Text style={meta}>{s.brand}</Text> : null}
-              {s.title ? <Heading as="h2" style={h2}>{s.title}</Heading> : null}
-              {s.price ? <Text style={price}>{s.price}</Text> : null}
-              <Link href={s.imageUrl}>
-                <Img src={s.imageUrl} alt={s.title ?? 'Story'} width="240" style={img} />
-              </Link>
-              <Text style={small}>
-                <Link href={s.imageUrl} style={link}>Story-Bild öffnen</Link>
-              </Text>
-            </Section>
-          ))}
+          {stories.map((s, i) => {
+            const downloadUrl = s.imageUrl.includes('?')
+              ? `${s.imageUrl}&download`
+              : `${s.imageUrl}?download`
+            return (
+              <Section key={i} style={item}>
+                {s.brand ? <Text style={meta}>{s.brand}</Text> : null}
+                {s.title ? <Heading as="h2" style={h2}>{s.title}</Heading> : null}
+                {s.price ? <Text style={price}>{s.price}</Text> : null}
+                <Link href={downloadUrl}>
+                  <Img src={s.imageUrl} alt={s.title ?? 'Story'} width="240" style={img} />
+                </Link>
+                <Text style={small}>
+                  <Link href={downloadUrl} style={button}>⬇ Bild herunterladen</Link>
+                </Text>
+              </Section>
+            )
+          })}
           <Text style={footer}>
             Automatisch versendet aus dem {SITE_NAME} Story-Archiv.
           </Text>
@@ -90,4 +95,14 @@ const price = { fontSize: '14px', color: '#444', margin: '0 0 8px' }
 const img = { maxWidth: '240px', borderRadius: '12px', display: 'block' }
 const small = { margin: '8px 0 0', fontSize: '13px' }
 const link = { color: '#000', textDecoration: 'underline' }
+const button = {
+  display: 'inline-block',
+  padding: '10px 16px',
+  backgroundColor: '#000',
+  color: '#fff',
+  borderRadius: '8px',
+  textDecoration: 'none',
+  fontWeight: 600 as const,
+  fontSize: '13px',
+}
 const footer = { fontSize: '12px', color: '#888', marginTop: '24px' }
