@@ -571,7 +571,7 @@ export default function StoryArchive() {
                 </div>
               </div>
             </Card>
-          ))}
+          );})}
         </div>
       )}
 
