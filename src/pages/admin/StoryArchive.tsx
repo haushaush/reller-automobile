@@ -230,6 +230,24 @@ export default function StoryArchive() {
     await loadData();
   };
 
+  const sendSelectedStories = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkSending(true);
+    const { data, error } = await supabase.functions.invoke("send-stories-email", {
+      body: { storyIds: Array.from(selectedIds) },
+    });
+    setBulkSending(false);
+    if (error) {
+      toast.error("Versand fehlgeschlagen", { description: error.message });
+      return;
+    }
+    const sent = (data as { sent?: number; recipient?: string } | null)?.sent ?? 0;
+    const recipient = (data as { recipient?: string } | null)?.recipient ?? "info@reller-automobile.de";
+    toast.success(`${sent} Stor${sent === 1 ? "y" : "ies"} an ${recipient} versendet`);
+    setSelectedIds(new Set());
+    await loadData();
+  };
+
   const regenerateStory = async (vehicleId: string) => {
     setBusyId(vehicleId);
     await supabase.from("vehicle_stories").delete().eq("vehicle_id", vehicleId);
