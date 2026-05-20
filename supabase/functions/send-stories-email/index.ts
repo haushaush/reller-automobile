@@ -85,26 +85,34 @@ Deno.serve(async (req) => {
       };
     });
 
-    const idempotencyKey = `stories-digest-${stories.map((s) => s.id).sort().join("-")}`;
+    const baseKey = `stories-digest-${stories.map((s) => s.id).sort().join("-")}`;
 
-    const { error: invokeError } = await adminWithAuth.functions.invoke("send-transactional-email", {
-      body: {
-        templateName: "stories-digest",
-        recipientEmail: RECIPIENT,
-        idempotencyKey,
-        templateData: {
-          stories: storiesPayload,
-          note: body.note?.trim() || undefined,
-          count: storiesPayload.length,
-        },
-      },
-    });
+    const results = await Promise.all(
+      RECIPIENTS.map((recipient) =>
+        adminWithAuth.functions.invoke("send-transactional-email", {
+          body: {
+            templateName: "stories-digest",
+            recipientEmail: recipient,
+            idempotencyKey: `${baseKey}-${recipient}`,
+            templateData: {
+              stories: storiesPayload,
+              note: body.note?.trim() || undefined,
+              count: storiesPayload.length,
+            },
+          },
+        }).then((r) => ({ recipient, error: r.error }))
+      )
+    );
 
-    if (invokeError) {
-      console.error("send-transactional-email failed:", invokeError);
-      return new Response(JSON.stringify({ error: "Email send failed", details: String(invokeError) }), {
+    const failed = results.filter((r) => r.error);
+    if (failed.length === RECIPIENTS.length) {
+      console.error("send-transactional-email failed for all:", failed);
+      return new Response(JSON.stringify({ error: "Email send failed", details: failed.map((f) => String(f.error)) }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    if (failed.length > 0) {
+      console.error("send-transactional-email partial failure:", failed);
     }
 
     const nowIso = new Date().toISOString();
@@ -113,7 +121,7 @@ Deno.serve(async (req) => {
       .update({ sent_to_dealer: true, sent_at: nowIso })
       .in("id", stories.map((s) => s.id));
 
-    return new Response(JSON.stringify({ sent: stories.length, recipient: RECIPIENT }), {
+    return new Response(JSON.stringify({ sent: stories.length, recipients: RECIPIENTS, failed: failed.map((f) => f.recipient) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
