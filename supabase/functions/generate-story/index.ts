@@ -335,28 +335,32 @@ async function uploadStoryImage(
   return data.publicUrl;
 }
 
-async function sendDealerEmail(vehicle: VehicleRow, storyUrl: string) {
-  if (!RESEND_API_KEY) return;
-  const recipients = [STORY_EMAIL_RECIPIENT];
-  const html = `
-    <h2>Neue Story für ${escapeXml(vehicle.title)}</h2>
-    <p>Eine neue Story wurde generiert.</p>
-    <p><a href="${storyUrl}">Story-Bild öffnen</a></p>
-    <p><img src="${storyUrl}" alt="Story" style="max-width: 360px; border-radius: 12px;" /></p>
-  `;
-  await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "Reller Portal <noreply@reller-automobile.de>",
-      to: recipients,
-      subject: `Story erstellt: ${vehicle.title}`,
-      html,
-    }),
-  });
+async function sendDealerEmail(
+  admin: ReturnType<typeof createClient>,
+  vehicle: VehicleRow,
+  storyId: string,
+  storyUrl: string,
+) {
+  try {
+    await admin.functions.invoke("send-transactional-email", {
+      body: {
+        templateName: "stories-digest",
+        recipientEmail: STORY_EMAIL_RECIPIENT,
+        idempotencyKey: `stories-digest-${storyId}`,
+        templateData: {
+          count: 1,
+          stories: [{
+            imageUrl: storyUrl,
+            title: vehicle.title,
+            brand: vehicle.brand ?? "",
+            price: vehicle.price ? `${Number(vehicle.price).toLocaleString("de-DE")} €` : "Auf Anfrage",
+          }],
+        },
+      },
+    });
+  } catch (err) {
+    console.error("Dealer email failed:", err);
+  }
 }
 
 // ─── HTTP handler ───────────────────────────────────────────────────────────
@@ -425,7 +429,7 @@ Deno.serve(async (req) => {
             .limit(1)
             .maybeSingle();
           if (existing?.story_image_url) {
-            await sendDealerEmail(v, existing.story_image_url);
+            await sendDealerEmail(admin, v, existing.id, existing.story_image_url);
             await admin
               .from("vehicle_stories")
               .update({ sent_to_dealer: true, sent_at: new Date().toISOString() })
@@ -439,14 +443,16 @@ Deno.serve(async (req) => {
         if (!pngBytes) continue;
         const publicUrl = await uploadStoryImage(admin, v.id, pngBytes);
         if (!publicUrl) continue;
-        await admin.from("vehicle_stories").insert({
+        const { data: inserted } = await admin.from("vehicle_stories").insert({
           vehicle_id: v.id,
           story_image_url: publicUrl,
           generated_by: userId,
-          sent_to_dealer: !!RESEND_API_KEY,
-          sent_at: RESEND_API_KEY ? new Date().toISOString() : null,
-        });
-        await sendDealerEmail(v, publicUrl);
+          sent_to_dealer: true,
+          sent_at: new Date().toISOString(),
+        }).select("id").single();
+        if (inserted?.id) {
+          await sendDealerEmail(admin, v, inserted.id, publicUrl);
+        }
         generated++;
       } catch (err) {
         console.error("Story failed for", v.id, err);
