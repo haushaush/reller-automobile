@@ -233,8 +233,15 @@ export default function StoryArchive() {
   const sendSelectedStories = async () => {
     if (selectedIds.size === 0) return;
     setBulkSending(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setBulkSending(false);
+      toast.error("Nicht angemeldet", { description: "Bitte erneut einloggen." });
+      return;
+    }
     const { data, error } = await supabase.functions.invoke("send-stories-email", {
       body: { storyIds: Array.from(selectedIds) },
+      headers: { Authorization: `Bearer ${session.access_token}` },
     });
     setBulkSending(false);
     if (error) {
