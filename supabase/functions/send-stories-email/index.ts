@@ -82,6 +82,7 @@ Deno.serve(async (req) => {
     const idempotencyKey = `stories-digest-${stories.map((s) => s.id).sort().join("-")}`;
 
     const { error: invokeError } = await admin.functions.invoke("send-transactional-email", {
+      headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
       body: {
         templateName: "stories-digest",
         recipientEmail: RECIPIENT,
