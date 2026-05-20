@@ -93,17 +93,20 @@ const noteText = { fontSize: '14px', color: '#333', margin: 0 }
 const item = { marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #eee' }
 const meta = { fontSize: '12px', color: '#777', textTransform: 'uppercase' as const, margin: 0 }
 const price = { fontSize: '14px', color: '#444', margin: '0 0 8px' }
-const img = { maxWidth: '240px', borderRadius: '12px', display: 'block' }
-const small = { margin: '8px 0 0', fontSize: '13px' }
+const img = { maxWidth: '280px', width: '100%', borderRadius: '12px', display: 'block', height: 'auto' }
+const small = { margin: '12px 0 0', fontSize: '13px' }
 const link = { color: '#000', textDecoration: 'underline' }
 const button = {
   display: 'inline-block',
-  padding: '10px 16px',
+  padding: '12px 18px',
   backgroundColor: '#000',
   color: '#fff',
   borderRadius: '8px',
   textDecoration: 'none',
   fontWeight: 600 as const,
-  fontSize: '13px',
+  fontSize: '14px',
 }
+const howBox = { padding: '14px 16px', backgroundColor: '#f7f7f5', borderRadius: '8px', margin: '0 0 20px' }
+const howText = { fontSize: '13px', color: '#333', margin: '4px 0', lineHeight: '1.5' }
+const hint = { fontSize: '12px', color: '#888', margin: '8px 0 0', lineHeight: '1.4' }
 const footer = { fontSize: '12px', color: '#888', marginTop: '24px' }
