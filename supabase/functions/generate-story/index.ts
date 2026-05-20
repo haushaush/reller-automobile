@@ -17,8 +17,9 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 // Story-E-Mails gehen NUR an digital@haushhaush.de.
 // Optional via Edge-Secret STORY_EMAIL_RECIPIENT überschreibbar.
 // (Inquiries und Alerts haben separate Empfänger in ihren eigenen Functions.)
-const STORY_EMAIL_RECIPIENT =
-  Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de";
+const STORY_EMAIL_RECIPIENTS = (
+  Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de,digital@haushhaush.de"
+).split(",").map((e) => e.trim()).filter(Boolean);
 
 // Font URLs — fallback Inter (italic) from jsdelivr fontsource CDN.
 // To swap to JustSans: upload TTF files to a public storage bucket and replace these URLs.
@@ -348,22 +349,24 @@ async function sendDealerEmail(
       },
     });
 
-    await adminWithAuth.functions.invoke("send-transactional-email", {
-      body: {
-        templateName: "stories-digest",
-        recipientEmail: STORY_EMAIL_RECIPIENT,
-        idempotencyKey: `stories-digest-${storyId}`,
-        templateData: {
-          count: 1,
-          stories: [{
-            imageUrl: storyUrl,
-            title: vehicle.title,
-            brand: vehicle.brand ?? "",
-            price: vehicle.price ? `${Number(vehicle.price).toLocaleString("de-DE")} €` : "Auf Anfrage",
-          }],
+    await Promise.all(STORY_EMAIL_RECIPIENTS.map((recipient) =>
+      adminWithAuth.functions.invoke("send-transactional-email", {
+        body: {
+          templateName: "stories-digest",
+          recipientEmail: recipient,
+          idempotencyKey: `stories-digest-${storyId}-${recipient}`,
+          templateData: {
+            count: 1,
+            stories: [{
+              imageUrl: storyUrl,
+              title: vehicle.title,
+              brand: vehicle.brand ?? "",
+              price: vehicle.price ? `${Number(vehicle.price).toLocaleString("de-DE")} €` : "Auf Anfrage",
+            }],
+          },
         },
-      },
-    });
+      })
+    ));
   } catch (err) {
     console.error("Dealer email failed:", err);
   }
