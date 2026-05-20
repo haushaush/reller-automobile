@@ -349,8 +349,14 @@ export default function StoryArchive() {
       </Card>
 
       {!isLoading && filtered.length > 0 && (
-        <Card className="p-3 flex items-center justify-between gap-3 sticky top-2 z-10 bg-card/95 backdrop-blur">
-          <div className="flex items-center gap-3">
+        <Card
+          className={`p-3 flex items-center justify-between gap-3 z-20 bg-card/95 backdrop-blur ${
+            selectedIds.size > 0
+              ? "fixed bottom-3 left-3 right-3 md:sticky md:bottom-auto md:top-2 md:left-auto md:right-auto shadow-lg border-primary/40"
+              : "sticky top-2"
+          }`}
+        >
+          <div className="flex items-center gap-3 min-w-0">
             <Checkbox
               checked={allSelected}
               ref={(el) => {
@@ -360,39 +366,45 @@ export default function StoryArchive() {
                 if (checked) setSelectedIds(new Set(filtered.map((s) => s.id)));
                 else setSelectedIds(new Set());
               }}
+              className="h-5 w-5"
             />
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground truncate">
               {selectedIds.size === 0
                 ? `${filtered.length} Stor${filtered.length === 1 ? "y" : "ies"}`
-                : `${selectedIds.size} von ${filtered.length} ausgewählt`}
+                : `${selectedIds.size}/${filtered.length}`}
             </span>
           </div>
           {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden h-10 w-10"
+                onClick={() => setSelectedIds(new Set())}
+                title="Auswahl aufheben"
+              >
+                <span className="text-lg leading-none">×</span>
+              </Button>
+              <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => setSelectedIds(new Set())}>
                 Auswahl aufheben
               </Button>
-              <Button
-                size="sm"
-                onClick={sendSelectedStories}
-                disabled={bulkSending}
-              >
+              <Button size="sm" onClick={sendSelectedStories} disabled={bulkSending} className="h-10 md:h-9">
                 {bulkSending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Loader2 className="h-4 w-4 animate-spin md:mr-2" />
                 ) : (
-                  <Send className="h-4 w-4 mr-2" />
+                  <Send className="h-4 w-4 md:mr-2" />
                 )}
-                {selectedIds.size} versenden
+                <span className="hidden md:inline">{selectedIds.size} versenden</span>
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm" disabled={bulkDeleting}>
+                  <Button variant="destructive" size="sm" disabled={bulkDeleting} className="h-10 md:h-9">
                     {bulkDeleting ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <Loader2 className="h-4 w-4 animate-spin md:mr-2" />
                     ) : (
-                      <Trash2 className="h-4 w-4 mr-2" />
+                      <Trash2 className="h-4 w-4 md:mr-2" />
                     )}
-                    {selectedIds.size} löschen
+                    <span className="hidden md:inline">{selectedIds.size} löschen</span>
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
