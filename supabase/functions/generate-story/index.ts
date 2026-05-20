@@ -2,6 +2,7 @@
 // Pixel-exact layout matching the Reller story template. Requires admin auth.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resvg, initWasm } from "https://esm.sh/@resvg/resvg-wasm@2.6.2";
+import { Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
