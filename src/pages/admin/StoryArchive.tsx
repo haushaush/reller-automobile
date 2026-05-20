@@ -147,7 +147,7 @@ export default function StoryArchive() {
           // Check if files can be shared (iOS/Android Chrome)
           if (navigator.canShare?.({ files: [file] })) {
             await navigator.share({ files: [file], title: filename });
-            toast.success("Tippe „In Fotos sichern", um das Bild in die Galerie zu speichern");
+            toast.success('Tippe „In Fotos sichern", um das Bild in die Galerie zu speichern');
             return;
           }
         } catch (shareErr) {
