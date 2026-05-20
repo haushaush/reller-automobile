@@ -464,9 +464,9 @@ Deno.serve(async (req) => {
           }
         }
 
-        const pngBytes = await renderStoryPng(v);
-        if (!pngBytes) continue;
-        const publicUrl = await uploadStoryImage(admin, v.id, pngBytes);
+        const imageBytes = await renderStoryJpg(v);
+        if (!imageBytes) continue;
+        const publicUrl = await uploadStoryImage(admin, v.id, imageBytes);
         if (!publicUrl) continue;
         const { data: inserted } = await admin.from("vehicle_stories").insert({
           vehicle_id: v.id,
