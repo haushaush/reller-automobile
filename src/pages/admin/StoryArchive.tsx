@@ -51,6 +51,7 @@ export default function StoryArchive() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkSending, setBulkSending] = useState(false);
 
   const loadData = useCallback(async () => {
     const { data: storiesData, error: storiesError } = await supabase
