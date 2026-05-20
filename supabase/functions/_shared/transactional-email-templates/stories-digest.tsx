@@ -24,38 +24,39 @@ const StoriesDigestEmail = ({ stories = [], note, count }: StoriesDigestProps) =
   return (
     <Html lang="de" dir="ltr">
       <Head />
-      <Preview>{total} neue Stor{total === 1 ? 'y' : 'ies'} aus dem Reller Story-Archiv</Preview>
+      <Preview>{total} Story{total === 1 ? '' : 'ies'} zum Speichern – Reller Automobile</Preview>
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>
-            {total} neue Stor{total === 1 ? 'y' : 'ies'} bereit
+            {total} Story{total === 1 ? '' : 'ies'} zum Speichern
           </Heading>
           <Text style={text}>
-            {total === 1 ? 'Eine ausgewählte Story' : `${total} ausgewählte Stories`} aus dem {SITE_NAME} Story-Archiv:
+            So speicherst du das Bild in die Galerie:
           </Text>
+          <Section style={howBox}>
+            <Text style={howText}>📱 <b>iPhone:</b> lange auf das Bild tippen → „In Fotos sichern"</Text>
+            <Text style={howText}>📱 <b>Android:</b> lange auf das Bild tippen → „Bild herunterladen"</Text>
+            <Text style={howText}>💻 <b>Desktop:</b> Rechtsklick → „Bild speichern unter…"</Text>
+          </Section>
           {note ? (
             <Section style={noteBox}>
               <Text style={noteText}>{note}</Text>
             </Section>
           ) : null}
-          {stories.map((s, i) => {
-            const downloadUrl = s.imageUrl.includes('?')
-              ? `${s.imageUrl}&download`
-              : `${s.imageUrl}?download`
-            return (
-              <Section key={i} style={item}>
-                {s.brand ? <Text style={meta}>{s.brand}</Text> : null}
-                {s.title ? <Heading as="h2" style={h2}>{s.title}</Heading> : null}
-                {s.price ? <Text style={price}>{s.price}</Text> : null}
-                <Link href={downloadUrl}>
-                  <Img src={s.imageUrl} alt={s.title ?? 'Story'} width="240" style={img} />
-                </Link>
-                <Text style={small}>
-                  <Link href={downloadUrl} style={button}>⬇ Bild herunterladen</Link>
-                </Text>
-              </Section>
-            )
-          })}
+          {stories.map((s, i) => (
+            <Section key={i} style={item}>
+              {s.brand ? <Text style={meta}>{s.brand}</Text> : null}
+              {s.title ? <Heading as="h2" style={h2}>{s.title}</Heading> : null}
+              {s.price ? <Text style={price}>{s.price}</Text> : null}
+              <Img src={s.imageUrl} alt={s.title ?? 'Story'} width="280" style={img} />
+              <Text style={small}>
+                <Link href={s.imageUrl} style={button}>Bild im Browser öffnen</Link>
+              </Text>
+              <Text style={hint}>
+                Falls das Speichern aus der Mail nicht klappt: Button antippen, dann im Browser lange auf das Bild tippen → „In Fotos sichern".
+              </Text>
+            </Section>
+          ))}
           <Text style={footer}>
             Automatisch versendet aus dem {SITE_NAME} Story-Archiv.
           </Text>
