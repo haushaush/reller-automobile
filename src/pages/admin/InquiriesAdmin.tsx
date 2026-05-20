@@ -122,22 +122,22 @@ export default function InquiriesAdmin() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Anfragen</h1>
-        <p className="text-muted-foreground mt-1">Kundenanfragen für Fahrzeuge</p>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Anfragen</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1">Kundenanfragen für Fahrzeuge</p>
       </div>
 
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+      <Card className="p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Input
             placeholder="Name oder E-Mail suchen…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1"
+            className="flex-1 h-11 sm:h-10"
           />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-48">
+            <SelectTrigger className="w-full sm:w-48 h-11 sm:h-10">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -160,28 +160,28 @@ export default function InquiriesAdmin() {
       ) : (
         <div className="space-y-3">
           {filtered.slice(0, visibleCount).map((inq) => (
-            <Card key={inq.id} className="p-5">
+            <Card key={inq.id} className="p-4 sm:p-5">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <h3 className="font-semibold">
+                    <h3 className="font-semibold break-words">
                       {inq.first_name} {inq.last_name}
                     </h3>
                     <Badge variant={statusVariant[inq.status] ?? "outline"}>
                       {statusLabels[inq.status] ?? inq.status}
                     </Badge>
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                    <a href={`mailto:${inq.email}`} className="flex items-center gap-1.5 hover:text-foreground">
-                      <Mail className="h-3 w-3" /> {inq.email}
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+                    <a href={`mailto:${inq.email}`} className="flex items-center gap-1.5 hover:text-foreground min-h-[24px] break-all">
+                      <Mail className="h-3 w-3 flex-shrink-0" /> <span className="truncate">{inq.email}</span>
                     </a>
                     {inq.phone && (
-                      <a href={`tel:${inq.phone}`} className="flex items-center gap-1.5 hover:text-foreground">
-                        <Phone className="h-3 w-3" /> {inq.phone}
+                      <a href={`tel:${inq.phone}`} className="flex items-center gap-1.5 hover:text-foreground min-h-[24px]">
+                        <Phone className="h-3 w-3 flex-shrink-0" /> {inq.phone}
                       </a>
                     )}
                     <span className="flex items-center gap-1.5">
-                      <Clock className="h-3 w-3" />
+                      <Clock className="h-3 w-3 flex-shrink-0" />
                       {formatDistanceToNow(new Date(inq.created_at), { addSuffix: true, locale: de })}
                     </span>
                     {inq.preferred_contact && (
@@ -197,9 +197,9 @@ export default function InquiriesAdmin() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex gap-2 flex-shrink-0 w-full md:w-auto">
                   <Select value={inq.status} onValueChange={(v) => updateStatus(inq.id, v)}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="flex-1 md:w-40 md:flex-none h-11 md:h-10">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -208,7 +208,7 @@ export default function InquiriesAdmin() {
                       <SelectItem value="closed">Abgeschlossen</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button variant="outline" size="icon" asChild title="Details ansehen">
+                  <Button variant="outline" size="icon" asChild title="Details ansehen" className="h-11 w-11 md:h-10 md:w-10 flex-shrink-0">
                     <Link to={`/admin/inquiries/${inq.id}`}>
                       <ExternalLink className="h-4 w-4" />
                     </Link>

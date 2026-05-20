@@ -171,3 +171,22 @@
     filter: invert(0);
   }
 }
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: hsl(var(--primary) / 0.15);
+  }
+
+  html {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent iOS auto-zoom on input focus (font-size must be >= 16px on mobile) */
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+}

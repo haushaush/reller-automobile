@@ -318,24 +318,24 @@ export default function StoryArchive() {
   const someSelected = selectedIds.size > 0 && selectedIds.size < filtered.length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-24 md:pb-0">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Story-Archiv</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Story-Archiv</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1">
           Alle generierten Story-Mockups ansehen und herunterladen
         </p>
       </div>
 
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+      <Card className="p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Input
             placeholder="Fahrzeug suchen…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1"
+            className="flex-1 h-11 sm:h-10"
           />
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-full sm:w-48">
+            <SelectTrigger className="w-full sm:w-48 h-11 sm:h-10">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -349,8 +349,14 @@ export default function StoryArchive() {
       </Card>
 
       {!isLoading && filtered.length > 0 && (
-        <Card className="p-3 flex items-center justify-between gap-3 sticky top-2 z-10 bg-card/95 backdrop-blur">
-          <div className="flex items-center gap-3">
+        <Card
+          className={`p-3 flex items-center justify-between gap-3 z-20 bg-card/95 backdrop-blur ${
+            selectedIds.size > 0
+              ? "fixed bottom-3 left-3 right-3 md:sticky md:bottom-auto md:top-2 md:left-auto md:right-auto shadow-lg border-primary/40"
+              : "sticky top-2"
+          }`}
+        >
+          <div className="flex items-center gap-3 min-w-0">
             <Checkbox
               checked={allSelected}
               ref={(el) => {
@@ -360,39 +366,45 @@ export default function StoryArchive() {
                 if (checked) setSelectedIds(new Set(filtered.map((s) => s.id)));
                 else setSelectedIds(new Set());
               }}
+              className="h-5 w-5"
             />
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground truncate">
               {selectedIds.size === 0
                 ? `${filtered.length} Stor${filtered.length === 1 ? "y" : "ies"}`
-                : `${selectedIds.size} von ${filtered.length} ausgewählt`}
+                : `${selectedIds.size}/${filtered.length}`}
             </span>
           </div>
           {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden h-10 w-10"
+                onClick={() => setSelectedIds(new Set())}
+                title="Auswahl aufheben"
+              >
+                <span className="text-lg leading-none">×</span>
+              </Button>
+              <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => setSelectedIds(new Set())}>
                 Auswahl aufheben
               </Button>
-              <Button
-                size="sm"
-                onClick={sendSelectedStories}
-                disabled={bulkSending}
-              >
+              <Button size="sm" onClick={sendSelectedStories} disabled={bulkSending} className="h-10 md:h-9">
                 {bulkSending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Loader2 className="h-4 w-4 animate-spin md:mr-2" />
                 ) : (
-                  <Send className="h-4 w-4 mr-2" />
+                  <Send className="h-4 w-4 md:mr-2" />
                 )}
-                {selectedIds.size} versenden
+                <span className="hidden md:inline">{selectedIds.size} versenden</span>
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm" disabled={bulkDeleting}>
+                  <Button variant="destructive" size="sm" disabled={bulkDeleting} className="h-10 md:h-9">
                     {bulkDeleting ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <Loader2 className="h-4 w-4 animate-spin md:mr-2" />
                     ) : (
-                      <Trash2 className="h-4 w-4 mr-2" />
+                      <Trash2 className="h-4 w-4 md:mr-2" />
                     )}
-                    {selectedIds.size} löschen
+                    <span className="hidden md:inline">{selectedIds.size} löschen</span>
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -430,7 +442,7 @@ export default function StoryArchive() {
           <p className="text-sm text-muted-foreground">Keine Stories gefunden</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {filtered.map((story) => (
             <Card key={story.id} className="overflow-hidden relative">
               <div className="absolute top-2 left-2 z-10">
