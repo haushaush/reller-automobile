@@ -342,8 +342,13 @@ async function sendDealerEmail(
   storyUrl: string,
 ) {
   try {
-    await admin.functions.invoke("send-transactional-email", {
-      headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+    const adminWithAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      global: {
+        headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+      },
+    });
+
+    await adminWithAuth.functions.invoke("send-transactional-email", {
       body: {
         templateName: "stories-digest",
         recipientEmail: STORY_EMAIL_RECIPIENT,
