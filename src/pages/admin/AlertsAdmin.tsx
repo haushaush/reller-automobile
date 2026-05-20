@@ -160,7 +160,7 @@ export default function AlertsAdmin() {
                       </div>
                     )}
                     {a.message && (
-                      <p className="mt-2 text-sm bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-md p-3">
+                      <p className="mt-2 text-sm text-amber-900 dark:text-amber-100 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-md p-3 break-words">
                         <span className="font-medium">Freitext: </span>
                         {a.message}
                       </p>
