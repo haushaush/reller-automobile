@@ -10,7 +10,8 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const RECIPIENT = Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de";
+const RECIPIENTS = (Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de,digital@haushhaush.de")
+  .split(",").map((e) => e.trim()).filter(Boolean);
 
 interface RequestBody {
   storyIds: string[];
