@@ -343,6 +343,7 @@ async function sendDealerEmail(
 ) {
   try {
     await admin.functions.invoke("send-transactional-email", {
+      headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
       body: {
         templateName: "stories-digest",
         recipientEmail: STORY_EMAIL_RECIPIENT,
