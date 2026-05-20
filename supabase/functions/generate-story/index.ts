@@ -2,6 +2,7 @@
 // Pixel-exact layout matching the Reller story template. Requires admin auth.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resvg, initWasm } from "https://esm.sh/@resvg/resvg-wasm@2.6.2";
+import { Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -297,7 +298,7 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
 </svg>`;
 }
 
-async function renderStoryPng(vehicle: VehicleRow): Promise<Uint8Array | null> {
+async function renderStoryJpg(vehicle: VehicleRow): Promise<Uint8Array | null> {
   const sourceImage = vehicle.image_urls?.[0];
   if (!sourceImage) return null;
 
@@ -316,18 +317,33 @@ async function renderStoryPng(vehicle: VehicleRow): Promise<Uint8Array | null> {
       loadSystemFonts: false,
     },
   });
-  return resvg.render().asPng();
+  const pngBytes = resvg.render().asPng();
+
+  // Convert PNG → JPG: iOS/Android mail clients recognize JPGs as photos
+  // (offering "Save to Photos" on long-press). PNG is often offered only as a file.
+  try {
+    const image = await Image.decode(pngBytes);
+    const jpgBytes = await image.encodeJPEG(92);
+    return jpgBytes;
+  } catch (err) {
+    console.error("PNG→JPG conversion failed, falling back to PNG:", err);
+    return pngBytes;
+  }
 }
 
 async function uploadStoryImage(
   admin: ReturnType<typeof createClient>,
   vehicleId: string,
-  pngBytes: Uint8Array,
+  imageBytes: Uint8Array,
 ): Promise<string | null> {
-  const path = `${vehicleId}/${Date.now()}.png`;
+  // Detect JPG vs PNG by magic bytes (JPG starts with 0xFF 0xD8)
+  const isJpg = imageBytes[0] === 0xff && imageBytes[1] === 0xd8;
+  const ext = isJpg ? "jpg" : "png";
+  const contentType = isJpg ? "image/jpeg" : "image/png";
+  const path = `${vehicleId}/${Date.now()}.${ext}`;
   const { error } = await admin.storage
     .from("vehicle-stories")
-    .upload(path, pngBytes, { contentType: "image/png", upsert: true });
+    .upload(path, imageBytes, { contentType, upsert: true });
   if (error) {
     console.error("Storage upload failed:", error);
     return null;
@@ -448,9 +464,9 @@ Deno.serve(async (req) => {
           }
         }
 
-        const pngBytes = await renderStoryPng(v);
-        if (!pngBytes) continue;
-        const publicUrl = await uploadStoryImage(admin, v.id, pngBytes);
+        const imageBytes = await renderStoryJpg(v);
+        if (!imageBytes) continue;
+        const publicUrl = await uploadStoryImage(admin, v.id, imageBytes);
         if (!publicUrl) continue;
         const { data: inserted } = await admin.from("vehicle_stories").insert({
           vehicle_id: v.id,

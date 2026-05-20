@@ -24,38 +24,39 @@ const StoriesDigestEmail = ({ stories = [], note, count }: StoriesDigestProps) =
   return (
     <Html lang="de" dir="ltr">
       <Head />
-      <Preview>{total} neue Stor{total === 1 ? 'y' : 'ies'} aus dem Reller Story-Archiv</Preview>
+      <Preview>{total} Story{total === 1 ? '' : 'ies'} zum Speichern – Reller Automobile</Preview>
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>
-            {total} neue Stor{total === 1 ? 'y' : 'ies'} bereit
+            {total} Story{total === 1 ? '' : 'ies'} zum Speichern
           </Heading>
           <Text style={text}>
-            {total === 1 ? 'Eine ausgewählte Story' : `${total} ausgewählte Stories`} aus dem {SITE_NAME} Story-Archiv:
+            So speicherst du das Bild in die Galerie:
           </Text>
+          <Section style={howBox}>
+            <Text style={howText}>📱 <b>iPhone:</b> lange auf das Bild tippen → „In Fotos sichern"</Text>
+            <Text style={howText}>📱 <b>Android:</b> lange auf das Bild tippen → „Bild herunterladen"</Text>
+            <Text style={howText}>💻 <b>Desktop:</b> Rechtsklick → „Bild speichern unter…"</Text>
+          </Section>
           {note ? (
             <Section style={noteBox}>
               <Text style={noteText}>{note}</Text>
             </Section>
           ) : null}
-          {stories.map((s, i) => {
-            const downloadUrl = s.imageUrl.includes('?')
-              ? `${s.imageUrl}&download`
-              : `${s.imageUrl}?download`
-            return (
-              <Section key={i} style={item}>
-                {s.brand ? <Text style={meta}>{s.brand}</Text> : null}
-                {s.title ? <Heading as="h2" style={h2}>{s.title}</Heading> : null}
-                {s.price ? <Text style={price}>{s.price}</Text> : null}
-                <Link href={downloadUrl}>
-                  <Img src={s.imageUrl} alt={s.title ?? 'Story'} width="240" style={img} />
-                </Link>
-                <Text style={small}>
-                  <Link href={downloadUrl} style={button}>⬇ Bild herunterladen</Link>
-                </Text>
-              </Section>
-            )
-          })}
+          {stories.map((s, i) => (
+            <Section key={i} style={item}>
+              {s.brand ? <Text style={meta}>{s.brand}</Text> : null}
+              {s.title ? <Heading as="h2" style={h2}>{s.title}</Heading> : null}
+              {s.price ? <Text style={price}>{s.price}</Text> : null}
+              <Img src={s.imageUrl} alt={s.title ?? 'Story'} width="280" style={img} />
+              <Text style={small}>
+                <Link href={s.imageUrl} style={button}>Bild im Browser öffnen</Link>
+              </Text>
+              <Text style={hint}>
+                Falls das Speichern aus der Mail nicht klappt: Button antippen, dann im Browser lange auf das Bild tippen → „In Fotos sichern".
+              </Text>
+            </Section>
+          ))}
           <Text style={footer}>
             Automatisch versendet aus dem {SITE_NAME} Story-Archiv.
           </Text>
@@ -92,17 +93,20 @@ const noteText = { fontSize: '14px', color: '#333', margin: 0 }
 const item = { marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #eee' }
 const meta = { fontSize: '12px', color: '#777', textTransform: 'uppercase' as const, margin: 0 }
 const price = { fontSize: '14px', color: '#444', margin: '0 0 8px' }
-const img = { maxWidth: '240px', borderRadius: '12px', display: 'block' }
-const small = { margin: '8px 0 0', fontSize: '13px' }
+const img = { maxWidth: '280px', width: '100%', borderRadius: '12px', display: 'block', height: 'auto' }
+const small = { margin: '12px 0 0', fontSize: '13px' }
 const link = { color: '#000', textDecoration: 'underline' }
 const button = {
   display: 'inline-block',
-  padding: '10px 16px',
+  padding: '12px 18px',
   backgroundColor: '#000',
   color: '#fff',
   borderRadius: '8px',
   textDecoration: 'none',
   fontWeight: 600 as const,
-  fontSize: '13px',
+  fontSize: '14px',
 }
+const howBox = { padding: '14px 16px', backgroundColor: '#f7f7f5', borderRadius: '8px', margin: '0 0 20px' }
+const howText = { fontSize: '13px', color: '#333', margin: '4px 0', lineHeight: '1.5' }
+const hint = { fontSize: '12px', color: '#888', margin: '8px 0 0', lineHeight: '1.4' }
 const footer = { fontSize: '12px', color: '#888', marginTop: '24px' }
