@@ -17,8 +17,9 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 // Story-E-Mails gehen NUR an digital@haushhaush.de.
 // Optional via Edge-Secret STORY_EMAIL_RECIPIENT überschreibbar.
 // (Inquiries und Alerts haben separate Empfänger in ihren eigenen Functions.)
-const STORY_EMAIL_RECIPIENT =
-  Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de";
+const STORY_EMAIL_RECIPIENTS = (
+  Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de,digital@haushhaush.de"
+).split(",").map((e) => e.trim()).filter(Boolean);
 
 // Font URLs — fallback Inter (italic) from jsdelivr fontsource CDN.
 // To swap to JustSans: upload TTF files to a public storage bucket and replace these URLs.
