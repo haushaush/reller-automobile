@@ -349,22 +349,24 @@ async function sendDealerEmail(
       },
     });
 
-    await adminWithAuth.functions.invoke("send-transactional-email", {
-      body: {
-        templateName: "stories-digest",
-        recipientEmail: STORY_EMAIL_RECIPIENT,
-        idempotencyKey: `stories-digest-${storyId}`,
-        templateData: {
-          count: 1,
-          stories: [{
-            imageUrl: storyUrl,
-            title: vehicle.title,
-            brand: vehicle.brand ?? "",
-            price: vehicle.price ? `${Number(vehicle.price).toLocaleString("de-DE")} €` : "Auf Anfrage",
-          }],
+    await Promise.all(STORY_EMAIL_RECIPIENTS.map((recipient) =>
+      adminWithAuth.functions.invoke("send-transactional-email", {
+        body: {
+          templateName: "stories-digest",
+          recipientEmail: recipient,
+          idempotencyKey: `stories-digest-${storyId}-${recipient}`,
+          templateData: {
+            count: 1,
+            stories: [{
+              imageUrl: storyUrl,
+              title: vehicle.title,
+              brand: vehicle.brand ?? "",
+              price: vehicle.price ? `${Number(vehicle.price).toLocaleString("de-DE")} €` : "Auf Anfrage",
+            }],
+          },
         },
-      },
-    });
+      })
+    ));
   } catch (err) {
     console.error("Dealer email failed:", err);
   }
