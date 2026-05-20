@@ -350,10 +350,10 @@ export default function StoryArchive() {
 
       {!isLoading && filtered.length > 0 && (
         <Card
-          className={`p-3 flex items-center justify-between gap-3 z-20 bg-card/95 backdrop-blur ${
+          className={`flex items-center justify-between gap-3 z-30 bg-card/95 backdrop-blur ${
             selectedIds.size > 0
-              ? "fixed bottom-3 left-3 right-3 md:sticky md:bottom-auto md:top-2 md:left-auto md:right-auto shadow-lg border-primary/40"
-              : "sticky top-2"
+              ? "fixed bottom-20 md:bottom-6 left-3 right-3 md:left-1/2 md:right-auto md:-translate-x-1/2 md:max-w-2xl p-4 shadow-2xl border-2 border-primary"
+              : "sticky top-2 p-3"
           }`}
         >
           <div className="flex items-center gap-3 min-w-0">
@@ -368,43 +368,43 @@ export default function StoryArchive() {
               }}
               className="h-5 w-5"
             />
-            <span className="text-sm text-muted-foreground truncate">
+            <span className={`truncate ${selectedIds.size > 0 ? "text-base font-semibold" : "text-sm text-muted-foreground"}`}>
               {selectedIds.size === 0
                 ? `${filtered.length} Stor${filtered.length === 1 ? "y" : "ies"}`
-                : `${selectedIds.size}/${filtered.length}`}
+                : `${selectedIds.size} ausgewählt`}
             </span>
           </div>
           {selectedIds.size > 0 && (
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden h-10 w-10"
+                className="md:hidden h-11 w-11"
                 onClick={() => setSelectedIds(new Set())}
                 title="Auswahl aufheben"
               >
-                <span className="text-lg leading-none">×</span>
+                <span className="text-xl leading-none">×</span>
               </Button>
-              <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => setSelectedIds(new Set())}>
-                Auswahl aufheben
+              <Button variant="ghost" size="sm" className="hidden md:inline-flex h-11" onClick={() => setSelectedIds(new Set())}>
+                Aufheben
               </Button>
-              <Button size="sm" onClick={sendSelectedStories} disabled={bulkSending} className="h-10 md:h-9">
+              <Button size="default" onClick={sendSelectedStories} disabled={bulkSending} className="h-11 px-4">
                 {bulkSending ? (
                   <Loader2 className="h-4 w-4 animate-spin md:mr-2" />
                 ) : (
                   <Send className="h-4 w-4 md:mr-2" />
                 )}
-                <span className="hidden md:inline">{selectedIds.size} versenden</span>
+                <span className="hidden md:inline">Versenden ({selectedIds.size})</span>
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm" disabled={bulkDeleting} className="h-10 md:h-9">
+                  <Button variant="destructive" size="default" disabled={bulkDeleting} className="h-11 px-4">
                     {bulkDeleting ? (
                       <Loader2 className="h-4 w-4 animate-spin md:mr-2" />
                     ) : (
                       <Trash2 className="h-4 w-4 md:mr-2" />
                     )}
-                    <span className="hidden md:inline">{selectedIds.size} löschen</span>
+                    <span className="hidden md:inline">Löschen ({selectedIds.size})</span>
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>

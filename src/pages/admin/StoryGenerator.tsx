@@ -128,7 +128,7 @@ export default function StoryGenerator() {
   };
 
   return (
-    <div>
+    <div className="pb-40 md:pb-24">
       <div className="mb-6">
         <h1 className="text-3xl font-semibold tracking-tight">Story-Generator</h1>
         <p className="text-muted-foreground mt-1">
@@ -171,23 +171,23 @@ export default function StoryGenerator() {
       </Card>
 
       {selectedIds.size > 0 && (
-        <Card className="p-4 mb-4 bg-secondary/50">
+        <Card className="fixed bottom-20 md:bottom-6 left-3 right-3 md:left-1/2 md:right-auto md:-translate-x-1/2 md:max-w-2xl z-30 p-4 shadow-2xl border-2 border-primary bg-card/95 backdrop-blur">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-sm font-medium">
+            <p className="text-base font-semibold">
               {selectedIds.size} Fahrzeug{selectedIds.size !== 1 ? "e" : ""} ausgewählt
             </p>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
-                Auswahl leeren
+            <div className="flex gap-2 flex-shrink-0">
+              <Button variant="ghost" size="default" className="h-11" onClick={() => setSelectedIds(new Set())}>
+                Aufheben
               </Button>
-              <Button onClick={generateStories} disabled={isGenerating} size="sm">
+              <Button onClick={generateStories} disabled={isGenerating} size="default" className="h-11 px-4">
                 {isGenerating ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Erstelle...
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Erstelle...
                   </>
                 ) : (
                   <>
-                    <Send className="h-4 w-4" /> Stories erstellen ({selectedIds.size})
+                    <Send className="h-4 w-4 mr-2" /> Stories erstellen ({selectedIds.size})
                   </>
                 )}
               </Button>
