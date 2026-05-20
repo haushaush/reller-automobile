@@ -497,7 +497,7 @@ export default function StoryArchive() {
                 <div className="text-xs text-muted-foreground">
                   {format(new Date(story.generated_at), "dd.MM.yyyy HH:mm", { locale: de })}
                 </div>
-                <div className="flex gap-1.5 pt-1">
+                <div className="flex gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
                   <Button
                     variant="outline"
                     size="icon"
