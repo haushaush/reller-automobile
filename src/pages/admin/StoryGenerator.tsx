@@ -128,7 +128,7 @@ export default function StoryGenerator() {
   };
 
   return (
-    <div>
+    <div className="pb-40 md:pb-24">
       <div className="mb-6">
         <h1 className="text-3xl font-semibold tracking-tight">Story-Generator</h1>
         <p className="text-muted-foreground mt-1">
