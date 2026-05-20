@@ -38,6 +38,11 @@ Deno.serve(async (req) => {
     const userId = claimsData.claims.sub as string;
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const adminWithAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      global: {
+        headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+      },
+    });
     const { data: roleRow } = await admin
       .from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
     if (!roleRow) {
@@ -81,8 +86,7 @@ Deno.serve(async (req) => {
 
     const idempotencyKey = `stories-digest-${stories.map((s) => s.id).sort().join("-")}`;
 
-    const { error: invokeError } = await admin.functions.invoke("send-transactional-email", {
-      headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+    const { error: invokeError } = await adminWithAuth.functions.invoke("send-transactional-email", {
       body: {
         templateName: "stories-digest",
         recipientEmail: RECIPIENT,
