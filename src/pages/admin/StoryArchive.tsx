@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Download, RefreshCw, Send, Image as ImageIcon, Loader2, Trash2 } from "lucide-react";
+import { Download, RefreshCw, Send, Image as ImageIcon, Loader2, Trash2, Maximize2, Check } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
@@ -443,34 +443,61 @@ export default function StoryArchive() {
         </Card>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-          {filtered.map((story) => (
-            <Card key={story.id} className="overflow-hidden relative">
-              <div className="absolute top-2 left-2 z-10">
-                <Checkbox
-                  checked={selectedIds.has(story.id)}
-                  onCheckedChange={() => toggleSelection(story.id)}
-                  className="bg-background/90 backdrop-blur-sm border-2 h-5 w-5"
-                />
+          {filtered.map((story) => {
+            const isSelected = selectedIds.has(story.id);
+            return (
+            <Card
+              key={story.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => toggleSelection(story.id)}
+              onKeyDown={(e) => {
+                if (e.key === " " || e.key === "Enter") {
+                  e.preventDefault();
+                  toggleSelection(story.id);
+                }
+              }}
+              className={`overflow-hidden relative cursor-pointer transition-all select-none ${
+                isSelected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "hover:border-primary/40"
+              }`}
+            >
+              <div className="absolute top-2 left-2 z-10 pointer-events-none">
+                <div
+                  className={`flex items-center justify-center h-6 w-6 rounded-md border-2 transition-colors ${
+                    isSelected
+                      ? "bg-primary border-primary text-primary-foreground"
+                      : "bg-background/90 backdrop-blur-sm border-border"
+                  }`}
+                >
+                  {isSelected && <Check className="h-4 w-4" />}
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setLightboxImage(story.story_image_url)}
-                className="block w-full aspect-[9/16] bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxImage(story.story_image_url);
+                }}
+                title="Bild vergrößern"
+                className="absolute top-2 right-2 z-10 h-9 w-9 rounded-md bg-background/90 backdrop-blur-sm border border-border flex items-center justify-center hover:bg-background transition-colors"
               >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+              <div className="block w-full aspect-[9/16] bg-muted">
                 <img
                   src={story.story_image_url}
                   alt={story.vehicle?.title || ""}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover pointer-events-none"
                   loading="lazy"
                 />
-              </button>
+              </div>
               <div className="p-3 space-y-2">
                 <div className="text-xs uppercase text-muted-foreground">{story.vehicle?.brand}</div>
                 <div className="font-medium text-sm line-clamp-2">{story.vehicle?.title}</div>
                 <div className="text-xs text-muted-foreground">
                   {format(new Date(story.generated_at), "dd.MM.yyyy HH:mm", { locale: de })}
                 </div>
-                <div className="flex gap-1.5 pt-1">
+                <div className="flex gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
                   <Button
                     variant="outline"
                     size="icon"
@@ -544,7 +571,7 @@ export default function StoryArchive() {
                 </div>
               </div>
             </Card>
-          ))}
+          );})}
         </div>
       )}
 
