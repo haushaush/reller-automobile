@@ -429,7 +429,7 @@ Deno.serve(async (req) => {
             .limit(1)
             .maybeSingle();
           if (existing?.story_image_url) {
-            await sendDealerEmail(v, existing.story_image_url);
+            await sendDealerEmail(admin, v, existing.id, existing.story_image_url);
             await admin
               .from("vehicle_stories")
               .update({ sent_to_dealer: true, sent_at: new Date().toISOString() })
@@ -443,14 +443,16 @@ Deno.serve(async (req) => {
         if (!pngBytes) continue;
         const publicUrl = await uploadStoryImage(admin, v.id, pngBytes);
         if (!publicUrl) continue;
-        await admin.from("vehicle_stories").insert({
+        const { data: inserted } = await admin.from("vehicle_stories").insert({
           vehicle_id: v.id,
           story_image_url: publicUrl,
           generated_by: userId,
-          sent_to_dealer: !!RESEND_API_KEY,
-          sent_at: RESEND_API_KEY ? new Date().toISOString() : null,
-        });
-        await sendDealerEmail(v, publicUrl);
+          sent_to_dealer: true,
+          sent_at: new Date().toISOString(),
+        }).select("id").single();
+        if (inserted?.id) {
+          await sendDealerEmail(admin, v, inserted.id, publicUrl);
+        }
         generated++;
       } catch (err) {
         console.error("Story failed for", v.id, err);
