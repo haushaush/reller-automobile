@@ -365,6 +365,18 @@ export default function StoryArchive() {
               <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
                 Auswahl aufheben
               </Button>
+              <Button
+                size="sm"
+                onClick={sendSelectedStories}
+                disabled={bulkSending}
+              >
+                {bulkSending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                {selectedIds.size} versenden
+              </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" size="sm" disabled={bulkDeleting}>
