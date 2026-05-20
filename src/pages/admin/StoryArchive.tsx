@@ -318,24 +318,24 @@ export default function StoryArchive() {
   const someSelected = selectedIds.size > 0 && selectedIds.size < filtered.length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-24 md:pb-0">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Story-Archiv</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Story-Archiv</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1">
           Alle generierten Story-Mockups ansehen und herunterladen
         </p>
       </div>
 
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+      <Card className="p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Input
             placeholder="Fahrzeug suchen…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1"
+            className="flex-1 h-11 sm:h-10"
           />
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-full sm:w-48">
+            <SelectTrigger className="w-full sm:w-48 h-11 sm:h-10">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -430,7 +430,7 @@ export default function StoryArchive() {
           <p className="text-sm text-muted-foreground">Keine Stories gefunden</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {filtered.map((story) => (
             <Card key={story.id} className="overflow-hidden relative">
               <div className="absolute top-2 left-2 z-10">

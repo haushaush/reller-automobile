@@ -50,21 +50,21 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="text-3xl font-semibold tracking-tight">Übersicht</h1>
-      <p className="text-muted-foreground mt-1">
+      <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Übersicht</h1>
+      <p className="text-sm sm:text-base text-muted-foreground mt-1">
         Willkommen im Admin-Backend von Reller Automobile
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-6 sm:mt-8">
         {cards.map((c) => {
           const Icon = c.icon;
           return (
-            <Card key={c.label} className="p-6">
-              <div className="flex items-center justify-between mb-3">
+            <Card key={c.label} className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-2 sm:mb-3">
                 <Icon className="h-5 w-5 text-muted-foreground" />
               </div>
-              <div className="text-3xl font-semibold">{c.value}</div>
-              <div className="text-sm text-muted-foreground mt-1">{c.label}</div>
+              <div className="text-2xl sm:text-3xl font-semibold">{c.value}</div>
+              <div className="text-xs sm:text-sm text-muted-foreground mt-1">{c.label}</div>
             </Card>
           );
         })}
