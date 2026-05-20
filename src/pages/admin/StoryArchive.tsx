@@ -126,24 +126,49 @@ export default function StoryArchive() {
       const brand = story.vehicle?.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Fahrzeug";
       const title =
         story.vehicle?.title?.substring(0, 40).replace(/[^a-zA-Z0-9]/g, "-") || "Story";
-      const filename = `Reller-Story-${brand}-${title}.png`;
+      // Detect extension from storage path (jpg for new stories, png for legacy)
+      const ext = filePath.toLowerCase().endsWith(".jpg") || filePath.toLowerCase().endsWith(".jpeg") ? "jpg" : "png";
+      const mime = ext === "jpg" ? "image/jpeg" : "image/png";
+      const filename = `Reller-Story-${brand}-${title}.${ext}`;
 
-      // Supabase serves the file with Content-Disposition: attachment when ?download= is set.
-      // This works reliably even inside the Lovable preview iframe (which blocks blob downloads).
+      const { data: pubData } = supabase.storage
+        .from("vehicle-stories")
+        .getPublicUrl(filePath);
+      const publicUrl = pubData.publicUrl;
+
+      // Mobile: use Web Share API with file → opens native share sheet
+      // ("In Fotos sichern" on iOS, "Speichern" on Android)
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile && typeof navigator.share === "function") {
+        try {
+          const response = await fetch(publicUrl);
+          const blob = await response.blob();
+          const file = new File([blob], filename, { type: mime });
+          // Check if files can be shared (iOS/Android Chrome)
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ files: [file], title: filename });
+            toast.success("Tippe „In Fotos sichern", um das Bild in die Galerie zu speichern");
+            return;
+          }
+        } catch (shareErr) {
+          // User cancelled or share failed — fall through to download
+          if ((shareErr as Error)?.name === "AbortError") return;
+          console.warn("Web Share failed, falling back to download:", shareErr);
+        }
+      }
+
+      // Desktop / fallback: direct download via Content-Disposition
       const { data } = supabase.storage
         .from("vehicle-stories")
         .getPublicUrl(filePath, { download: filename });
-
       const downloadUrl = data.publicUrl;
 
-      // Try direct navigation in a new top-level tab — browser handles the attachment header.
       const newTab = window.open(downloadUrl, "_blank", "noopener,noreferrer");
       if (newTab) {
         toast.success("Download gestartet");
         return;
       }
 
-      // Fallback: anchor click (works on the published site outside the iframe)
       const link = document.createElement("a");
       link.href = downloadUrl;
       link.download = filename;
