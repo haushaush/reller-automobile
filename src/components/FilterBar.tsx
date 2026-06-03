@@ -264,6 +264,20 @@ const FilterBar = memo(({ filters, onFilterChange, brands, bodyTypes, categories
             <SelectItem value="all">Alle</SelectItem>
           </SelectContent>
         </Select>
+
+        <Select
+          value={filters.recentOnly || "all"}
+          onValueChange={(v) => onFilterChange("recentOnly", v === "all" ? "" : v)}
+        >
+          <SelectTrigger className="bg-secondary border-border text-foreground min-h-[44px]">
+            <SelectValue placeholder="Zeitraum" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Fahrzeuge</SelectItem>
+            <SelectItem value="14">Neu (letzte 14 Tage)</SelectItem>
+            <SelectItem value="30">Letzte 30 Tage</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );
