@@ -233,6 +233,17 @@ const VehicleListGrid = ({
       result = result.filter((v) => (v.power || 0) <= kwMax);
     }
 
+    if (filters.recentOnly) {
+      const days = Number(filters.recentOnly);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      result = result.filter((v) => {
+        const ref = v.creation_date || v.synced_at;
+        if (!ref) return false;
+        return new Date(ref) >= cutoff;
+      });
+    }
+
     // When a search query is active → ALWAYS sort by relevance (ignoring user-sort).
     if (isSearchActive) {
       const query = filters.search.trim();
