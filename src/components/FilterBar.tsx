@@ -72,6 +72,7 @@ function countActiveFilters(f: Filters): number {
   if (f.priceTo) c++;
   if (f.color !== "all") c++;
   if (f.status !== "available") c++;
+  if (f.recentOnly) c++;
   return c;
 }
 
