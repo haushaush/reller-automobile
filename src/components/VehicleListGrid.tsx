@@ -38,6 +38,7 @@ const defaultFilters: Filters = {
   priceTo: "",
   color: "all",
   status: "available",
+  recentOnly: "",
 };
 
 const selectFilterKeys: (keyof Filters)[] = [
