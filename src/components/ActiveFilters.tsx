@@ -30,6 +30,7 @@ const filterLabels: Partial<Record<keyof Filters, string>> = {
   priceTo: "Preis bis",
   color: "Farbe",
   status: "Status",
+  recentOnly: "Neu",
 };
 
 const selectFilters: (keyof Filters)[] = ["category", "brand", "bodyType", "fuel", "gearbox", "color", "status"];
