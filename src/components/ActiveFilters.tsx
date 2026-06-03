@@ -44,6 +44,8 @@ function displayValue(key: keyof Filters, value: string): string {
       return getFuelLabel(value);
     case "gearbox":
       return getGearboxLabel(value);
+    case "recentOnly":
+      return `letzte ${value} Tage`;
     default:
       return value;
   }
