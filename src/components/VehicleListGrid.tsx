@@ -38,6 +38,7 @@ const defaultFilters: Filters = {
   priceTo: "",
   color: "all",
   status: "available",
+  recentOnly: "",
 };
 
 const selectFilterKeys: (keyof Filters)[] = [
@@ -230,6 +231,17 @@ const VehicleListGrid = ({
     if (filters.powerTo) {
       const kwMax = Number(filters.powerTo) / 1.36;
       result = result.filter((v) => (v.power || 0) <= kwMax);
+    }
+
+    if (filters.recentOnly) {
+      const days = Number(filters.recentOnly);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      result = result.filter((v) => {
+        const ref = v.creation_date || v.synced_at;
+        if (!ref) return false;
+        return new Date(ref) >= cutoff;
+      });
     }
 
     // When a search query is active → ALWAYS sort by relevance (ignoring user-sort).

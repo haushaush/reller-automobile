@@ -29,6 +29,7 @@ export interface Filters {
   priceTo: string;
   color: string;
   status: string;
+  recentOnly: string;
 }
 
 /** Filter-Option mit Raw-Wert (für interne Logik) und lesbarem Label (für Anzeige). */
@@ -71,6 +72,7 @@ function countActiveFilters(f: Filters): number {
   if (f.priceTo) c++;
   if (f.color !== "all") c++;
   if (f.status !== "available") c++;
+  if (f.recentOnly) c++;
   return c;
 }
 
@@ -260,6 +262,20 @@ const FilterBar = memo(({ filters, onFilterChange, brands, bodyTypes, categories
             <SelectItem value="available">Verfügbar</SelectItem>
             <SelectItem value="sold">Verkauft</SelectItem>
             <SelectItem value="all">Alle</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.recentOnly || "all"}
+          onValueChange={(v) => onFilterChange("recentOnly", v === "all" ? "" : v)}
+        >
+          <SelectTrigger className="bg-secondary border-border text-foreground min-h-[44px]">
+            <SelectValue placeholder="Zeitraum" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Fahrzeuge</SelectItem>
+            <SelectItem value="14">Neu (letzte 14 Tage)</SelectItem>
+            <SelectItem value="30">Letzte 30 Tage</SelectItem>
           </SelectContent>
         </Select>
       </div>
