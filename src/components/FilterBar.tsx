@@ -29,6 +29,7 @@ export interface Filters {
   priceTo: string;
   color: string;
   status: string;
+  recentOnly: string;
 }
 
 /** Filter-Option mit Raw-Wert (für interne Logik) und lesbarem Label (für Anzeige). */
