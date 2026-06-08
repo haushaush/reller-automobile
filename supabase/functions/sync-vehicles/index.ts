@@ -555,10 +555,12 @@ Deno.serve(async (req) => {
     }
 
     const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
+    // Exclude manually-added vehicles entirely from soft-delete/re-activate logic.
     const { data: allDbVehicles } = await supabase
       .from("vehicles")
       .select("id, mobile_de_id, is_sold, vehicle_category")
-      .neq("vehicle_category", "accident");
+      .neq("vehicle_category", "accident")
+      .eq("source", "mobile_de");
 
     if (allDbVehicles) {
       const syncedSet = new Set(mobileDeIds);
