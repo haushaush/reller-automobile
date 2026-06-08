@@ -10,6 +10,7 @@ import {
   LogOut,
   ArrowLeft,
   Menu,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +32,7 @@ const navItems: NavItem[] = [
   { label: "Suchaufträge", path: "/admin/alerts", icon: Bell },
   { label: "Story-Generator", path: "/admin/stories", icon: ImageIcon },
   { label: "Story-Archiv", path: "/admin/story-archive", icon: Archive },
+  { label: "Einstellungen", path: "/admin/settings", icon: Settings },
 ];
 
 export default function AdminLayout() {
