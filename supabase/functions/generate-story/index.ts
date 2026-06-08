@@ -338,7 +338,11 @@ function generateSVG(
 </svg>`;
 }
 
-async function renderStoryJpg(vehicle: VehicleRow): Promise<Uint8Array | null> {
+async function renderStoryJpg(
+  vehicle: VehicleRow,
+  contactPhone?: string,
+  contactEmail?: string,
+): Promise<Uint8Array | null> {
   const sourceImage = vehicle.image_urls?.[0];
   if (!sourceImage) return null;
 
@@ -346,7 +350,7 @@ async function renderStoryJpg(vehicle: VehicleRow): Promise<Uint8Array | null> {
   await ensureFonts();
 
   const dataUrl = await fetchImageAsDataUrl(sourceImage);
-  const svg = generateSVG(vehicle, dataUrl);
+  const svg = generateSVG(vehicle, dataUrl, contactPhone, contactEmail);
 
   const resvg = new Resvg(svg, {
     background: "#FFFFFF",
