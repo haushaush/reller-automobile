@@ -388,7 +388,7 @@ async function sendDealerEmail(
       },
     });
 
-    await Promise.all(STORY_EMAIL_RECIPIENTS.map((recipient) =>
+    await Promise.all(recipients.map((recipient) =>
       adminWithAuth.functions.invoke("send-transactional-email", {
         body: {
           templateName: "stories-digest",
