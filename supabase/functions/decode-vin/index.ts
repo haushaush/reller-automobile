@@ -74,10 +74,13 @@ Deno.serve(async (req) => {
     let parsed: Record<string, unknown> = {};
     try { parsed = text ? JSON.parse(text) : {}; } catch { /* keep empty */ }
 
+    console.log("AUTODEV STATUS:", res.status);
+    console.log("AUTODEV RAW RESPONSE:", JSON.stringify(parsed, null, 2));
+
     if (!res.ok) {
       console.error("auto.dev error", res.status, text.slice(0, 400));
       const msg = (parsed as { message?: string })?.message || `auto.dev Fehler (${res.status})`;
-      return json({ error: msg }, res.status === 404 ? 404 : 502);
+      return json({ error: msg, _raw: parsed }, res.status === 404 ? 404 : 502);
     }
 
     const brand = pickName(parsed.make);
@@ -119,6 +122,7 @@ Deno.serve(async (req) => {
       body_type: bodyType,
       num_seats: numSeats,
       cubic_capacity: cubicCapacity,
+      _raw: parsed,
     });
   } catch (err) {
     console.error("decode-vin error", err);
