@@ -464,12 +464,14 @@ export type Database = {
           seller_city: string | null
           seller_zipcode: string | null
           sold_at: string | null
+          source: string
           synced_at: string
           title: string
           updated_at: string
           usage_type: string | null
           vatable: boolean | null
           vehicle_category: string | null
+          vin: string | null
           year: string | null
         }
         Insert: {
@@ -505,12 +507,14 @@ export type Database = {
           seller_city?: string | null
           seller_zipcode?: string | null
           sold_at?: string | null
+          source?: string
           synced_at?: string
           title: string
           updated_at?: string
           usage_type?: string | null
           vatable?: boolean | null
           vehicle_category?: string | null
+          vin?: string | null
           year?: string | null
         }
         Update: {
@@ -546,12 +550,14 @@ export type Database = {
           seller_city?: string | null
           seller_zipcode?: string | null
           sold_at?: string | null
+          source?: string
           synced_at?: string
           title?: string
           updated_at?: string
           usage_type?: string | null
           vatable?: boolean | null
           vehicle_category?: string | null
+          vin?: string | null
           year?: string | null
         }
         Relationships: []
