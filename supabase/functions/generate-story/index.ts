@@ -44,6 +44,23 @@ async function loadStoryRecipients(
   return STORY_EMAIL_DEFAULTS;
 }
 
+async function loadStoryContactString(
+  admin: ReturnType<typeof createClient>,
+  key: "story_contact_phone" | "story_contact_email",
+): Promise<string> {
+  try {
+    const { data } = await admin
+      .from("app_settings")
+      .select("value")
+      .eq("key", key)
+      .maybeSingle();
+    const value = data?.value;
+    if (typeof value === "string") return value.trim();
+  } catch (err) {
+    console.error(`Failed to load ${key} from app_settings:`, err);
+  }
+  return "";
+
 // Font URLs — fallback Inter (italic) from jsdelivr fontsource CDN.
 // To swap to JustSans: upload TTF files to a public storage bucket and replace these URLs.
 const FONT_URLS = [
@@ -209,7 +226,12 @@ function fitTitle(text: string, maxWidth: number, availableHeight: number) {
   return { lines, fontSize: size, lineHeight: Math.round(size * 1.1) };
 }
 
-function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
+function generateSVG(
+  vehicle: VehicleRow,
+  imageDataUrl: string | null,
+  contactPhone?: string,
+  contactEmail?: string,
+): string {
   const brand = (vehicle.brand || "").toUpperCase();
   const titleRaw = vehicle.model_description || vehicle.title || "";
 
@@ -272,12 +294,25 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
   <rect x="0" y="0" width="1080" height="${HEADER_H}" fill="#10182d"/>
 
   <!-- Header line 1 -->
-  <text x="540" y="200" font-family="Inter" font-weight="900" font-style="italic"
+  <text x="540" y="160" font-family="Inter" font-weight="900" font-style="italic"
         font-size="100" fill="#FFFFFF" text-anchor="middle">Aktuell verfügbar</text>
 
   <!-- Header line 2 -->
-  <text x="540" y="290" font-family="Inter" font-weight="400" font-style="italic"
+  <text x="540" y="235" font-family="Inter" font-weight="400" font-style="italic"
         font-size="50" fill="#FFFFFF" text-anchor="middle">fahrzeuge.reller-automobile.de</text>
+
+  <!-- Header line 3: contact (optional) -->
+  ${(() => {
+    const phone = (contactPhone || "").trim();
+    const email = (contactEmail || "").trim();
+    if (!phone && !email) return "";
+    const parts: string[] = [];
+    if (phone) parts.push(`Tel: ${phone}`);
+    if (email) parts.push(email);
+    const line = parts.join("   •   ");
+    return `<text x="540" y="295" font-family="Inter" font-weight="400" font-style="normal"
+        font-size="38" fill="#FFFFFF" text-anchor="middle">${escapeXml(line)}</text>`;
+  })()}
 
   <!-- Vehicle image (overlaps header by 80px) -->
   ${
@@ -320,7 +355,11 @@ function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
 </svg>`;
 }
 
-async function renderStoryJpg(vehicle: VehicleRow): Promise<Uint8Array | null> {
+async function renderStoryJpg(
+  vehicle: VehicleRow,
+  contactPhone?: string,
+  contactEmail?: string,
+): Promise<Uint8Array | null> {
   const sourceImage = vehicle.image_urls?.[0];
   if (!sourceImage) return null;
 
@@ -328,7 +367,7 @@ async function renderStoryJpg(vehicle: VehicleRow): Promise<Uint8Array | null> {
   await ensureFonts();
 
   const dataUrl = await fetchImageAsDataUrl(sourceImage);
-  const svg = generateSVG(vehicle, dataUrl);
+  const svg = generateSVG(vehicle, dataUrl, contactPhone, contactEmail);
 
   const resvg = new Resvg(svg, {
     background: "#FFFFFF",
@@ -465,6 +504,8 @@ Deno.serve(async (req) => {
       .in("id", body.vehicleIds);
 
     const recipients = await loadStoryRecipients(admin);
+    const contactPhone = await loadStoryContactString(admin, "story_contact_phone");
+    const contactEmail = await loadStoryContactString(admin, "story_contact_email");
 
 
     let generated = 0;
@@ -490,7 +531,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        const imageBytes = await renderStoryJpg(v);
+        const imageBytes = await renderStoryJpg(v, contactPhone, contactEmail);
         if (!imageBytes) continue;
         const publicUrl = await uploadStoryImage(admin, v.id, imageBytes);
         if (!publicUrl) continue;

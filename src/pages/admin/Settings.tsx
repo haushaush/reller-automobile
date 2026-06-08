@@ -4,30 +4,44 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Plus, X } from "lucide-react";
+import { Loader2, Mail, Phone, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 const STORY_RECIPIENTS_KEY = "story_email_recipients";
+const STORY_CONTACT_PHONE_KEY = "story_contact_phone";
+const STORY_CONTACT_EMAIL_KEY = "story_contact_email";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Settings() {
   const [recipients, setRecipients] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingContact, setIsSavingContact] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
         .from("app_settings")
-        .select("value")
-        .eq("key", STORY_RECIPIENTS_KEY)
-        .maybeSingle();
+        .select("key, value")
+        .in("key", [STORY_RECIPIENTS_KEY, STORY_CONTACT_PHONE_KEY, STORY_CONTACT_EMAIL_KEY]);
       if (error) {
         console.error(error);
         toast.error("Einstellungen konnten nicht geladen werden");
-      } else if (data?.value && Array.isArray(data.value)) {
-        setRecipients((data.value as unknown[]).filter((v): v is string => typeof v === "string"));
+      } else if (data) {
+        for (const row of data) {
+          if (row.key === STORY_RECIPIENTS_KEY && Array.isArray(row.value)) {
+            setRecipients(
+              (row.value as unknown[]).filter((v): v is string => typeof v === "string"),
+            );
+          } else if (row.key === STORY_CONTACT_PHONE_KEY && typeof row.value === "string") {
+            setContactPhone(row.value);
+          } else if (row.key === STORY_CONTACT_EMAIL_KEY && typeof row.value === "string") {
+            setContactEmail(row.value);
+          }
+        }
       }
       setIsLoading(false);
     };
@@ -66,6 +80,32 @@ export default function Settings() {
       toast.error("Speichern fehlgeschlagen");
     } else {
       toast.success("Einstellungen gespeichert");
+    }
+  };
+
+  const saveContact = async () => {
+    const email = contactEmail.trim();
+    if (email && !EMAIL_RE.test(email)) {
+      toast.error("Bitte eine gültige E-Mail-Adresse eingeben");
+      return;
+    }
+    setIsSavingContact(true);
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert(
+        [
+          { key: STORY_CONTACT_PHONE_KEY, value: contactPhone.trim(), updated_at: now },
+          { key: STORY_CONTACT_EMAIL_KEY, value: email, updated_at: now },
+        ],
+        { onConflict: "key" },
+      );
+    setIsSavingContact(false);
+    if (error) {
+      console.error(error);
+      toast.error("Speichern fehlgeschlagen");
+    } else {
+      toast.success("Kontaktdaten gespeichert");
     }
   };
 
@@ -148,6 +188,47 @@ export default function Settings() {
         <div className="flex justify-end pt-2">
           <Button onClick={save} disabled={isSaving}>
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Speichern
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold">Story-Kontaktdaten</h2>
+            <p className="text-sm text-muted-foreground">
+              Diese Daten erscheinen unten im Story-Bild. Leer lassen = keine Anzeige.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="contact-phone">Telefonnummer (auf der Story)</Label>
+          <Input
+            id="contact-phone"
+            type="tel"
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+            placeholder="+49 ..."
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="contact-email">E-Mail (auf der Story)</Label>
+          <Input
+            id="contact-email"
+            type="email"
+            value={contactEmail}
+            onChange={(e) => setContactEmail(e.target.value)}
+            placeholder="name@beispiel.de"
+          />
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button onClick={saveContact} disabled={isSavingContact}>
+            {isSavingContact && <Loader2 className="h-4 w-4 animate-spin" />}
             Speichern
           </Button>
         </div>
