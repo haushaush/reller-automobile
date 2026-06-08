@@ -277,12 +277,25 @@ function generateSVG(
   <rect x="0" y="0" width="1080" height="${HEADER_H}" fill="#10182d"/>
 
   <!-- Header line 1 -->
-  <text x="540" y="200" font-family="Inter" font-weight="900" font-style="italic"
+  <text x="540" y="160" font-family="Inter" font-weight="900" font-style="italic"
         font-size="100" fill="#FFFFFF" text-anchor="middle">Aktuell verfügbar</text>
 
   <!-- Header line 2 -->
-  <text x="540" y="290" font-family="Inter" font-weight="400" font-style="italic"
+  <text x="540" y="235" font-family="Inter" font-weight="400" font-style="italic"
         font-size="50" fill="#FFFFFF" text-anchor="middle">fahrzeuge.reller-automobile.de</text>
+
+  <!-- Header line 3: contact (optional) -->
+  ${(() => {
+    const phone = (contactPhone || "").trim();
+    const email = (contactEmail || "").trim();
+    if (!phone && !email) return "";
+    const parts: string[] = [];
+    if (phone) parts.push(`Tel: ${phone}`);
+    if (email) parts.push(email);
+    const line = parts.join("   •   ");
+    return `<text x="540" y="295" font-family="Inter" font-weight="400" font-style="normal"
+        font-size="38" fill="#FFFFFF" text-anchor="middle">${escapeXml(line)}</text>`;
+  })()}
 
   <!-- Vehicle image (overlaps header by 80px) -->
   ${
