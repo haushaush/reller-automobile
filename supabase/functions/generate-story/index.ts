@@ -15,12 +15,34 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
-// Story-E-Mails gehen NUR an digital@haushhaush.de.
-// Optional via Edge-Secret STORY_EMAIL_RECIPIENT überschreibbar.
-// (Inquiries und Alerts haben separate Empfänger in ihren eigenen Functions.)
-const STORY_EMAIL_RECIPIENTS = (
+// Story-Empfänger werden primär aus public.app_settings (key 'story_email_recipients')
+// geladen. Fallback: Edge-Secret STORY_EMAIL_RECIPIENT, danach harte Defaults.
+const STORY_EMAIL_DEFAULTS = (
   Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de,digital@haushhaush.de"
 ).split(",").map((e) => e.trim()).filter(Boolean);
+
+async function loadStoryRecipients(
+  admin: ReturnType<typeof createClient>,
+): Promise<string[]> {
+  try {
+    const { data } = await admin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "story_email_recipients")
+      .maybeSingle();
+    const value = data?.value;
+    if (Array.isArray(value)) {
+      const emails = (value as unknown[])
+        .filter((v): v is string => typeof v === "string")
+        .map((e) => e.trim())
+        .filter(Boolean);
+      if (emails.length > 0) return emails;
+    }
+  } catch (err) {
+    console.error("Failed to load story recipients from app_settings:", err);
+  }
+  return STORY_EMAIL_DEFAULTS;
+}
 
 // Font URLs — fallback Inter (italic) from jsdelivr fontsource CDN.
 // To swap to JustSans: upload TTF files to a public storage bucket and replace these URLs.
@@ -357,6 +379,7 @@ async function sendDealerEmail(
   vehicle: VehicleRow,
   storyId: string,
   storyUrl: string,
+  recipients: string[],
 ) {
   try {
     const adminWithAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -365,7 +388,7 @@ async function sendDealerEmail(
       },
     });
 
-    await Promise.all(STORY_EMAIL_RECIPIENTS.map((recipient) =>
+    await Promise.all(recipients.map((recipient) =>
       adminWithAuth.functions.invoke("send-transactional-email", {
         body: {
           templateName: "stories-digest",
@@ -441,6 +464,9 @@ Deno.serve(async (req) => {
       )
       .in("id", body.vehicleIds);
 
+    const recipients = await loadStoryRecipients(admin);
+
+
     let generated = 0;
     let resent = 0;
     for (const v of (vehicles ?? []) as VehicleRow[]) {
@@ -454,7 +480,7 @@ Deno.serve(async (req) => {
             .limit(1)
             .maybeSingle();
           if (existing?.story_image_url) {
-            await sendDealerEmail(admin, v, existing.id, existing.story_image_url);
+            await sendDealerEmail(admin, v, existing.id, existing.story_image_url, recipients);
             await admin
               .from("vehicle_stories")
               .update({ sent_to_dealer: true, sent_at: new Date().toISOString() })
@@ -476,7 +502,7 @@ Deno.serve(async (req) => {
           sent_at: new Date().toISOString(),
         }).select("id").single();
         if (inserted?.id) {
-          await sendDealerEmail(admin, v, inserted.id, publicUrl);
+          await sendDealerEmail(admin, v, inserted.id, publicUrl, recipients);
         }
         generated++;
       } catch (err) {
