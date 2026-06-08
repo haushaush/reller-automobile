@@ -464,6 +464,9 @@ Deno.serve(async (req) => {
       )
       .in("id", body.vehicleIds);
 
+    const recipients = await loadStoryRecipients(admin);
+
+
     let generated = 0;
     let resent = 0;
     for (const v of (vehicles ?? []) as VehicleRow[]) {
@@ -477,7 +480,7 @@ Deno.serve(async (req) => {
             .limit(1)
             .maybeSingle();
           if (existing?.story_image_url) {
-            await sendDealerEmail(admin, v, existing.id, existing.story_image_url);
+            await sendDealerEmail(admin, v, existing.id, existing.story_image_url, recipients);
             await admin
               .from("vehicle_stories")
               .update({ sent_to_dealer: true, sent_at: new Date().toISOString() })
@@ -499,7 +502,7 @@ Deno.serve(async (req) => {
           sent_at: new Date().toISOString(),
         }).select("id").single();
         if (inserted?.id) {
-          await sendDealerEmail(admin, v, inserted.id, publicUrl);
+          await sendDealerEmail(admin, v, inserted.id, publicUrl, recipients);
         }
         generated++;
       } catch (err) {
