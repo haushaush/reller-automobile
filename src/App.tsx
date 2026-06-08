@@ -31,6 +31,7 @@ const InquiryDetail = lazy(() => import("./pages/admin/InquiryDetail"));
 const AlertsAdmin = lazy(() => import("./pages/admin/AlertsAdmin"));
 const StoryArchive = lazy(() => import("./pages/admin/StoryArchive"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
+const VehicleCreate = lazy(() => import("./pages/admin/VehicleCreate"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,6 +83,7 @@ const App = () => (
                       <Route path="stories" element={<StoryGenerator />} />
                       <Route path="story-archive" element={<StoryArchive />} />
                       <Route path="settings" element={<Settings />} />
+                      <Route path="vehicles/new" element={<VehicleCreate />} />
                     </Route>
                     <Route path="*" element={<NotFound />} />
                   </Routes>

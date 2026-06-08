@@ -10,6 +10,7 @@ import {
   LogOut,
   ArrowLeft,
   Menu,
+  Plus,
   Settings,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +28,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Übersicht", path: "/admin", icon: LayoutDashboard, exact: true },
+  { label: "Auto hinzufügen", path: "/admin/vehicles/new", icon: Plus },
   { label: "Sync-Status", path: "/admin/sync", icon: RefreshCw },
   { label: "Anfragen", path: "/admin/inquiries", icon: Mail, badgeKey: "inquiries" },
   { label: "Suchaufträge", path: "/admin/alerts", icon: Bell },
