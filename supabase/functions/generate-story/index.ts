@@ -209,7 +209,12 @@ function fitTitle(text: string, maxWidth: number, availableHeight: number) {
   return { lines, fontSize: size, lineHeight: Math.round(size * 1.1) };
 }
 
-function generateSVG(vehicle: VehicleRow, imageDataUrl: string | null): string {
+function generateSVG(
+  vehicle: VehicleRow,
+  imageDataUrl: string | null,
+  contactPhone?: string,
+  contactEmail?: string,
+): string {
   const brand = (vehicle.brand || "").toUpperCase();
   const titleRaw = vehicle.model_description || vehicle.title || "";
 
