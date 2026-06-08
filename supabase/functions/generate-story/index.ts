@@ -54,12 +54,30 @@ async function loadStoryContactString(
       .select("value")
       .eq("key", key)
       .maybeSingle();
-    const value = data?.value;
-    if (typeof value === "string") return value.trim();
+    const raw = data?.value;
+    if (raw === null || raw === undefined) return "";
+    if (typeof raw !== "string") return "";
+    let out = raw.trim();
+    // Handle double-encoded JSON strings like "\"foo@bar.de\""
+    if (out.startsWith('"') && out.endsWith('"')) {
+      try {
+        const parsed = JSON.parse(out);
+        if (typeof parsed === "string") out = parsed.trim();
+      } catch {
+        // not valid JSON; strip surrounding quotes below
+      }
+    }
+    // Final safety: strip any remaining surrounding quotes
+    if (out.startsWith('"') && out.endsWith('"')) {
+      out = out.slice(1, -1).trim();
+    }
+    return out;
   } catch (err) {
     console.error(`Failed to load ${key} from app_settings:`, err);
+    return "";
   }
-  return "";
+}
+
 
 // Font URLs — fallback Inter (italic) from jsdelivr fontsource CDN.
 // To swap to JustSans: upload TTF files to a public storage bucket and replace these URLs.
@@ -506,6 +524,7 @@ Deno.serve(async (req) => {
     const recipients = await loadStoryRecipients(admin);
     const contactPhone = await loadStoryContactString(admin, "story_contact_phone");
     const contactEmail = await loadStoryContactString(admin, "story_contact_email");
+    console.log("Story contact loaded:", { contactPhone, contactEmail });
 
 
     let generated = 0;
