@@ -531,7 +531,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        const imageBytes = await renderStoryJpg(v);
+        const imageBytes = await renderStoryJpg(v, contactPhone, contactEmail);
         if (!imageBytes) continue;
         const publicUrl = await uploadStoryImage(admin, v.id, imageBytes);
         if (!publicUrl) continue;
