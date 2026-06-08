@@ -44,6 +44,23 @@ async function loadStoryRecipients(
   return STORY_EMAIL_DEFAULTS;
 }
 
+async function loadStoryContactString(
+  admin: ReturnType<typeof createClient>,
+  key: "story_contact_phone" | "story_contact_email",
+): Promise<string> {
+  try {
+    const { data } = await admin
+      .from("app_settings")
+      .select("value")
+      .eq("key", key)
+      .maybeSingle();
+    const value = data?.value;
+    if (typeof value === "string") return value.trim();
+  } catch (err) {
+    console.error(`Failed to load ${key} from app_settings:`, err);
+  }
+  return "";
+
 // Font URLs — fallback Inter (italic) from jsdelivr fontsource CDN.
 // To swap to JustSans: upload TTF files to a public storage bucket and replace these URLs.
 const FONT_URLS = [
