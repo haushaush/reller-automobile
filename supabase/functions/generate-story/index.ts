@@ -504,6 +504,8 @@ Deno.serve(async (req) => {
       .in("id", body.vehicleIds);
 
     const recipients = await loadStoryRecipients(admin);
+    const contactPhone = await loadStoryContactString(admin, "story_contact_phone");
+    const contactEmail = await loadStoryContactString(admin, "story_contact_email");
 
 
     let generated = 0;
