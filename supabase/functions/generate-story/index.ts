@@ -524,6 +524,7 @@ Deno.serve(async (req) => {
     const recipients = await loadStoryRecipients(admin);
     const contactPhone = await loadStoryContactString(admin, "story_contact_phone");
     const contactEmail = await loadStoryContactString(admin, "story_contact_email");
+    console.log("Story contact loaded:", { contactPhone, contactEmail });
 
 
     let generated = 0;
