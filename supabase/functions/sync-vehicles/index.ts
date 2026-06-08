@@ -220,6 +220,18 @@ function parseAds(xmlText: string, opts: ParseOpts = {}): VehicleRow[] {
     const rawId = attr(full, "ad:ad", "key") || `unknown-${rows.length}`;
     const mobileDeId = `${idPrefix}${rawId}`;
 
+    if (rows.length < 3) {
+      console.log("VIN-CHECK", {
+        id: mobileDeId,
+        vin: attr(content, "ad:vin", "value"),
+        altVin: attr(content, "ad:vehicle-identification-number", "value"),
+        fin: attr(content, "ad:fin", "value"),
+        chassis: attr(content, "ad:chassis-number", "value"),
+        vinText: textContent(content, "ad:vin"),
+        finText: textContent(content, "ad:fin"),
+      });
+    }
+
     const makeName = localDesc(content, "ad:make");
     const modelName = localDesc(content, "ad:model");
     const modelDesc = attr(content, "ad:model-description", "value");
