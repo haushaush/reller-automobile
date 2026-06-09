@@ -105,9 +105,10 @@ Deno.serve(async (req) => {
     });
 
     const baseKey = `stories-digest-${stories.map((s) => s.id).sort().join("-")}`;
+    const recipients = await loadRecipients(admin);
 
     const results = await Promise.all(
-      RECIPIENTS.map((recipient) =>
+      recipients.map((recipient) =>
         adminWithAuth.functions.invoke("send-transactional-email", {
           body: {
             templateName: "stories-digest",
@@ -124,7 +125,7 @@ Deno.serve(async (req) => {
     );
 
     const failed = results.filter((r) => r.error);
-    if (failed.length === RECIPIENTS.length) {
+    if (failed.length === recipients.length && recipients.length > 0) {
       console.error("send-transactional-email failed for all:", failed);
       return new Response(JSON.stringify({ error: "Email send failed", details: failed.map((f) => String(f.error)) }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -140,7 +141,7 @@ Deno.serve(async (req) => {
       .update({ sent_to_dealer: true, sent_at: nowIso })
       .in("id", stories.map((s) => s.id));
 
-    return new Response(JSON.stringify({ sent: stories.length, recipients: RECIPIENTS, failed: failed.map((f) => f.recipient) }), {
+    return new Response(JSON.stringify({ sent: stories.length, recipients, failed: failed.map((f) => f.recipient) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
