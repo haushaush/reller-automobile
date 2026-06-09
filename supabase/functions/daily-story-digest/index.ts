@@ -53,6 +53,39 @@ Deno.serve(async (req) => {
   const force = url.searchParams.get("force") === "true";
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  // Auth: accept service-role (cron) OR an authenticated admin user (manual test).
+  try {
+    const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : "";
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (token !== SUPABASE_SERVICE_ROLE_KEY) {
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims?.sub) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: roleRow } = await admin
+        .from("user_roles").select("role")
+        .eq("user_id", claimsData.claims.sub as string).eq("role", "admin").maybeSingle();
+      if (!roleRow) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+  } catch (err) {
+    console.error("daily-story-digest: auth check failed", err);
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const enabled = await loadSetting<boolean>(admin, ENABLED_KEY);
     if (!force && enabled !== true) {
