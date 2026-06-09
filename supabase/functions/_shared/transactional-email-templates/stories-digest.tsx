@@ -11,6 +11,7 @@ interface Story {
   title?: string
   brand?: string
   price?: string
+  exposeUrl?: string
 }
 
 interface StoriesDigestProps {
@@ -18,6 +19,7 @@ interface StoriesDigestProps {
   note?: string
   count?: number
 }
+
 
 const StoriesDigestEmail = ({ stories = [], note, count }: StoriesDigestProps) => {
   const total = count ?? stories.length
@@ -52,11 +54,17 @@ const StoriesDigestEmail = ({ stories = [], note, count }: StoriesDigestProps) =
               <Text style={small}>
                 <Link href={s.imageUrl} style={button}>Bild im Browser öffnen</Link>
               </Text>
+              {s.exposeUrl ? (
+                <Text style={small}>
+                  <Link href={s.exposeUrl} style={exposeButton}>📄 Exposé herunterladen (PDF)</Link>
+                </Text>
+              ) : null}
               <Text style={hint}>
                 Falls das Speichern aus der Mail nicht klappt: Button antippen, dann im Browser lange auf das Bild tippen → „In Fotos sichern".
               </Text>
             </Section>
           ))}
+
           <Text style={footer}>
             Automatisch versendet aus dem {SITE_NAME} Story-Archiv.
           </Text>
@@ -110,3 +118,15 @@ const howBox = { padding: '14px 16px', backgroundColor: '#f7f7f5', borderRadius:
 const howText = { fontSize: '13px', color: '#333', margin: '4px 0', lineHeight: '1.5' }
 const hint = { fontSize: '12px', color: '#888', margin: '8px 0 0', lineHeight: '1.4' }
 const footer = { fontSize: '12px', color: '#888', marginTop: '24px' }
+const exposeButton = {
+  display: 'inline-block',
+  padding: '10px 16px',
+  backgroundColor: '#c0392b',
+  color: '#fff',
+  borderRadius: '8px',
+  textDecoration: 'none',
+  fontWeight: 600 as const,
+  fontSize: '13px',
+  marginTop: '4px',
+}
+
