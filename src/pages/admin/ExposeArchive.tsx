@@ -1,16 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +25,16 @@ import {
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
+import FilterBar, { Filters } from "@/components/FilterBar";
+import ActiveFilters from "@/components/ActiveFilters";
+import {
+  toLabelOptions,
+  getBodyTypeLabel,
+  getFuelLabel,
+  getGearboxLabel,
+} from "@/lib/mobileDeLabels";
+import { useFuzzySearch } from "@/hooks/useFuzzySearch";
+import { calculateRelevanceScore } from "@/lib/relevanceScore";
 import type { Vehicle } from "@/hooks/useVehicles";
 
 interface ExposeRow {
@@ -52,24 +54,64 @@ interface VehicleRow {
   currency: string | null;
   image_urls: string[] | null;
   is_sold: boolean;
+  category: string | null;
+  body_type: string | null;
+  year: string | null;
+  mileage: number | null;
+  fuel: string | null;
+  power: number | null;
+  gearbox: string | null;
+  exterior_color: string | null;
   creation_date: string | null;
+  synced_at: string | null;
+  vehicle_category: string | null;
 }
+
+const defaultFilters: Filters = {
+  search: "",
+  category: "all",
+  brand: "all",
+  bodyType: "all",
+  yearFrom: "",
+  yearTo: "",
+  mileageFrom: "",
+  mileageTo: "",
+  sort: "newest",
+  fuel: "all",
+  powerFrom: "",
+  powerTo: "",
+  gearbox: "all",
+  priceFrom: "",
+  priceTo: "",
+  color: "all",
+  status: "available",
+  recentOnly: "",
+};
+
+const selectFilterKeys: (keyof Filters)[] = [
+  "category",
+  "brand",
+  "bodyType",
+  "sort",
+  "fuel",
+  "gearbox",
+  "color",
+  "status",
+];
 
 export default function ExposeArchive() {
   const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
   const [exposeMap, setExposeMap] = useState<Map<string, ExposeRow>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [dateFilter, setDateFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all"); // all | with | without
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
 
   const loadData = useCallback(async () => {
     const [vehiclesRes, exposesRes] = await Promise.all([
       supabase
         .from("vehicles")
         .select(
-          "id, title, brand, model, model_description, price, currency, image_urls, is_sold, creation_date",
+          "id, title, brand, model, model_description, price, currency, image_urls, is_sold, category, body_type, year, mileage, fuel, power, gearbox, exterior_color, creation_date, synced_at, vehicle_category",
         )
         .order("creation_date", { ascending: false, nullsFirst: false }),
       supabase.from("vehicle_exposes").select("id, vehicle_id, pdf_url, updated_at"),
@@ -134,7 +176,6 @@ export default function ExposeArchive() {
   const generateExpose = async (v: VehicleRow) => {
     setBusyId(v.id);
     try {
-      // Need full vehicle for PDF template — fetch all columns.
       const { data: full, error: vErr } = await supabase
         .from("vehicles")
         .select("*")
@@ -239,30 +280,128 @@ export default function ExposeArchive() {
     }
   };
 
-  const filtered = vehicles.filter((v) => {
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      if (
-        !v.title.toLowerCase().includes(q) &&
-        !(v.brand?.toLowerCase().includes(q) ?? false)
-      ) {
-        return false;
-      }
+  // ---------- Derived option lists (identical pattern to StoryGenerator) ----------
+  const brands = useMemo(
+    () => [...new Set(vehicles.map((v) => v.brand).filter(Boolean) as string[])].sort(),
+    [vehicles],
+  );
+  const bodyTypes = useMemo(
+    () => toLabelOptions(vehicles.map((v) => v.body_type), getBodyTypeLabel),
+    [vehicles],
+  );
+  const categories = useMemo(
+    () => [...new Set(vehicles.map((v) => v.category).filter(Boolean) as string[])].sort(),
+    [vehicles],
+  );
+  const fuels = useMemo(
+    () => toLabelOptions(vehicles.map((v) => v.fuel), getFuelLabel),
+    [vehicles],
+  );
+  const gearboxes = useMemo(
+    () => toLabelOptions(vehicles.map((v) => v.gearbox), getGearboxLabel),
+    [vehicles],
+  );
+  const colors = useMemo(
+    () => [...new Set(vehicles.map((v) => v.exterior_color).filter(Boolean) as string[])].sort(),
+    [vehicles],
+  );
+
+  const handleFilterChange = useCallback((key: keyof Filters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const handleRemoveFilter = useCallback((key: keyof Filters) => {
+    setFilters((prev) => ({
+      ...prev,
+      [key]: selectFilterKeys.includes(key) ? (key === "status" ? "available" : "all") : "",
+    }));
+  }, []);
+
+  const handleResetAll = useCallback(() => {
+    setFilters(defaultFilters);
+  }, []);
+
+  const searched = useFuzzySearch(vehicles as never, filters.search) as VehicleRow[];
+  const isSearchActive = filters.search.trim().length >= 2;
+
+  const filtered = useMemo(() => {
+    let result = [...searched];
+
+    if (filters.status === "available") result = result.filter((v) => !v.is_sold);
+    else if (filters.status === "sold") result = result.filter((v) => v.is_sold);
+
+    if (filters.category !== "all") result = result.filter((v) => v.category === filters.category);
+    if (filters.brand !== "all") result = result.filter((v) => v.brand === filters.brand);
+    if (filters.bodyType !== "all") result = result.filter((v) => v.body_type === filters.bodyType);
+    if (filters.yearFrom) result = result.filter((v) => (v.year || "") >= filters.yearFrom);
+    if (filters.yearTo) result = result.filter((v) => (v.year || "") <= filters.yearTo);
+    if (filters.mileageFrom)
+      result = result.filter((v) => (v.mileage || 0) >= Number(filters.mileageFrom));
+    if (filters.mileageTo)
+      result = result.filter((v) => (v.mileage || 0) <= Number(filters.mileageTo));
+    if (filters.fuel !== "all") result = result.filter((v) => v.fuel === filters.fuel);
+    if (filters.gearbox !== "all") result = result.filter((v) => v.gearbox === filters.gearbox);
+    if (filters.color !== "all") result = result.filter((v) => v.exterior_color === filters.color);
+    if (filters.priceFrom)
+      result = result.filter((v) => (v.price || 0) >= Number(filters.priceFrom));
+    if (filters.priceTo)
+      result = result.filter((v) => (v.price || 0) <= Number(filters.priceTo));
+    if (filters.powerFrom) {
+      const kwMin = Number(filters.powerFrom) / 1.36;
+      result = result.filter((v) => (v.power || 0) >= kwMin);
     }
-    const exp = exposeMap.get(v.id);
-    if (statusFilter === "with" && !exp) return false;
-    if (statusFilter === "without" && exp) return false;
-    if (dateFilter !== "all") {
-      if (!exp) return false;
-      const t = new Date(exp.updated_at).getTime();
-      const now = Date.now();
-      const day = 24 * 60 * 60 * 1000;
-      if (dateFilter === "today" && t < now - day) return false;
-      if (dateFilter === "week" && t < now - 7 * day) return false;
-      if (dateFilter === "month" && t < now - 30 * day) return false;
+    if (filters.powerTo) {
+      const kwMax = Number(filters.powerTo) / 1.36;
+      result = result.filter((v) => (v.power || 0) <= kwMax);
     }
-    return true;
-  });
+
+    if (filters.recentOnly) {
+      const days = Number(filters.recentOnly);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      result = result.filter((v) => {
+        const ref = v.creation_date || v.synced_at;
+        if (!ref) return false;
+        return new Date(ref) >= cutoff;
+      });
+    }
+
+    if (isSearchActive) {
+      const query = filters.search.trim();
+      const scoreMap = new Map<string, number>();
+      for (const v of result) scoreMap.set(v.id, calculateRelevanceScore(v as never, query));
+      result = result.filter((v) => (scoreMap.get(v.id) || 0) > 0);
+      result.sort((a, b) => {
+        if (a.is_sold !== b.is_sold) return a.is_sold ? 1 : -1;
+        return (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0);
+      });
+    } else {
+      const sortFn = (a: VehicleRow, b: VehicleRow): number => {
+        switch (filters.sort) {
+          case "year-asc":
+            return (a.year || "").localeCompare(b.year || "");
+          case "year-desc":
+            return (b.year || "").localeCompare(a.year || "");
+          case "mileage-asc":
+            return (a.mileage || 0) - (b.mileage || 0);
+          case "mileage-desc":
+            return (b.mileage || 0) - (a.mileage || 0);
+          case "price-asc":
+            return (a.price || 0) - (b.price || 0);
+          case "price-desc":
+            return (b.price || 0) - (a.price || 0);
+          default:
+            return (b.year || "").localeCompare(a.year || "");
+        }
+      };
+      result.sort((a, b) => {
+        if (a.is_sold !== b.is_sold) return a.is_sold ? 1 : -1;
+        return sortFn(a, b);
+      });
+    }
+
+    return result;
+  }, [filters, searched, isSearchActive]);
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-24 md:pb-0">
@@ -273,37 +412,32 @@ export default function ExposeArchive() {
         </p>
       </div>
 
-      <Card className="p-3 sm:p-4">
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <Input
-            placeholder="Fahrzeug suchen…"
-            value={searchQuery}
-            onChange={(ev) => setSearchQuery(ev.target.value)}
-            className="flex-1 h-11 sm:h-10"
-          />
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-48 h-11 sm:h-10">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Fahrzeuge</SelectItem>
-              <SelectItem value="with">Mit Exposé</SelectItem>
-              <SelectItem value="without">Ohne Exposé</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-full sm:w-48 h-11 sm:h-10">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Zeiträume</SelectItem>
-              <SelectItem value="today">Heute erzeugt</SelectItem>
-              <SelectItem value="week">Letzte 7 Tage</SelectItem>
-              <SelectItem value="month">Letzter Monat</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <Card className="p-4">
+        <FilterBar
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          brands={brands}
+          bodyTypes={bodyTypes}
+          categories={categories}
+          fuels={fuels}
+          gearboxes={gearboxes}
+          colors={colors}
+          showCategorySelect={true}
+          sortDisabled={isSearchActive}
+        />
       </Card>
+
+      <ActiveFilters
+        filters={filters}
+        onRemove={handleRemoveFilter}
+        onResetAll={handleResetAll}
+      />
+
+      <p className="text-sm text-muted-foreground">
+        {isLoading
+          ? "Lade Fahrzeuge..."
+          : `${filtered.length} Fahrzeug${filtered.length !== 1 ? "e" : ""} gefunden`}
+      </p>
 
       {isLoading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
