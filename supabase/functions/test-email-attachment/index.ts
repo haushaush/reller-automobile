@@ -53,7 +53,9 @@ Deno.serve(async (req) => {
     label: 'attachment-test',
     idempotency_key: `attachment-test-${variant}-${Date.now()}`,
     message_id: `attachment-test-${variant}-${crypto.randomUUID()}`,
+    unsubscribe_token: `test-token-${crypto.randomUUID().replaceAll('-', '')}`,
   }
+
 
   const attachmentObj = {
     filename: 'test.pdf',
