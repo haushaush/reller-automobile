@@ -312,6 +312,70 @@ export default function Settings() {
           </Button>
         </div>
       </Card>
+
+      <Card className="p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold">Tägliche Story-Mail</h2>
+            <p className="text-sm text-muted-foreground">
+              Verschickt einmal täglich eine Mail mit Story-Bildern aller Fahrzeuge,
+              die in den letzten 24 Stunden hinzugefügt wurden. Empfänger = die oben
+              konfigurierten Story-Empfänger.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+          <Label htmlFor="digest-enabled" className="cursor-pointer">
+            Täglichen Versand aktivieren
+          </Label>
+          <Switch
+            id="digest-enabled"
+            checked={digestEnabled}
+            onCheckedChange={setDigestEnabled}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="digest-hour">Versand-Uhrzeit (Europe/Berlin)</Label>
+          <Select
+            value={String(digestHour)}
+            onValueChange={(v) => setDigestHour(parseInt(v, 10))}
+          >
+            <SelectTrigger id="digest-hour">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 24 }, (_, h) => (
+                <SelectItem key={h} value={String(h)}>
+                  {String(h).padStart(2, "0")}:00
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={testDigestForce}
+            disabled={isTestingDigest}
+          >
+            {isTestingDigest ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            Daily-Digest jetzt testen
+          </Button>
+          <Button onClick={saveDigest} disabled={isSavingDigest}>
+            {isSavingDigest && <Loader2 className="h-4 w-4 animate-spin" />}
+            Speichern
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
