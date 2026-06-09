@@ -3,6 +3,7 @@ import Navbar from "@/components/Navbar";
 import SiteFooter from "@/components/SiteFooter";
 import VehicleListGrid from "@/components/VehicleListGrid";
 import { CATEGORIES } from "@/lib/categories";
+import PublicSalesStats from "@/components/PublicSalesStats";
 import { useVehicleCounts } from "@/hooks/useVehicleCounts";
 
 const Hub = () => {
@@ -20,6 +21,10 @@ const Hub = () => {
           Reller Automobile GmbH
         </p>
       </header>
+
+      <section className="max-w-7xl mx-auto px-4 mb-10">
+        <PublicSalesStats />
+      </section>
 
       <section className="max-w-7xl mx-auto px-4 mb-12">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
