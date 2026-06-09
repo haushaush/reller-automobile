@@ -29,28 +29,30 @@ Deno.serve(async (req) => {
       });
     }
     const token = authHeader.replace("Bearer ", "");
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims?.sub) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const userId = claimsData.claims.sub as string;
-
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // Service-role bypass: internal callers (cron, daily-story-digest) skip the admin check.
+    if (token !== SUPABASE_SERVICE_ROLE_KEY) {
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims?.sub) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const userId = claimsData.claims.sub as string;
+      const { data: roleRow } = await admin
+        .from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
+      if (!roleRow) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
     const adminWithAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       global: {
         headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
       },
     });
-    const { data: roleRow } = await admin
-      .from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
-    if (!roleRow) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const body = (await req.json()) as RequestBody;
     if (!Array.isArray(body.storyIds) || body.storyIds.length === 0) {
