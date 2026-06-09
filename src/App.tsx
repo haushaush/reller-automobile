@@ -33,6 +33,7 @@ const StoryArchive = lazy(() => import("./pages/admin/StoryArchive"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const VehicleCreate = lazy(() => import("./pages/admin/VehicleCreate"));
 const Accounts = lazy(() => import("./pages/admin/Accounts"));
+const ExposeArchive = lazy(() => import("./pages/admin/ExposeArchive"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
