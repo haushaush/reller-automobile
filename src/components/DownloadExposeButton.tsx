@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import type { Vehicle } from "@/hooks/useVehicles";
 
 interface DownloadExposeButtonProps {
@@ -20,6 +21,8 @@ const DownloadExposeButton = ({ vehicle }: DownloadExposeButtonProps) => {
       ]);
 
       const blob = await pdf(<VehicleExpose vehicle={vehicle} />).toBlob();
+
+      // Trigger local download immediately so the user always gets the file.
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const brand = vehicle.brand || "Fahrzeug";
@@ -30,6 +33,41 @@ const DownloadExposeButton = ({ vehicle }: DownloadExposeButtonProps) => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      // Best-effort: archive the PDF (admins only — anonymous users will be
+      // rejected by RLS, which is fine and silent).
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const user = sessionData.session?.user;
+        if (!user) return;
+
+        const path = `exposes/${vehicle.id}.pdf`;
+        const { error: uploadError } = await supabase.storage
+          .from("vehicle-exposes")
+          .upload(path, blob, {
+            contentType: "application/pdf",
+            upsert: true,
+          });
+        if (uploadError) {
+          console.warn("Expose upload failed:", uploadError.message);
+          return;
+        }
+
+        const { error: dbError } = await supabase
+          .from("vehicle_exposes")
+          .upsert(
+            {
+              vehicle_id: vehicle.id,
+              pdf_url: path,
+              created_by: user.id,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "vehicle_id" },
+          );
+        if (dbError) console.warn("Expose DB upsert failed:", dbError.message);
+      } catch (archiveErr) {
+        console.warn("Expose archive skipped:", archiveErr);
+      }
     } catch (err) {
       console.error("PDF generation failed:", err);
     } finally {
