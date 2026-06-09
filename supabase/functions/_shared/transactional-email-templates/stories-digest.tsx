@@ -54,11 +54,17 @@ const StoriesDigestEmail = ({ stories = [], note, count }: StoriesDigestProps) =
               <Text style={small}>
                 <Link href={s.imageUrl} style={button}>Bild im Browser öffnen</Link>
               </Text>
+              {s.exposeUrl ? (
+                <Text style={small}>
+                  <Link href={s.exposeUrl} style={exposeButton}>📄 Exposé herunterladen (PDF)</Link>
+                </Text>
+              ) : null}
               <Text style={hint}>
                 Falls das Speichern aus der Mail nicht klappt: Button antippen, dann im Browser lange auf das Bild tippen → „In Fotos sichern".
               </Text>
             </Section>
           ))}
+
           <Text style={footer}>
             Automatisch versendet aus dem {SITE_NAME} Story-Archiv.
           </Text>
