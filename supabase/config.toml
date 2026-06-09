@@ -1,5 +1,8 @@
 project_id = "aldnsnrcinzuaniepgdw"
 
+[functions.fetch-image]
+verify_jwt = false
+
 [functions.test-email-attachment]
 verify_jwt = false
 
