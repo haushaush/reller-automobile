@@ -33,7 +33,9 @@ async function loadRecipients(admin: ReturnType<typeof createClient>): Promise<s
 interface RequestBody {
   storyIds: string[];
   note?: string;
+  exposeUrls?: Record<string, string>;
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
