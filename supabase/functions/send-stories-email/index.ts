@@ -10,8 +10,25 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const RECIPIENTS = (Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de,digital@haushhaush.de")
+const RECIPIENTS_FALLBACK = (Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de,digital@haushhaush.de")
   .split(",").map((e) => e.trim()).filter(Boolean);
+
+async function loadRecipients(admin: ReturnType<typeof createClient>): Promise<string[]> {
+  try {
+    const { data } = await admin
+      .from("app_settings").select("value").eq("key", "story_email_recipients").maybeSingle();
+    const value = data?.value;
+    if (Array.isArray(value)) {
+      const emails = (value as unknown[])
+        .filter((v): v is string => typeof v === "string")
+        .map((e) => e.trim()).filter(Boolean);
+      if (emails.length > 0) return emails;
+    }
+  } catch (err) {
+    console.error("loadRecipients failed:", err);
+  }
+  return RECIPIENTS_FALLBACK;
+}
 
 interface RequestBody {
   storyIds: string[];
