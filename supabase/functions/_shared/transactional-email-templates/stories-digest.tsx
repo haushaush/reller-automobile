@@ -11,6 +11,7 @@ interface Story {
   title?: string
   brand?: string
   price?: string
+  exposeUrl?: string
 }
 
 interface StoriesDigestProps {
@@ -18,6 +19,7 @@ interface StoriesDigestProps {
   note?: string
   count?: number
 }
+
 
 const StoriesDigestEmail = ({ stories = [], note, count }: StoriesDigestProps) => {
   const total = count ?? stories.length
