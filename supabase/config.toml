@@ -1,5 +1,8 @@
 project_id = "aldnsnrcinzuaniepgdw"
 
+[functions.test-email-attachment]
+verify_jwt = false
+
 [functions.process-email-queue]
 verify_jwt = false
 
