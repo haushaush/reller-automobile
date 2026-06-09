@@ -60,6 +60,10 @@ export default function Settings() {
             setContactPhone(row.value);
           } else if (row.key === STORY_CONTACT_EMAIL_KEY && typeof row.value === "string") {
             setContactEmail(row.value);
+          } else if (row.key === DAILY_DIGEST_ENABLED_KEY && typeof row.value === "boolean") {
+            setDigestEnabled(row.value);
+          } else if (row.key === DAILY_DIGEST_HOUR_KEY && typeof row.value === "number") {
+            setDigestHour(row.value);
           }
         }
       }
