@@ -4,12 +4,22 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Phone, Plus, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, Mail, Phone, Plus, X, Clock, Play } from "lucide-react";
 import { toast } from "sonner";
 
 const STORY_RECIPIENTS_KEY = "story_email_recipients";
 const STORY_CONTACT_PHONE_KEY = "story_contact_phone";
 const STORY_CONTACT_EMAIL_KEY = "story_contact_email";
+const DAILY_DIGEST_ENABLED_KEY = "daily_digest_enabled";
+const DAILY_DIGEST_HOUR_KEY = "daily_digest_hour";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Settings() {
