@@ -118,3 +118,15 @@ const howBox = { padding: '14px 16px', backgroundColor: '#f7f7f5', borderRadius:
 const howText = { fontSize: '13px', color: '#333', margin: '4px 0', lineHeight: '1.5' }
 const hint = { fontSize: '12px', color: '#888', margin: '8px 0 0', lineHeight: '1.4' }
 const footer = { fontSize: '12px', color: '#888', marginTop: '24px' }
+const exposeButton = {
+  display: 'inline-block',
+  padding: '10px 16px',
+  backgroundColor: '#c0392b',
+  color: '#fff',
+  borderRadius: '8px',
+  textDecoration: 'none',
+  fontWeight: 600 as const,
+  fontSize: '13px',
+  marginTop: '4px',
+}
+
