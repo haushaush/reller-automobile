@@ -77,7 +77,7 @@ export default function AdminLayout() {
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
+        {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
           const isActive = item.exact
             ? location.pathname === item.path
             : location.pathname.startsWith(item.path);
