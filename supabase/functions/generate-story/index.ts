@@ -536,6 +536,8 @@ Deno.serve(async (req) => {
 
     let generated = 0;
     let resent = 0;
+    const storyIds: string[] = [];
+    const sendDealer = !body.skipDealerEmail;
     for (const v of (vehicles ?? []) as VehicleRow[]) {
       try {
         if (body.forceResend) {
@@ -547,11 +549,14 @@ Deno.serve(async (req) => {
             .limit(1)
             .maybeSingle();
           if (existing?.story_image_url) {
-            await sendDealerEmail(admin, v, existing.id, existing.story_image_url, recipients);
-            await admin
-              .from("vehicle_stories")
-              .update({ sent_to_dealer: true, sent_at: new Date().toISOString() })
-              .eq("id", existing.id);
+            if (sendDealer) {
+              await sendDealerEmail(admin, v, existing.id, existing.story_image_url, recipients);
+              await admin
+                .from("vehicle_stories")
+                .update({ sent_to_dealer: true, sent_at: new Date().toISOString() })
+                .eq("id", existing.id);
+            }
+            storyIds.push(existing.id);
             resent++;
             continue;
           }
@@ -565,11 +570,14 @@ Deno.serve(async (req) => {
           vehicle_id: v.id,
           story_image_url: publicUrl,
           generated_by: userId,
-          sent_to_dealer: true,
-          sent_at: new Date().toISOString(),
+          sent_to_dealer: sendDealer,
+          sent_at: sendDealer ? new Date().toISOString() : null,
         }).select("id").single();
         if (inserted?.id) {
-          await sendDealerEmail(admin, v, inserted.id, publicUrl, recipients);
+          storyIds.push(inserted.id);
+          if (sendDealer) {
+            await sendDealerEmail(admin, v, inserted.id, publicUrl, recipients);
+          }
         }
         generated++;
       } catch (err) {
@@ -577,7 +585,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ generated, resent }), {
+    return new Response(JSON.stringify({ generated, resent, storyIds }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
