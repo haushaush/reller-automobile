@@ -4,12 +4,22 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Phone, Plus, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, Mail, Phone, Plus, X, Clock, Play } from "lucide-react";
 import { toast } from "sonner";
 
 const STORY_RECIPIENTS_KEY = "story_email_recipients";
 const STORY_CONTACT_PHONE_KEY = "story_contact_phone";
 const STORY_CONTACT_EMAIL_KEY = "story_contact_email";
+const DAILY_DIGEST_ENABLED_KEY = "daily_digest_enabled";
+const DAILY_DIGEST_HOUR_KEY = "daily_digest_hour";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Settings() {
@@ -17,16 +27,26 @@ export default function Settings() {
   const [newEmail, setNewEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [digestEnabled, setDigestEnabled] = useState(false);
+  const [digestHour, setDigestHour] = useState<number>(7);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingContact, setIsSavingContact] = useState(false);
+  const [isSavingDigest, setIsSavingDigest] = useState(false);
+  const [isTestingDigest, setIsTestingDigest] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
         .from("app_settings")
         .select("key, value")
-        .in("key", [STORY_RECIPIENTS_KEY, STORY_CONTACT_PHONE_KEY, STORY_CONTACT_EMAIL_KEY]);
+        .in("key", [
+          STORY_RECIPIENTS_KEY,
+          STORY_CONTACT_PHONE_KEY,
+          STORY_CONTACT_EMAIL_KEY,
+          DAILY_DIGEST_ENABLED_KEY,
+          DAILY_DIGEST_HOUR_KEY,
+        ]);
       if (error) {
         console.error(error);
         toast.error("Einstellungen konnten nicht geladen werden");
@@ -40,6 +60,10 @@ export default function Settings() {
             setContactPhone(row.value);
           } else if (row.key === STORY_CONTACT_EMAIL_KEY && typeof row.value === "string") {
             setContactEmail(row.value);
+          } else if (row.key === DAILY_DIGEST_ENABLED_KEY && typeof row.value === "boolean") {
+            setDigestEnabled(row.value);
+          } else if (row.key === DAILY_DIGEST_HOUR_KEY && typeof row.value === "number") {
+            setDigestHour(row.value);
           }
         }
       }
@@ -106,6 +130,61 @@ export default function Settings() {
       toast.error("Speichern fehlgeschlagen");
     } else {
       toast.success("Kontaktdaten gespeichert");
+    }
+  };
+
+  const saveDigest = async () => {
+    setIsSavingDigest(true);
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert(
+        [
+          { key: DAILY_DIGEST_ENABLED_KEY, value: digestEnabled, updated_at: now },
+          { key: DAILY_DIGEST_HOUR_KEY, value: digestHour, updated_at: now },
+        ],
+        { onConflict: "key" },
+      );
+    setIsSavingDigest(false);
+    if (error) {
+      console.error(error);
+      toast.error("Speichern fehlgeschlagen");
+    } else {
+      toast.success("Einstellungen gespeichert");
+    }
+  };
+
+  // supabase.functions.invoke does not support query params, so we call the
+  // function URL directly to pass ?force=true.
+  const testDigestForce = async () => {
+    setIsTestingDigest(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const projectRef = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const res = await fetch(
+        `https://${projectRef}.supabase.co/functions/v1/daily-story-digest?force=true`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+          body: "{}",
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      console.log("daily-story-digest force test result:", data);
+      const sent = (data as { sent?: number })?.sent ?? 0;
+      const reason = (data as { reason?: string; skipped?: string })?.reason
+        ?? (data as { skipped?: string })?.skipped;
+      if (sent > 0) toast.success(`Test erfolgreich: ${sent} Story(s) versendet`);
+      else toast.message(`Kein Versand (${reason ?? "ok"})`);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Test fehlgeschlagen: ${(err as Error).message}`);
+    } finally {
+      setIsTestingDigest(false);
     }
   };
 
@@ -229,6 +308,70 @@ export default function Settings() {
         <div className="flex justify-end pt-2">
           <Button onClick={saveContact} disabled={isSavingContact}>
             {isSavingContact && <Loader2 className="h-4 w-4 animate-spin" />}
+            Speichern
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold">Tägliche Story-Mail</h2>
+            <p className="text-sm text-muted-foreground">
+              Verschickt einmal täglich eine Mail mit Story-Bildern aller Fahrzeuge,
+              die in den letzten 24 Stunden hinzugefügt wurden. Empfänger = die oben
+              konfigurierten Story-Empfänger.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+          <Label htmlFor="digest-enabled" className="cursor-pointer">
+            Täglichen Versand aktivieren
+          </Label>
+          <Switch
+            id="digest-enabled"
+            checked={digestEnabled}
+            onCheckedChange={setDigestEnabled}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="digest-hour">Versand-Uhrzeit (Europe/Berlin)</Label>
+          <Select
+            value={String(digestHour)}
+            onValueChange={(v) => setDigestHour(parseInt(v, 10))}
+          >
+            <SelectTrigger id="digest-hour">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 24 }, (_, h) => (
+                <SelectItem key={h} value={String(h)}>
+                  {String(h).padStart(2, "0")}:00
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={testDigestForce}
+            disabled={isTestingDigest}
+          >
+            {isTestingDigest ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            Daily-Digest jetzt testen
+          </Button>
+          <Button onClick={saveDigest} disabled={isSavingDigest}>
+            {isSavingDigest && <Loader2 className="h-4 w-4 animate-spin" />}
             Speichern
           </Button>
         </div>

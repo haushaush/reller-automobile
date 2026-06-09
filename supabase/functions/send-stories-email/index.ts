@@ -10,8 +10,25 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const RECIPIENTS = (Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de,digital@haushhaush.de")
+const RECIPIENTS_FALLBACK = (Deno.env.get("STORY_EMAIL_RECIPIENT") || "info@reller-automobile.de,digital@haushhaush.de")
   .split(",").map((e) => e.trim()).filter(Boolean);
+
+async function loadRecipients(admin: ReturnType<typeof createClient>): Promise<string[]> {
+  try {
+    const { data } = await admin
+      .from("app_settings").select("value").eq("key", "story_email_recipients").maybeSingle();
+    const value = data?.value;
+    if (Array.isArray(value)) {
+      const emails = (value as unknown[])
+        .filter((v): v is string => typeof v === "string")
+        .map((e) => e.trim()).filter(Boolean);
+      if (emails.length > 0) return emails;
+    }
+  } catch (err) {
+    console.error("loadRecipients failed:", err);
+  }
+  return RECIPIENTS_FALLBACK;
+}
 
 interface RequestBody {
   storyIds: string[];
@@ -29,28 +46,30 @@ Deno.serve(async (req) => {
       });
     }
     const token = authHeader.replace("Bearer ", "");
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims?.sub) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const userId = claimsData.claims.sub as string;
-
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // Service-role bypass: internal callers (cron, daily-story-digest) skip the admin check.
+    if (token !== SUPABASE_SERVICE_ROLE_KEY) {
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims?.sub) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const userId = claimsData.claims.sub as string;
+      const { data: roleRow } = await admin
+        .from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
+      if (!roleRow) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
     const adminWithAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       global: {
         headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
       },
     });
-    const { data: roleRow } = await admin
-      .from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
-    if (!roleRow) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const body = (await req.json()) as RequestBody;
     if (!Array.isArray(body.storyIds) || body.storyIds.length === 0) {
@@ -86,9 +105,10 @@ Deno.serve(async (req) => {
     });
 
     const baseKey = `stories-digest-${stories.map((s) => s.id).sort().join("-")}`;
+    const recipients = await loadRecipients(admin);
 
     const results = await Promise.all(
-      RECIPIENTS.map((recipient) =>
+      recipients.map((recipient) =>
         adminWithAuth.functions.invoke("send-transactional-email", {
           body: {
             templateName: "stories-digest",
@@ -105,7 +125,7 @@ Deno.serve(async (req) => {
     );
 
     const failed = results.filter((r) => r.error);
-    if (failed.length === RECIPIENTS.length) {
+    if (failed.length === recipients.length && recipients.length > 0) {
       console.error("send-transactional-email failed for all:", failed);
       return new Response(JSON.stringify({ error: "Email send failed", details: failed.map((f) => String(f.error)) }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -121,7 +141,7 @@ Deno.serve(async (req) => {
       .update({ sent_to_dealer: true, sent_at: nowIso })
       .in("id", stories.map((s) => s.id));
 
-    return new Response(JSON.stringify({ sent: stories.length, recipients: RECIPIENTS, failed: failed.map((f) => f.recipient) }), {
+    return new Response(JSON.stringify({ sent: stories.length, recipients, failed: failed.map((f) => f.recipient) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
