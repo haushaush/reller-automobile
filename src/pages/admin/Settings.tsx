@@ -133,6 +133,61 @@ export default function Settings() {
     }
   };
 
+  const saveDigest = async () => {
+    setIsSavingDigest(true);
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert(
+        [
+          { key: DAILY_DIGEST_ENABLED_KEY, value: digestEnabled, updated_at: now },
+          { key: DAILY_DIGEST_HOUR_KEY, value: digestHour, updated_at: now },
+        ],
+        { onConflict: "key" },
+      );
+    setIsSavingDigest(false);
+    if (error) {
+      console.error(error);
+      toast.error("Speichern fehlgeschlagen");
+    } else {
+      toast.success("Einstellungen gespeichert");
+    }
+  };
+
+  // supabase.functions.invoke does not support query params, so we call the
+  // function URL directly to pass ?force=true.
+  const testDigestForce = async () => {
+    setIsTestingDigest(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const projectRef = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const res = await fetch(
+        `https://${projectRef}.supabase.co/functions/v1/daily-story-digest?force=true`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token ?? ""}`,
+          },
+          body: "{}",
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+      console.log("daily-story-digest force test result:", data);
+      const sent = (data as { sent?: number })?.sent ?? 0;
+      const reason = (data as { reason?: string; skipped?: string })?.reason
+        ?? (data as { skipped?: string })?.skipped;
+      if (sent > 0) toast.success(`Test erfolgreich: ${sent} Story(s) versendet`);
+      else toast.message(`Kein Versand (${reason ?? "ok"})`);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Test fehlgeschlagen: ${(err as Error).message}`);
+    } finally {
+      setIsTestingDigest(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
