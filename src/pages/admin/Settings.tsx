@@ -27,16 +27,26 @@ export default function Settings() {
   const [newEmail, setNewEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [digestEnabled, setDigestEnabled] = useState(false);
+  const [digestHour, setDigestHour] = useState<number>(7);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingContact, setIsSavingContact] = useState(false);
+  const [isSavingDigest, setIsSavingDigest] = useState(false);
+  const [isTestingDigest, setIsTestingDigest] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
         .from("app_settings")
         .select("key, value")
-        .in("key", [STORY_RECIPIENTS_KEY, STORY_CONTACT_PHONE_KEY, STORY_CONTACT_EMAIL_KEY]);
+        .in("key", [
+          STORY_RECIPIENTS_KEY,
+          STORY_CONTACT_PHONE_KEY,
+          STORY_CONTACT_EMAIL_KEY,
+          DAILY_DIGEST_ENABLED_KEY,
+          DAILY_DIGEST_HOUR_KEY,
+        ]);
       if (error) {
         console.error(error);
         toast.error("Einstellungen konnten nicht geladen werden");
