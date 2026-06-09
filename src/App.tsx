@@ -84,6 +84,7 @@ const App = () => (
                       <Route path="alerts" element={<AlertsAdmin />} />
                       <Route path="stories" element={<StoryGenerator />} />
                       <Route path="story-archive" element={<StoryArchive />} />
+                      <Route path="expose-archive" element={<ExposeArchive />} />
                       <Route path="settings" element={<Settings />} />
                       <Route path="vehicles/new" element={<VehicleCreate />} />
                       <Route path="accounts" element={<Accounts />} />
