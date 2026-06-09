@@ -91,6 +91,7 @@ const FONT_URLS = [
 interface RequestBody {
   vehicleIds: string[];
   forceResend?: boolean;
+  skipDealerEmail?: boolean;
 }
 
 interface VehicleRow {
