@@ -12,6 +12,7 @@ import {
   Menu,
   Plus,
   Settings,
+  Users,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,11 +25,13 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   exact?: boolean;
   badgeKey?: "inquiries";
+  adminOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
   { label: "Übersicht", path: "/admin", icon: LayoutDashboard, exact: true },
   { label: "Auto hinzufügen", path: "/admin/vehicles/new", icon: Plus },
+  { label: "Accounts", path: "/admin/accounts", icon: Users, adminOnly: true },
   { label: "Sync-Status", path: "/admin/sync", icon: RefreshCw },
   { label: "Anfragen", path: "/admin/inquiries", icon: Mail, badgeKey: "inquiries" },
   { label: "Suchaufträge", path: "/admin/alerts", icon: Bell },
@@ -38,7 +41,7 @@ const navItems: NavItem[] = [
 ];
 
 export default function AdminLayout() {
-  const { user, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [counts, setCounts] = useState<{ inquiries: number }>({ inquiries: 0 });
@@ -74,7 +77,7 @@ export default function AdminLayout() {
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
+        {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
           const isActive = item.exact
             ? location.pathname === item.path
             : location.pathname.startsWith(item.path);
