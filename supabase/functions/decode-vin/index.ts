@@ -68,8 +68,13 @@ Deno.serve(async (req) => {
       return json({ error: "Ungültige FIN: 17 Zeichen, Großbuchstaben, keine I/O/Q." }, 400);
     }
 
-    const url = `https://auto.dev/api/vin/${encodeURIComponent(vinRaw)}?apikey=${encodeURIComponent(AUTODEV_API_KEY)}`;
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    const url = `https://api.auto.dev/vin/${encodeURIComponent(vinRaw)}?format=json`;
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${AUTODEV_API_KEY}`,
+      },
+    });
     const text = await res.text();
     let parsed: Record<string, unknown> = {};
     try { parsed = text ? JSON.parse(text) : {}; } catch { /* keep empty */ }
@@ -83,45 +88,57 @@ Deno.serve(async (req) => {
       return json({ error: msg, _raw: parsed }, res.status === 404 ? 404 : 502);
     }
 
-    const brand = pickName(parsed.make);
-    const model = pickName(parsed.model);
-    const modelDesc = pickName(parsed.trim) || (parsed as { trimDescription?: string }).trimDescription || null;
+    const vehicle = (parsed.vehicle ?? {}) as Record<string, unknown>;
+    const topMake = typeof parsed.make === "string" ? (parsed.make as string) : null;
+    const vehMake = typeof vehicle.make === "string" ? (vehicle.make as string) : null;
+    const brand = (vehMake && vehMake.trim()) || (topMake && topMake.trim()) || null;
 
-    let year: number | null = null;
-    const yearsArr = parsed.years as Array<{ year?: number }> | undefined;
-    if (Array.isArray(yearsArr) && yearsArr.length > 0) {
-      year = toInt(yearsArr[0]?.year);
-    } else if ((parsed as { year?: unknown }).year !== undefined) {
-      year = toInt((parsed as { year?: unknown }).year);
+    const vinValid = parsed.vinValid;
+    if (vinValid === false || !brand) {
+      return json({
+        error: "FIN ungültig oder nicht gefunden, bitte Daten manuell eingeben",
+        _raw: parsed,
+      });
     }
 
-    const engine = (parsed.engine ?? {}) as Record<string, unknown>;
-    const transmission = (parsed.transmission ?? {}) as Record<string, unknown>;
-    const categories = (parsed.categories ?? {}) as Record<string, unknown>;
+    const vehModel = typeof vehicle.model === "string" ? (vehicle.model as string).trim() : "";
+    const model = vehModel || null;
 
-    const fuel = pickName(engine.type) || (typeof engine.fuelType === "string" ? engine.fuelType as string : null);
-    // power: auto.dev gives horsepower; convert to kW (1 kW ≈ 1.35962 hp)
-    const hp = toInt(engine.horsepower);
-    const powerKw = hp !== null ? Math.round(hp / 1.35962) : null;
+    let year: number | null = toInt(vehicle.year);
+    if (year === null) {
+      const yearsArr = parsed.years;
+      if (Array.isArray(yearsArr) && yearsArr.length > 0) {
+        // can be array of numbers or {year}
+        const first = yearsArr[0];
+        year = typeof first === "number" ? first : toInt((first as { year?: unknown })?.year);
+      }
+    }
 
-    const gearbox = pickName(transmission.transmissionType) || pickName(transmission.type) || null;
-    const bodyType = pickName(categories.vehicleStyle) || pickName(categories.primaryBodyType) || null;
-    const numSeats = toInt((parsed as { numOfDoors?: unknown; standardSeating?: unknown }).standardSeating);
-    const cubicCapacity = toInt(engine.displacement) || toInt(engine.size);
+    const manufacturer = typeof vehicle.manufacturer === "string" ? (vehicle.manufacturer as string) : null;
+    const bodyRaw = (typeof vehicle.type === "string" && vehicle.type) ||
+      (typeof parsed.type === "string" && parsed.type) || null;
+    const bodyType = bodyRaw
+      ? bodyRaw
+          .toLowerCase()
+          .replace(/\b\w/g, (c) => c.toUpperCase())
+      : null;
+
+    const title = model ? `${brand} ${model}` : brand;
 
     return json({
       vin: vinRaw,
       brand,
       model,
-      model_description: modelDesc,
-      title: brand && (modelDesc || model) ? `${brand} ${modelDesc || model}` : null,
+      model_description: null,
+      title,
       year,
-      fuel,
-      power: powerKw,
-      gearbox,
+      manufacturer,
       body_type: bodyType,
-      num_seats: numSeats,
-      cubic_capacity: cubicCapacity,
+      fuel: null,
+      power: null,
+      gearbox: null,
+      num_seats: null,
+      cubic_capacity: null,
       _raw: parsed,
     });
   } catch (err) {

@@ -78,21 +78,22 @@ export default function VehicleCreate() {
         return;
       }
       setVin(v);
-      setForm((f) => ({
-        ...f,
-        brand: (data.brand as string) ?? f.brand,
-        model: (data.model as string) ?? f.model,
-        model_description: (data.model_description as string) ?? f.model_description,
-        year: data.year ? String(data.year) : f.year,
-        fuel: (data.fuel as string) ?? f.fuel,
-        power: data.power ? String(data.power) : f.power,
-        gearbox: (data.gearbox as string) ?? f.gearbox,
-        body_type: (data.body_type as string) ?? f.body_type,
-        num_seats: data.num_seats ? String(data.num_seats) : f.num_seats,
-        cubic_capacity: data.cubic_capacity ? String(data.cubic_capacity) : f.cubic_capacity,
-        title: (data.title as string) || f.title || [data.brand, data.model_description || data.model].filter(Boolean).join(" "),
-      }));
-      toast.success("Stammdaten geladen");
+      setForm((f) => {
+        const brand = (data.brand as string) || f.brand;
+        const model = (data.model as string) || f.model;
+        const year = data.year ? String(data.year) : f.year;
+        const body_type = (data.body_type as string) || f.body_type;
+        const titleFromData = (data.title as string) || [brand, model].filter(Boolean).join(" ");
+        return {
+          ...f,
+          brand,
+          model,
+          year,
+          body_type,
+          title: f.title || titleFromData,
+        };
+      });
+      toast.success("Stammdaten geladen (Marke + Baujahr). Restliche Felder bitte ergänzen.");
     } catch (err) {
       console.error(err);
       toast.error("FIN-Abfrage fehlgeschlagen");
