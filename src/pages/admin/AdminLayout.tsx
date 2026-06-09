@@ -14,6 +14,7 @@ import {
   Settings,
   Users,
   FileText,
+  Images,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
   { label: "Story-Generator", path: "/admin/stories", icon: ImageIcon },
   { label: "Story-Archiv", path: "/admin/story-archive", icon: Archive },
   { label: "Exposé-Archiv", path: "/admin/expose-archive", icon: FileText },
+  { label: "Collage", path: "/admin/collage", icon: Images },
   { label: "Einstellungen", path: "/admin/settings", icon: Settings },
 ];
 
