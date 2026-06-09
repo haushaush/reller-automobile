@@ -1,16 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -27,6 +19,37 @@ import { Download, RefreshCw, Send, Image as ImageIcon, Loader2, Trash2, Maximiz
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
+import FilterBar, { Filters } from "@/components/FilterBar";
+import ActiveFilters from "@/components/ActiveFilters";
+import {
+  toLabelOptions,
+  getBodyTypeLabel,
+  getFuelLabel,
+  getGearboxLabel,
+} from "@/lib/mobileDeLabels";
+import { useFuzzySearch } from "@/hooks/useFuzzySearch";
+import { calculateRelevanceScore } from "@/lib/relevanceScore";
+
+interface VehicleData {
+  id: string;
+  title: string;
+  brand: string | null;
+  model: string | null;
+  model_description: string | null;
+  price: number | null;
+  is_sold: boolean;
+  category: string | null;
+  body_type: string | null;
+  year: string | null;
+  mileage: number | null;
+  fuel: string | null;
+  power: number | null;
+  gearbox: string | null;
+  exterior_color: string | null;
+  creation_date: string | null;
+  synced_at: string | null;
+  vehicle_category: string | null;
+}
 
 interface StoryWithVehicle {
   id: string;
@@ -34,19 +57,45 @@ interface StoryWithVehicle {
   generated_at: string;
   sent_to_dealer: boolean;
   vehicle_id: string;
-  vehicle: {
-    id: string;
-    title: string;
-    brand: string | null;
-    price: number | null;
-  } | null;
+  vehicle: VehicleData | null;
 }
+
+const defaultFilters: Filters = {
+  search: "",
+  category: "all",
+  brand: "all",
+  bodyType: "all",
+  yearFrom: "",
+  yearTo: "",
+  mileageFrom: "",
+  mileageTo: "",
+  sort: "newest",
+  fuel: "all",
+  powerFrom: "",
+  powerTo: "",
+  gearbox: "all",
+  priceFrom: "",
+  priceTo: "",
+  color: "all",
+  status: "available",
+  recentOnly: "",
+};
+
+const selectFilterKeys: (keyof Filters)[] = [
+  "category",
+  "brand",
+  "bodyType",
+  "sort",
+  "fuel",
+  "gearbox",
+  "color",
+  "status",
+];
 
 export default function StoryArchive() {
   const [stories, setStories] = useState<StoryWithVehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [dateFilter, setDateFilter] = useState("all");
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
