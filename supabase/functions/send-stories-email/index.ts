@@ -96,6 +96,7 @@ Deno.serve(async (req) => {
       .from("vehicles").select("id, title, brand, price").in("id", vehicleIds);
     const vMap = new Map((vehicles ?? []).map((v) => [v.id, v]));
 
+    const exposeUrls = body.exposeUrls ?? {};
     const storiesPayload = stories.map((s) => {
       const v = vMap.get(s.vehicle_id);
       return {
@@ -103,8 +104,10 @@ Deno.serve(async (req) => {
         title: v?.title ?? "Fahrzeug",
         brand: v?.brand ?? "",
         price: v?.price ? `${Number(v.price).toLocaleString("de-DE")} €` : "Auf Anfrage",
+        exposeUrl: exposeUrls[s.vehicle_id] || undefined,
       };
     });
+
 
     const baseKey = `stories-digest-${stories.map((s) => s.id).sort().join("-")}`;
     const recipients = await loadRecipients(admin);
