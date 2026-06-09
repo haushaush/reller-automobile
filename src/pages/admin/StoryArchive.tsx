@@ -126,20 +126,22 @@ export default function StoryArchive() {
     const vehicleIds = Array.from(new Set(storiesData.map((s) => s.vehicle_id)));
     const { data: vehiclesData } = await supabase
       .from("vehicles")
-      .select("id, title, brand, price")
+      .select(
+        "id, title, brand, model, model_description, price, is_sold, category, body_type, year, mileage, fuel, power, gearbox, exterior_color, creation_date, synced_at, vehicle_category",
+      )
       .in("id", vehicleIds);
 
-    const vehiclesMap = new Map((vehiclesData || []).map((v) => [v.id, v]));
+    const vehiclesMap = new Map(
+      (vehiclesData || []).map((v) => [v.id, v as VehicleData]),
+    );
 
     const combined: StoryWithVehicle[] = storiesData.map((s) => ({
-      ...s,
-      vehicle:
-        vehiclesMap.get(s.vehicle_id) ?? {
-          id: s.vehicle_id,
-          title: "Fahrzeug nicht mehr verfügbar",
-          brand: null,
-          price: null,
-        },
+      id: s.id,
+      story_image_url: s.story_image_url,
+      generated_at: s.generated_at,
+      sent_to_dealer: s.sent_to_dealer,
+      vehicle_id: s.vehicle_id,
+      vehicle: vehiclesMap.get(s.vehicle_id) ?? null,
     }));
 
     setStories(combined);
