@@ -132,13 +132,16 @@ async function ensureFonts() {
         return new Uint8Array(await r.arrayBuffer());
       } catch {
         return null;
+      }
+    }),
+  );
+  fontBuffers = results.filter((b): b is Uint8Array => b !== null);
 }
 
 function formatPhone(raw: string): string {
   if (!raw) return "";
   try {
     const trimmed = raw.trim();
-    // Preserve leading + for international format
     const hasPlus = trimmed.startsWith("+");
     const digits = trimmed.replace(/\D/g, "");
     if (!digits) return raw;
@@ -146,14 +149,12 @@ function formatPhone(raw: string): string {
     // International +49 (Germany)
     if (hasPlus && digits.startsWith("49")) {
       const rest = digits.slice(2);
-      // Mobile +49 15x/16x/17x
       if (/^1[567]/.test(rest)) {
         const area = rest.slice(0, 3);
         const tail = rest.slice(3);
         const blocks = tail.match(/.{1,4}/g) ?? [];
         return `+49 ${area} ${blocks.join(" ")}`.trim();
       }
-      // Generic landline: +49 <area 2-4> <rest in 4-blocks>
       const areaLen = Math.min(4, Math.max(2, rest.length - 6));
       const area = rest.slice(0, areaLen);
       const tail = rest.slice(areaLen);
@@ -186,8 +187,6 @@ function formatPhone(raw: string): string {
     return raw;
   }
 }
-    }),
-  );
   fontBuffers = results.filter((b): b is Uint8Array => b !== null);
 }
 
