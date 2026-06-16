@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Car, Image as ImageIcon, Mail, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
+import SalesStats from "@/components/admin/SalesStats";
 
 interface Stats {
   activeVehicles: number;
