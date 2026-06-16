@@ -73,6 +73,13 @@ export default function AdminDashboard() {
           );
         })}
       </div>
+
+      <div className="mt-8 sm:mt-10">
+        <h2 className="text-lg sm:text-xl font-semibold tracking-tight mb-3 sm:mb-4">
+          Verkaufsauswertung
+        </h2>
+        <SalesStats />
+      </div>
     </div>
   );
 }
