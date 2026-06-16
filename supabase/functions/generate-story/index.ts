@@ -187,8 +187,8 @@ function formatPhone(raw: string): string {
     return raw;
   }
 }
-  fontBuffers = results.filter((b): b is Uint8Array => b !== null);
-}
+
+
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function escapeXml(str: string): string {
