@@ -30,7 +30,7 @@ const formatInt = (n: number | null) => {
   return new Intl.NumberFormat("de-DE").format(n);
 };
 
-const PublicSalesStats = () => {
+const SalesStats = () => {
   const [range, setRange] = useState<RangeKey>("all");
   const [sold, setSold] = useState<SoldRow[] | null>(null);
   const [inStock, setInStock] = useState<number | null>(null);
@@ -135,4 +135,4 @@ const PublicSalesStats = () => {
   );
 };
 
-export default PublicSalesStats;
+export default SalesStats;
