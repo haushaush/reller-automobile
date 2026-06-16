@@ -322,11 +322,11 @@ function generateSVG(
 
   <!-- Header line 3: contact (optional) -->
   ${(() => {
-    const phone = (contactPhone || "").trim();
+    const phone = formatPhone((contactPhone || "").trim());
     const email = (contactEmail || "").trim();
     if (!phone && !email) return "";
     const parts: string[] = [];
-    if (phone) parts.push(`Tel: ${phone}`);
+    if (phone) parts.push(phone);
     if (email) parts.push(email);
     const line = parts.join("   •   ");
     return `<text x="540" y="295" font-family="Inter" font-weight="400" font-style="normal"
