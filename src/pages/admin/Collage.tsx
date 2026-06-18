@@ -639,6 +639,31 @@ export default function Collage() {
           {busy === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
           PDF ({selectedCount})
         </Button>
+        {selectedCount === 1 && (
+          <Button
+            onClick={downloadSingle}
+            disabled={busy !== null}
+            size="sm"
+            variant="outline"
+            className="gap-2"
+          >
+            {busy === "single" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Bild speichern
+          </Button>
+        )}
+        {canShareFiles && (
+          <Button
+            onClick={shareToGallery}
+            disabled={selectedCount === 0 || busy !== null}
+            size="sm"
+            variant="outline"
+            className="gap-2"
+            title="Über das Teilen-Menü in die Galerie sichern"
+          >
+            {busy === "share" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+            Teilen / Galerie ({selectedCount})
+          </Button>
+        )}
       </div>
 
       {busy && progress.total > 0 && (
