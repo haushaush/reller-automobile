@@ -145,8 +145,8 @@ export default function Collage() {
   useEffect(() => {
     try {
       const probe = new File(["x"], "probe.txt", { type: "text/plain" });
-      // @ts-expect-error canShare may not exist
-      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [probe] })) {
+      const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean };
+      if (typeof nav !== "undefined" && nav.canShare && nav.canShare({ files: [probe] })) {
         setCanShareFiles(true);
       }
     } catch {
