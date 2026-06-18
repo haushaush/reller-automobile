@@ -483,6 +483,99 @@ export default function Collage() {
     }
   };
 
+  const shareToGallery = async () => {
+    const items = collectSelectedImages();
+    if (items.length === 0) {
+      toast.error("Keine Bilder ausgewählt");
+      return;
+    }
+    const nav = navigator as Navigator & {
+      canShare?: (data: { files: File[] }) => boolean;
+      share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void>;
+    };
+    if (!nav.share || !nav.canShare) {
+      toast.error("Teilen wird auf diesem Gerät nicht unterstützt");
+      return;
+    }
+    setBusy("share");
+    setProgress({ done: 0, total: items.length });
+    try {
+      const vmap = new Map(vehicles.map((v) => [v.id, v]));
+      const usedNames = new Set<string>();
+      const counters = new Map<string, number>();
+      const files: File[] = [];
+      let failed = 0;
+      let done = 0;
+      for (const item of items) {
+        const v = vmap.get(item.vehicleId);
+        try {
+          const blob = await loadImage(item.url);
+          const ext = extFromMime(blob.type, item.url);
+          const base = v ? safeName(v) : "Fahrzeug";
+          const n = (counters.get(item.vehicleId) || 0) + 1;
+          counters.set(item.vehicleId, n);
+          let name = `${base}-${n}.${ext}`;
+          let dedup = 1;
+          while (usedNames.has(name)) name = `${base}-${n}-${++dedup}.${ext}`;
+          usedNames.add(name);
+          files.push(new File([blob], name, { type: blob.type || `image/${ext}` }));
+        } catch (e) {
+          console.warn("Share image fetch failed", item.url, e);
+          failed++;
+        }
+        done++;
+        setProgress({ done, total: items.length });
+      }
+      if (files.length === 0) {
+        toast.error("Kein Bild konnte geladen werden");
+        return;
+      }
+      if (!nav.canShare({ files })) {
+        toast.error("Zu viele Bilder auf einmal", {
+          description: "Bitte weniger auswählen oder ZIP nutzen.",
+        });
+        return;
+      }
+      try {
+        await nav.share({ files, title: "Reller Fahrzeugbilder" });
+        if (failed > 0) toast.warning(`Geteilt — ${failed} Bild(er) fehlgeschlagen`);
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        console.error(e);
+        toast.error("Teilen fehlgeschlagen", {
+          description:
+            "Eventuell zu viele Bilder auf einmal — bitte weniger auswählen oder ZIP nutzen.",
+        });
+      }
+    } finally {
+      setBusy(null);
+      setProgress({ done: 0, total: 0 });
+    }
+  };
+
+  const downloadSingle = async () => {
+    const items = collectSelectedImages();
+    if (items.length !== 1) return;
+    const item = items[0];
+    const v = vehicles.find((x) => x.id === item.vehicleId);
+    setBusy("single");
+    try {
+      const blob = await loadImage(item.url);
+      const ext = extFromMime(blob.type, item.url);
+      const base = v ? safeName(v) : "Fahrzeug";
+      const { saveAs } = await import("file-saver");
+      saveAs(blob, `${base}-1.${ext}`);
+      toast.success("Bild heruntergeladen");
+    } catch (e) {
+      console.error(e);
+      toast.error("Download fehlgeschlagen", {
+        description: e instanceof Error ? e.message : "Unbekannter Fehler",
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const selectedCount = selected.size;
   const progressPct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
