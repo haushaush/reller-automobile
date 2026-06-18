@@ -135,11 +135,24 @@ export default function Collage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // key: `${vehicleId}::${url}`
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState<null | "zip" | "pdf">(null);
+  const [busy, setBusy] = useState<null | "zip" | "pdf" | "share" | "single">(null);
   const [progress, setProgress] = useState<{ done: number; total: number }>({
     done: 0,
     total: 0,
   });
+  const [canShareFiles, setCanShareFiles] = useState(false);
+
+  useEffect(() => {
+    try {
+      const probe = new File(["x"], "probe.txt", { type: "text/plain" });
+      // @ts-expect-error canShare may not exist
+      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [probe] })) {
+        setCanShareFiles(true);
+      }
+    } catch {
+      setCanShareFiles(false);
+    }
+  }, []);
 
   useEffect(() => {
     (async () => {
