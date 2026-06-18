@@ -11,6 +11,7 @@ import {
   FileText,
   Images as ImagesIcon,
   Loader2,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import FilterBar, { Filters } from "@/components/FilterBar";
@@ -134,11 +135,24 @@ export default function Collage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // key: `${vehicleId}::${url}`
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState<null | "zip" | "pdf">(null);
+  const [busy, setBusy] = useState<null | "zip" | "pdf" | "share" | "single">(null);
   const [progress, setProgress] = useState<{ done: number; total: number }>({
     done: 0,
     total: 0,
   });
+  const [canShareFiles, setCanShareFiles] = useState(false);
+
+  useEffect(() => {
+    try {
+      const probe = new File(["x"], "probe.txt", { type: "text/plain" });
+      const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean };
+      if (typeof nav !== "undefined" && nav.canShare && nav.canShare({ files: [probe] })) {
+        setCanShareFiles(true);
+      }
+    } catch {
+      setCanShareFiles(false);
+    }
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -469,6 +483,99 @@ export default function Collage() {
     }
   };
 
+  const shareToGallery = async () => {
+    const items = collectSelectedImages();
+    if (items.length === 0) {
+      toast.error("Keine Bilder ausgewählt");
+      return;
+    }
+    const nav = navigator as Navigator & {
+      canShare?: (data: { files: File[] }) => boolean;
+      share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void>;
+    };
+    if (!nav.share || !nav.canShare) {
+      toast.error("Teilen wird auf diesem Gerät nicht unterstützt");
+      return;
+    }
+    setBusy("share");
+    setProgress({ done: 0, total: items.length });
+    try {
+      const vmap = new Map(vehicles.map((v) => [v.id, v]));
+      const usedNames = new Set<string>();
+      const counters = new Map<string, number>();
+      const files: File[] = [];
+      let failed = 0;
+      let done = 0;
+      for (const item of items) {
+        const v = vmap.get(item.vehicleId);
+        try {
+          const blob = await loadImage(item.url);
+          const ext = extFromMime(blob.type, item.url);
+          const base = v ? safeName(v) : "Fahrzeug";
+          const n = (counters.get(item.vehicleId) || 0) + 1;
+          counters.set(item.vehicleId, n);
+          let name = `${base}-${n}.${ext}`;
+          let dedup = 1;
+          while (usedNames.has(name)) name = `${base}-${n}-${++dedup}.${ext}`;
+          usedNames.add(name);
+          files.push(new File([blob], name, { type: blob.type || `image/${ext}` }));
+        } catch (e) {
+          console.warn("Share image fetch failed", item.url, e);
+          failed++;
+        }
+        done++;
+        setProgress({ done, total: items.length });
+      }
+      if (files.length === 0) {
+        toast.error("Kein Bild konnte geladen werden");
+        return;
+      }
+      if (!nav.canShare({ files })) {
+        toast.error("Zu viele Bilder auf einmal", {
+          description: "Bitte weniger auswählen oder ZIP nutzen.",
+        });
+        return;
+      }
+      try {
+        await nav.share({ files, title: "Reller Fahrzeugbilder" });
+        if (failed > 0) toast.warning(`Geteilt — ${failed} Bild(er) fehlgeschlagen`);
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        console.error(e);
+        toast.error("Teilen fehlgeschlagen", {
+          description:
+            "Eventuell zu viele Bilder auf einmal — bitte weniger auswählen oder ZIP nutzen.",
+        });
+      }
+    } finally {
+      setBusy(null);
+      setProgress({ done: 0, total: 0 });
+    }
+  };
+
+  const downloadSingle = async () => {
+    const items = collectSelectedImages();
+    if (items.length !== 1) return;
+    const item = items[0];
+    const v = vehicles.find((x) => x.id === item.vehicleId);
+    setBusy("single");
+    try {
+      const blob = await loadImage(item.url);
+      const ext = extFromMime(blob.type, item.url);
+      const base = v ? safeName(v) : "Fahrzeug";
+      const { saveAs } = await import("file-saver");
+      saveAs(blob, `${base}-1.${ext}`);
+      toast.success("Bild heruntergeladen");
+    } catch (e) {
+      console.error(e);
+      toast.error("Download fehlgeschlagen", {
+        description: e instanceof Error ? e.message : "Unbekannter Fehler",
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const selectedCount = selected.size;
   const progressPct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
@@ -532,6 +639,31 @@ export default function Collage() {
           {busy === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
           PDF ({selectedCount})
         </Button>
+        {selectedCount === 1 && (
+          <Button
+            onClick={downloadSingle}
+            disabled={busy !== null}
+            size="sm"
+            variant="outline"
+            className="gap-2"
+          >
+            {busy === "single" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Bild speichern
+          </Button>
+        )}
+        {canShareFiles && (
+          <Button
+            onClick={shareToGallery}
+            disabled={selectedCount === 0 || busy !== null}
+            size="sm"
+            variant="outline"
+            className="gap-2"
+            title="Über das Teilen-Menü in die Galerie sichern"
+          >
+            {busy === "share" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+            Teilen / Galerie ({selectedCount})
+          </Button>
+        )}
       </div>
 
       {busy && progress.total > 0 && (
