@@ -11,6 +11,7 @@ import {
   FileText,
   Images as ImagesIcon,
   Loader2,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import FilterBar, { Filters } from "@/components/FilterBar";
