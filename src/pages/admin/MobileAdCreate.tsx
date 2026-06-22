@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState, ChangeEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Upload, X, Save, ChevronDown } from "lucide-react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { Loader2, Upload, X, Save, ChevronDown, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
