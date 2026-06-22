@@ -103,8 +103,26 @@ Deno.serve(async (req) => {
       } catch { /* empty body ok */ }
     }
     if (!kind) {
-      return new Response(JSON.stringify({ error: "kind required (makes|models|categories|fuels|gearboxes|vatrates|conditions)" }), {
+      return new Response(JSON.stringify({ error: "kind required (makes|models|categories|fuels|gearboxes|vatrates)" }), {
         status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Fixed category list (confirmed common values for Car class)
+    if (kind === "categories") {
+      const catItems: RefItem[] = [
+        { key: "Cabrio", name: "Cabrio/Roadster" },
+        { key: "SmallCar", name: "Kleinwagen" },
+        { key: "EstateCar", name: "Kombi" },
+        { key: "Limousine", name: "Limousine" },
+        { key: "SportsCar", name: "Sportwagen/Coupé" },
+        { key: "Van", name: "Van/Kleinbus" },
+        { key: "OffRoad", name: "SUV/Geländewagen" },
+        { key: "OtherCar", name: "Andere" },
+      ];
+      return new Response(JSON.stringify({ items: catItems }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -123,25 +141,14 @@ Deno.serve(async (req) => {
         }
         path = `/classes/Car/makes/${encodeURIComponent(makeKey)}/models`;
         break;
-      case "categories":
-        // TODO: confirm exact refdata path for Car categories under https://services.mobile.de/refdata/...
-        path = "/classes/Car/categories";
-        break;
       case "fuels":
-        // TODO: confirm exact refdata path for Car fuels
-        path = "/classes/Car/fuels";
+        path = "/fuels";
         break;
       case "gearboxes":
-        // TODO: confirm exact refdata path for Car gearboxes
-        path = "/classes/Car/gearboxes";
+        path = "/gearboxes";
         break;
       case "vatrates":
-        // TODO: confirm exact refdata path for vat rates
-        path = "/classes/Car/vat-rates";
-        break;
-      case "conditions":
-        // TODO: confirm exact refdata path for conditions
-        path = "/classes/Car/conditions";
+        path = "/sites/GERMANY/vatrates";
         break;
       default:
         return new Response(JSON.stringify({ error: `unknown kind: ${kind}` }), {
@@ -150,7 +157,23 @@ Deno.serve(async (req) => {
         });
     }
 
-    const items = await fetchRef(path);
+    let items = await fetchRef(path);
+
+    if (kind === "vatrates") {
+      // vatrates haben nur key (z.B. "19.00"), keine local-description.
+      // Label als "<key> %", auf sinnvolle DE-Werte filtern, OTHER (Differenzbesteuerung) sicherstellen.
+      const keep = new Set(["19.00", "0.00", "OTHER"]);
+      items = items
+        .filter((i) => keep.has(i.key))
+        .map((i) => ({
+          key: i.key,
+          name: i.key === "OTHER" ? "Differenzbesteuert" : `${i.key} %`,
+        }));
+      if (!items.some((i) => i.key === "OTHER")) {
+        items.push({ key: "OTHER", name: "Differenzbesteuert" });
+      }
+    }
+
     return new Response(JSON.stringify({ items }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
