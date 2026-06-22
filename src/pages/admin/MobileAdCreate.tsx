@@ -18,6 +18,39 @@ import {
 
 type RefItem = { key: string; name: string };
 
+const FUEL_LABELS: Record<string, string> = {
+  PETROL: "Benzin",
+  DIESEL: "Diesel",
+  LPG: "Autogas (LPG)",
+  CNG: "Erdgas (CNG)",
+  ELECTRICITY: "Elektro",
+  HYBRID: "Hybrid (Benzin/Elektro)",
+  HYBRID_DIESEL: "Hybrid (Diesel/Elektro)",
+  HYDROGENIUM: "Wasserstoff",
+  ETHANOL: "Ethanol (E85)",
+  OTHER: "Andere",
+};
+
+const GEARBOX_LABELS: Record<string, string> = {
+  MANUAL_GEAR: "Schaltgetriebe",
+  SEMIAUTOMATIC_GEAR: "Halbautomatik",
+  AUTOMATIC_GEAR: "Automatik",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  Cabrio: "Cabrio/Roadster",
+  SmallCar: "Kleinwagen",
+  EstateCar: "Kombi",
+  Limousine: "Limousine",
+  SportsCar: "Sportwagen/Coupé",
+  Van: "Van/Kleinbus",
+  OffRoad: "SUV/Geländewagen",
+  OtherCar: "Andere",
+};
+
+const labelFor = (map: Record<string, string>, key: string, fallback: string) =>
+  map[key] ?? fallback ?? key;
+
 interface FormState {
   make: string;
   model: string;
@@ -328,7 +361,7 @@ export default function MobileAdCreate() {
               <SelectContent className="max-h-72">
                 {categories.map((c) => (
                   <SelectItem key={c.key} value={c.key}>
-                    {c.name}
+                    {labelFor(CATEGORY_LABELS, c.key, c.name)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -373,7 +406,7 @@ export default function MobileAdCreate() {
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent className="max-h-72">
                 {fuels.map((f) => (
-                  <SelectItem key={f.key} value={f.key}>{f.name}</SelectItem>
+                  <SelectItem key={f.key} value={f.key}>{labelFor(FUEL_LABELS, f.key, f.name)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -384,7 +417,7 @@ export default function MobileAdCreate() {
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent>
                 {gearboxes.map((g) => (
-                  <SelectItem key={g.key} value={g.key}>{g.name}</SelectItem>
+                  <SelectItem key={g.key} value={g.key}>{labelFor(GEARBOX_LABELS, g.key, g.name)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
