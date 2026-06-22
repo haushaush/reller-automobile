@@ -121,7 +121,7 @@ export default function MobileAdDrafts() {
       if (userRes?.user?.id) insertRow.created_by = userRes.user.id;
       const { data, error } = await supabase
         .from("mobile_ad_drafts")
-        .insert(insertRow)
+        .insert(insertRow as never)
         .select("id")
         .single();
       if (error || !data?.id) {
