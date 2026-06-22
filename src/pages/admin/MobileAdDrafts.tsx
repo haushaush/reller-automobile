@@ -237,13 +237,38 @@ export default function MobileAdDrafts() {
     load();
   }, []);
 
-  const remove = async (id: string) => {
-    if (!confirm("Entwurf wirklich löschen?")) return;
-    const { error } = await supabase.from("mobile_ad_drafts").delete().eq("id", id);
-    if (error) toast.error("Löschen fehlgeschlagen");
-    else {
-      toast.success("Entwurf gelöscht");
-      load();
+  const doDelete = async (row: DraftRow) => {
+    setDeleting(row.id);
+    try {
+      const isPublished = row.status === "published" || row.status === "published_with_warning";
+      if (isPublished) {
+        if (!row.mobile_ad_id) {
+          toast.error("Keine Mobile.de-ID vorhanden. Bitte zuerst verknüpfen.");
+          return;
+        }
+        const { data, error } = await supabase.functions.invoke("delete-mobile-ad", {
+          body: { draftId: row.id, mobileAdId: row.mobile_ad_id },
+        });
+        const d = (data ?? null) as { success?: boolean; error?: string; alreadyGone?: boolean; message?: string } | null;
+        if (error || !d?.success) {
+          const msg = d?.error || error?.message || "Löschen fehlgeschlagen";
+          toast.error(`Löschen fehlgeschlagen: ${msg}`);
+          return;
+        }
+        toast.success(d.message || "Inserat wurde bei Mobile.de gelöscht.");
+      } else {
+        // Lokaler Entwurf: hart löschen
+        const { error } = await supabase.from("mobile_ad_drafts").delete().eq("id", row.id);
+        if (error) {
+          toast.error(`Löschen fehlgeschlagen: ${error.message}`);
+          return;
+        }
+        toast.success("Entwurf gelöscht");
+      }
+      setDeleteTarget(null);
+      await load();
+    } finally {
+      setDeleting(null);
     }
   };
 
