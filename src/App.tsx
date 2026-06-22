@@ -37,6 +37,7 @@ const ExposeArchive = lazy(() => import("./pages/admin/ExposeArchive"));
 const Collage = lazy(() => import("./pages/admin/Collage"));
 const MobileAdCreate = lazy(() => import("./pages/admin/MobileAdCreate"));
 const MobileAdDrafts = lazy(() => import("./pages/admin/MobileAdDrafts"));
+const MobileAdEditLive = lazy(() => import("./pages/admin/MobileAdEditLive"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
