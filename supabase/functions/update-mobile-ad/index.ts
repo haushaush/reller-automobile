@@ -49,7 +49,7 @@ const FEATURE_KEYS = [
 const UNSAFE_FIELDS = new Set([
   "speedControl", "headlightType", "trailerCouplingType", "airbag",
   "breakdownService", "corneringLight", "daytimeRunningLamps",
-  "highBeamAssistant", "emergencyCallSystem", "matt",
+  "highBeamAssistant", "emergencyCallSystem",
 ]);
 
 function buildMobileAdPayload(payload: AdPayload): BuildResult {
