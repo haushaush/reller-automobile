@@ -131,29 +131,71 @@ const PARKING_ASSISTANT_ALIAS: Record<string, string> = {
 };
 const UNSAFE_PARKING_ASSISTANTS = new Set(["CAMERA", "AUTOMATIC_PARKING", "REAR_CAMERA"]);
 
-const FEATURE_KEYS = [
-  "alloyWheels", "navigationSystem", "electricHeatedSeats", "bluetooth",
-  "carplay", "androidAuto", "electricWindows", "centralLocking", "isofix",
-  "sunroof", "panoramicGlassRoof", "usb", "touchscreen", "soundSystem",
-  "summerTires", "winterTires", "allSeasonTires",
-  "tintedWindows", "ambientLighting", "electricExteriorMirrors",
-  "electricAdjustableSeats", "powerSteering", "hillStartAssist",
-  "onBoardComputer", "handsFreePhoneSystem", "roofRack", "winterPackage",
-  "multifunctionalSteeringWheel",
-  "abs", "esp", "immobilizer", "fatigueWarningSystem",
-  "emergencyBrakeAssistant", "rainSensor",
-  "tirePressureMonitoring", "laneDepartureWarning", "startStopSystem",
-  "trafficSignRecognition",
+// FEATURE_MAP: API field name + alias list (alte/falsche UI-Namen).
+// An Mobile.de wird ausschließlich `api` gesendet, niemals ein Alias.
+const FEATURE_MAP: { api: string; aliases: string[] }[] = [
+  { api: "alloyWheels", aliases: [] },
+  { api: "navigationSystem", aliases: [] },
+  { api: "electricHeatedSeats", aliases: [] },
+  { api: "bluetooth", aliases: [] },
+  { api: "carplay", aliases: [] },
+  { api: "androidAuto", aliases: [] },
+  { api: "electricWindows", aliases: [] },
+  { api: "centralLocking", aliases: [] },
+  { api: "isofix", aliases: [] },
+  { api: "sunroof", aliases: [] },
+  { api: "panoramicGlassRoof", aliases: [] },
+  { api: "usb", aliases: [] },
+  { api: "touchscreen", aliases: [] },
+  { api: "soundSystem", aliases: [] },
+  { api: "summerTires", aliases: [] },
+  { api: "winterTires", aliases: [] },
+  { api: "allSeasonTires", aliases: [] },
+  { api: "tintedWindows", aliases: [] },
+  { api: "ambientLighting", aliases: [] },
+  { api: "electricExteriorMirrors", aliases: [] },
+  { api: "electricAdjustableSeats", aliases: [] },
+  { api: "powerAssistedSteering", aliases: ["powerSteering"] },
+  { api: "hillStartAssist", aliases: [] },
+  { api: "onBoardComputer", aliases: [] },
+  { api: "handsFreePhoneSystem", aliases: [] },
+  { api: "roofRails", aliases: ["roofRack"] },
+  { api: "winterPackage", aliases: [] },
+  { api: "multifunctionalWheel", aliases: ["multifunctionalSteeringWheel"] },
+  { api: "abs", aliases: [] },
+  { api: "esp", aliases: [] },
+  { api: "immobilizer", aliases: [] },
+  { api: "fatigueWarningSystem", aliases: [] },
+  { api: "collisionAvoidance", aliases: ["emergencyBrakeAssistant"] },
+  { api: "automaticRainSensor", aliases: ["rainSensor"] },
+  { api: "tirePressureMonitoring", aliases: [] },
+  { api: "laneDepartureWarning", aliases: [] },
+  { api: "startStopSystem", aliases: [] },
+  { api: "trafficSignRecognition", aliases: [] },
+  { api: "highBeamAssist", aliases: ["highBeamAssistant"] },
 ];
 
 const UNSAFE_FIELDS = new Set([
   "speedControl", "headlightType", "trailerCouplingType", "airbag",
   "breakdownService", "corneringLight", "daytimeRunningLamps",
-  "highBeamAssistant", "emergencyCallSystem",
+  "emergencyCallSystem",
+]);
+
+// Interne/deutsche/falsche Feldnamen, die niemals an Mobile.de gesendet werden dürfen.
+// Werden nach dem Mapping aus adBody entfernt und in removedInternal protokolliert.
+const FORBIDDEN_INTERNAL_KEYS = new Set([
+  "cylinders", "fuelCapacity", "matt", "matte", "zylinder",
+  "powerSteering", "roofRack", "multifunctionalSteeringWheel",
+  "rainSensor", "highBeamAssistant", "emergencyBrakeAssistant",
+  "huNew", "inspectionNew", "particulateFilter",
+  "co2", "co2EmissionsCombined",
+  "consumptionCombined", "consumptionInner", "consumptionOuter",
+  "consumptionUrban", "consumptionExtraUrban",
 ]);
 
 export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildResult {
   const warnings: string[] = [];
+  const removedInternal: string[] = [];
   const vehicle = (payload.vehicle ?? {}) as AdPayload;
 
   const getKey = (v: unknown): string | undefined => {
@@ -214,11 +256,11 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
     const v = pick(src[k], ...alts.map((a) => src[a]));
     if (typeof v === "string" && v.trim()) adBody[k] = v.trim();
   };
-  const addNum = (k: string, alts: string[] = []) => {
-    const v = num(pick(src[k], ...alts.map((a) => src[a])));
-    if (v !== undefined) adBody[k] = v;
+  const addBoolTrue = (k: string, alts: string[] = []) => {
+    for (const candidate of [k, ...alts]) {
+      if (src[candidate] === true) { adBody[k] = true; return; }
+    }
   };
-  const addBoolTrue = (k: string) => { if (src[k] === true) adBody[k] = true; };
   const addBoolEither = (k: string) => {
     if (src[k] === true || src[k] === false) adBody[k] = src[k];
   };
@@ -230,33 +272,69 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
   addStr("trimLine"); addStr("modelRange");
   addKey("doors");
   addStr("vin"); addStr("internalNumber");
-  addNum("fuelCapacity"); addKey("driveType");
+
+  // Tankgröße: Mobile.de erwartet "fuelTankVolume" (Integer Liter), NICHT "fuelCapacity"
+  const fuelTankVolume = num(pick(src.fuelTankVolume, src.fuelCapacity));
+  if (fuelTankVolume !== undefined) adBody.fuelTankVolume = fuelTankVolume;
+
+  addKey("driveType");
   addKey("exteriorColor"); addKey("interiorColor"); addKey("interiorType");
   addStr("manufacturerColorName"); addBoolTrue("metallic");
 
-  // Cylinder: Mobile.de erwartet Root-Feld "cylinder" (Integer)
+  // Cylinder: Root-Feld "cylinder" (Integer 1–24)
   const cylinder = num(pick(src.cylinder, src.cylinders, src.zylinder));
-  if (cylinder !== undefined) adBody.cylinder = cylinder;
+  if (cylinder !== undefined && cylinder >= 1 && cylinder <= 24) adBody.cylinder = cylinder;
 
-  // Seats: Mobile.de erwartet Root-Feld "seats" (Integer)
+  // Seats: Root-Feld "seats" (Integer 1–255)
   const seats = num(pick(src.seats, src.numberOfSeats, src["number-of-seats"]));
-  if (seats !== undefined) adBody.seats = seats;
+  if (seats !== undefined && seats >= 1 && seats <= 255) adBody.seats = seats;
 
-  // Matt-Lackierung: Mobile.de erwartet Root-Feld "matteColor" (Boolean)
+  // Matt-Lackierung: Root-Feld "matteColor" (Boolean)
   const matteColor = pick(src.matteColor, src.matt, src.matte);
   if (matteColor === true) adBody.matteColor = true;
+
   addBoolEither("accidentDamaged"); addBoolEither("roadworthy");
   addBoolTrue("warranty"); addBoolTrue("nonSmokerVehicle"); addBoolTrue("fullServiceHistory");
-  addBoolTrue("newHuAu"); addBoolTrue("newService");
-  addNum("numberOfPreviousOwners");
+
+  // HU/Inspektion neu: korrekt newHuAu / newService
+  addBoolTrue("newHuAu", ["huNew"]);
+  addBoolTrue("newService", ["inspectionNew"]);
+
+  const numNop = (k: string) => {
+    const v = num(src[k]);
+    if (v !== undefined) adBody[k] = v;
+  };
+  numNop("numberOfPreviousOwners");
   addStr("generalInspection");
-  addBoolTrue("huNew"); addBoolTrue("inspectionNew");
-  addBoolTrue("particulateFilterDiesel"); addBoolTrue("particulateFilter");
+
+  // Partikelfilter: korrekt particulateFilterDiesel
+  addBoolTrue("particulateFilterDiesel", ["particulateFilter"]);
+
   addKey("emissionClass"); addKey("emissionSticker");
-  addNum("co2", ["co2EmissionsCombined"]);
-  addNum("consumptionCombined");
-  addNum("consumptionInner"); addNum("consumptionOuter");
-  addNum("consumptionUrban"); addNum("consumptionExtraUrban");
+
+  // CO₂ verschachtelt: emissions.combined.co2
+  const co2 = num(pick(src.co2, src.co2EmissionsCombined));
+  if (co2 !== undefined) {
+    adBody.emissions = { combined: { co2 } };
+  }
+
+  // Verbrauch verschachtelt: consumptions.fuel.{combined,city,suburban,rural,highway}
+  const fuelCons: Record<string, number> = {};
+  const consCombined = num(src.consumptionCombined);
+  const consCity = num(pick(src.consumptionUrban, src.consumptionInner));
+  const consSuburban = num(src.consumptionExtraUrban);
+  const consOuter = num(src.consumptionOuter);
+  if (consCombined !== undefined) fuelCons.combined = consCombined;
+  if (consCity !== undefined) fuelCons.city = consCity;
+  if (consSuburban !== undefined) fuelCons.suburban = consSuburban;
+  if (consOuter !== undefined) {
+    // UI bündelt "Landstraße/Autobahn" — bis zur Trennung als rural mappen + Warnung
+    fuelCons.rural = consOuter;
+    warnings.push("TODO: consumptionOuter wird als consumptions.fuel.rural gesendet — separate UI-Felder für rural/highway erforderlich");
+  }
+  if (Object.keys(fuelCons).length) {
+    adBody.consumptions = { fuel: fuelCons };
+  }
 
   const cli = getKey(src.climatisation);
   if (cli) {
@@ -264,6 +342,7 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
     else warnings.push(`climatisation="${cli}" nicht in Whitelist – nicht gesendet`);
   }
 
+  // parkingAssistants als String-Array, NICHT [{key:...}]
   if (Array.isArray(src.parkingAssistants)) {
     const safe: string[] = [];
     for (const x of src.parkingAssistants as unknown[]) {
@@ -275,16 +354,21 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
         warnings.push(`parkingAssistant "${raw}" unsicher – nicht gesendet`);
       else warnings.push(`parkingAssistant "${raw}" unbekannt – nicht gesendet`);
     }
-    if (safe.length) adBody.parkingAssistants = [...new Set(safe)].map((k) => ({ key: k }));
+    if (safe.length) adBody.parkingAssistants = [...new Set(safe)];
   }
 
+  // Features: nur API-Namen senden, Aliase aus Draft akzeptieren
   const featSrc = (src.features && typeof src.features === "object")
     ? (src.features as AdPayload) : {};
-  for (const f of FEATURE_KEYS) {
-    if (featSrc[f] === true || src[f] === true) adBody[f] = true;
+  for (const { api, aliases } of FEATURE_MAP) {
+    const present =
+      featSrc[api] === true ||
+      src[api] === true ||
+      aliases.some((a) => featSrc[a] === true || src[a] === true);
+    if (present) adBody[api] = true;
   }
 
-  // Unsichere Felder ggf. wieder entfernen
+  // Unsichere Enum-Felder entfernen
   for (const k of Array.from(Object.keys(adBody))) {
     if (UNSAFE_FIELDS.has(k)) {
       warnings.push(`Feld "${k}" entfernt (Enum unsicher)`);
@@ -296,6 +380,20 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
     if (v !== undefined && v !== "" && v !== false && v !== null) {
       warnings.push(`Feld "${k}" im Draft ignoriert (Enum unsicher)`);
     }
+  }
+
+  // Interne/deutsche/falsche Feldnamen NIE an Mobile.de senden
+  for (const k of Array.from(Object.keys(adBody))) {
+    if (FORBIDDEN_INTERNAL_KEYS.has(k)) {
+      removedInternal.push(k);
+      delete adBody[k];
+    }
+  }
+
+  // Neufahrzeug: countryVersion erforderlich (Default DE)
+  if (adBody.condition === "NEW") {
+    const cv = getKey(pick(src.countryVersion, vehicle.countryVersion)) || "DE";
+    adBody.countryVersion = cv;
   }
 
   if (refs.length) adBody.images = refs.map((ref) => ({ ref }));
@@ -317,6 +415,10 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
   if (typeof m.damageUnrepaired !== "boolean") missing.push("damageUnrepaired");
   if (!cleanAmount || cleanAmount === "0") missing.push("price.consumerPriceGross");
   if (!rawVat) missing.push("price.vatRate");
+
+  if (removedInternal.length) {
+    warnings.push(`Interne Feldnamen entfernt: ${removedInternal.join(", ")}`);
+  }
 
   return { adBody, missing, warnings };
 }
