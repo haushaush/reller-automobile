@@ -95,7 +95,7 @@ export default function MobileAdDrafts() {
         <div>
           <h1 className="text-2xl font-semibold">Mobile.de Inserate</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Entwürfe verwalten. Die Veröffentlichung auf Mobile.de folgt in Etappe 2.
+            Entwürfe verwalten und auf Mobile.de veröffentlichen.
           </p>
         </div>
         <Button onClick={() => navigate("/admin/mobile-ad/new")}>
