@@ -213,6 +213,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           error_message: string | null
           id: string
           image_paths: string[] | null
@@ -225,6 +226,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           error_message?: string | null
           id?: string
           image_paths?: string[] | null
@@ -237,6 +239,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           error_message?: string | null
           id?: string
           image_paths?: string[] | null

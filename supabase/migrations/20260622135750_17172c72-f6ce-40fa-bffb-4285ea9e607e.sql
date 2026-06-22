@@ -1,0 +1,1 @@
+ALTER TABLE public.mobile_ad_drafts ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
