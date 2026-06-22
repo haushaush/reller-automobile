@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Trash2, Upload, Loader2, Pencil, Radio, Copy } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2, Pencil, Radio, Copy, Search, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 
 interface DraftRow {
   id: string;
@@ -20,6 +23,19 @@ interface DraftRow {
   error_message: string | null;
   created_at: string;
   image_paths: string[] | null;
+}
+
+interface VehicleMatch {
+  id: string;
+  mobile_de_id: string | null;
+  brand: string | null;
+  model: string | null;
+  model_description: string | null;
+  title: string | null;
+  price: number | null;
+  mileage: number | null;
+  vin: string | null;
+  year: number | string | null;
 }
 
 function readPath(obj: unknown, path: string[]): unknown {
@@ -32,6 +48,14 @@ function readPath(obj: unknown, path: string[]): unknown {
   return cur;
 }
 
+function readFirst(obj: unknown, paths: string[][]): unknown {
+  for (const p of paths) {
+    const v = readPath(obj, p);
+    if (v !== undefined && v !== null && v !== "") return v;
+  }
+  return undefined;
+}
+
 const fmtPrice = (v: unknown) =>
   typeof v === "number"
     ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v)
@@ -40,6 +64,34 @@ const fmtPrice = (v: unknown) =>
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+function getDraftIdentity(payload: unknown) {
+  const make = (readFirst(payload, [["vehicle","make","key"], ["make","key"], ["make"]]) ?? null) as string | null;
+  const model = (readFirst(payload, [["vehicle","model","key"], ["model","key"], ["model"]]) ?? null) as string | null;
+  const desc = (readFirst(payload, [["vehicle","model-description"], ["vehicle","modelDescription"], ["modelDescription"]]) ?? null) as string | null;
+  const rawPrice = readFirst(payload, [["price","consumer-price-gross"], ["price","consumerPriceGross"], ["consumerPriceGross"]]);
+  const priceNum = typeof rawPrice === "number" ? rawPrice : (typeof rawPrice === "string" ? Number(String(rawPrice).replace(/[^0-9.]/g, "")) : NaN);
+  const price = Number.isFinite(priceNum) ? Math.round(priceNum) : null;
+  const mileageRaw = readFirst(payload, [["vehicle","mileage"], ["mileage"]]);
+  const mileage = typeof mileageRaw === "number" ? mileageRaw : (typeof mileageRaw === "string" ? Number(mileageRaw) : null);
+  const vin = (readFirst(payload, [["vehicle","vin"], ["vin"]]) ?? null) as string | null;
+  return { make, model, desc, price, mileage: Number.isFinite(mileage as number) ? (mileage as number) : null, vin };
+}
+
+function scoreMatch(d: ReturnType<typeof getDraftIdentity>, v: VehicleMatch): number {
+  let s = 0;
+  if (d.vin && v.vin && d.vin.toUpperCase() === v.vin.toUpperCase()) s += 100;
+  if (d.make && v.brand && d.make.toLowerCase() === v.brand.toLowerCase()) s += 10;
+  if (d.model && v.model && d.model.toLowerCase() === v.model.toLowerCase()) s += 10;
+  if (d.desc && (v.model_description || v.title)) {
+    const a = d.desc.toLowerCase();
+    const b = ((v.model_description ?? "") + " " + (v.title ?? "")).toLowerCase();
+    if (b.includes(a) || a.includes(b.trim())) s += 8;
+  }
+  if (d.price && v.price && Math.abs(d.price - v.price) <= Math.max(50, d.price * 0.02)) s += 6;
+  if (d.mileage && v.mileage && Math.abs(d.mileage - v.mileage) <= Math.max(500, d.mileage * 0.05)) s += 4;
+  return s;
+}
+
 export default function MobileAdDrafts() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<DraftRow[]>([]);
@@ -47,6 +99,12 @@ export default function MobileAdDrafts() {
   const [publishing, setPublishing] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [confirmCopyId, setConfirmCopyId] = useState<string | null>(null);
+
+  // Linking dialog state
+  const [linkDraft, setLinkDraft] = useState<DraftRow | null>(null);
+  const [linkSearching, setLinkSearching] = useState(false);
+  const [linkMatches, setLinkMatches] = useState<Array<VehicleMatch & { _score: number }>>([]);
+  const [linking, setLinking] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -75,6 +133,7 @@ export default function MobileAdDrafts() {
       load();
     }
   };
+
   const publish = async (id: string) => {
     if (!confirm("Wirklich live auf Mobile.de stellen? Das Inserat wird öffentlich sichtbar.")) return;
     setPublishing(id);
@@ -87,6 +146,8 @@ export default function MobileAdDrafts() {
           || error.message
           || "Unbekannter Fehler";
         toast.error(`Veröffentlichen fehlgeschlagen: ${msg}`);
+      } else if ((data as { warning?: boolean } | null)?.warning) {
+        toast.warning((data as { message?: string }).message ?? "Inserat erstellt, aber Mobile.de-ID fehlt.");
       } else {
         toast.success("Auf Mobile.de veröffentlicht");
       }
@@ -137,6 +198,91 @@ export default function MobileAdDrafts() {
     }
   };
 
+  const openLinkDialog = async (draft: DraftRow) => {
+    setLinkDraft(draft);
+    setLinkMatches([]);
+    setLinkSearching(true);
+    try {
+      const d = getDraftIdentity(draft.payload);
+
+      // VIN-first exact match
+      if (d.vin) {
+        const { data } = await supabase
+          .from("vehicles")
+          .select("id, mobile_de_id, brand, model, model_description, title, price, mileage, vin, year")
+          .ilike("vin", d.vin)
+          .limit(10);
+        if (data && data.length) {
+          const scored = data.map((v) => ({ ...(v as VehicleMatch), _score: scoreMatch(d, v as VehicleMatch) }));
+          scored.sort((a, b) => b._score - a._score);
+          setLinkMatches(scored);
+          return;
+        }
+      }
+
+      // Fallback: brand+model, optional price window
+      let q = supabase
+        .from("vehicles")
+        .select("id, mobile_de_id, brand, model, model_description, title, price, mileage, vin, year")
+        .not("mobile_de_id", "is", null);
+      if (d.make) q = q.ilike("brand", d.make);
+      if (d.model) q = q.ilike("model", d.model);
+      if (d.price) {
+        const lo = Math.floor(d.price * 0.9);
+        const hi = Math.ceil(d.price * 1.1);
+        q = q.gte("price", lo).lte("price", hi);
+      }
+      const { data, error } = await q.limit(50);
+      if (error) {
+        toast.error(`Suche fehlgeschlagen: ${error.message}`);
+        return;
+      }
+      const scored = (data ?? [])
+        .map((v) => ({ ...(v as VehicleMatch), _score: scoreMatch(d, v as VehicleMatch) }))
+        .filter((v) => v._score > 0)
+        .sort((a, b) => b._score - a._score)
+        .slice(0, 10);
+      setLinkMatches(scored);
+    } finally {
+      setLinkSearching(false);
+    }
+  };
+
+  const linkVehicle = async (vehicle: VehicleMatch) => {
+    if (!linkDraft) return;
+    if (!vehicle.mobile_de_id) {
+      toast.error("Dieses Fahrzeug hat keine Mobile.de-ID.");
+      return;
+    }
+    setLinking(vehicle.id);
+    try {
+      const basePayload = (linkDraft.payload && typeof linkDraft.payload === "object")
+        ? { ...(linkDraft.payload as Record<string, unknown>) }
+        : {};
+      basePayload._linkedVehicleId = vehicle.id;
+      basePayload._linkedFromSyncAt = new Date().toISOString();
+
+      const { error } = await supabase
+        .from("mobile_ad_drafts")
+        .update({
+          mobile_ad_id: vehicle.mobile_de_id,
+          status: "published",
+          error_message: null,
+          payload: basePayload as never,
+        })
+        .eq("id", linkDraft.id);
+      if (error) {
+        toast.error(`Verknüpfen fehlgeschlagen: ${error.message}`);
+        return;
+      }
+      toast.success(`Mit Mobile.de-ID ${vehicle.mobile_de_id} verknüpft.`);
+      setLinkDraft(null);
+      setLinkMatches([]);
+      await load();
+    } finally {
+      setLinking(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -174,7 +320,9 @@ export default function MobileAdDrafts() {
             const price = readPath(r.payload, ["price", "consumer-price-gross"]);
             const copiedFromId = readPath(r.payload, ["_copiedFromDraftId"]) as string | undefined;
             const copiedFromAd = readPath(r.payload, ["_copiedFromMobileAdId"]) as string | undefined;
-            const canCopy = r.status === "published" || r.status === "error";
+            const isPublished = r.status === "published" || r.status === "published_with_warning";
+            const canCopy = isPublished || r.status === "error";
+            const needsLink = isPublished && !r.mobile_ad_id;
             return (
               <Card key={r.id} className="p-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
@@ -187,6 +335,8 @@ export default function MobileAdDrafts() {
                       variant={
                         r.status === "published"
                           ? "default"
+                          : r.status === "published_with_warning"
+                          ? "secondary"
                           : r.status === "error"
                           ? "destructive"
                           : "secondary"
@@ -204,9 +354,14 @@ export default function MobileAdDrafts() {
                     {fmtPrice(price)} · erstellt {fmtDate(r.created_at)}
                     {r.mobile_ad_id ? ` · Mobile.de ID ${r.mobile_ad_id}` : ""}
                   </div>
-                  {r.status === "error" && r.error_message && (
-                    <div className="text-xs text-destructive mt-1 break-all">
+                  {(r.status === "error" || r.status === "published_with_warning") && r.error_message && (
+                    <div className={`text-xs mt-1 break-all ${r.status === "error" ? "text-destructive" : "text-amber-600"}`}>
                       {r.error_message}
+                    </div>
+                  )}
+                  {needsLink && (
+                    <div className="text-xs text-amber-600 mt-1">
+                      Keine Mobile.de-ID vorhanden. Bitte mit synchronisiertem Fahrzeug verknüpfen.
                     </div>
                   )}
                   {r.status === "published" && r.mobile_ad_id && (
@@ -221,7 +376,7 @@ export default function MobileAdDrafts() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {r.status !== "published" ? (
+                  {!isPublished ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -249,10 +404,22 @@ export default function MobileAdDrafts() {
                           </Button>
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent>Keine Mobile.de-ID vorhanden.</TooltipContent>
+                      <TooltipContent>
+                        Keine Mobile.de-ID vorhanden. Erst mit synchronisiertem Fahrzeug verknüpfen.
+                      </TooltipContent>
                     </Tooltip>
                   )}
-                  {r.status !== "published" && (
+                  {needsLink && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openLinkDialog(r)}
+                    >
+                      <Search className="h-4 w-4" />
+                      Mobile.de-ID suchen
+                    </Button>
+                  )}
+                  {!isPublished && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -309,6 +476,62 @@ export default function MobileAdDrafts() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!linkDraft} onOpenChange={(o) => { if (!o) { setLinkDraft(null); setLinkMatches([]); } }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Mobile.de-ID suchen</DialogTitle>
+            <DialogDescription>
+              Es wird lokal in den synchronisierten Fahrzeugen nach einem passenden Eintrag gesucht.
+              Es werden keine Mobile.de-APIs aufgerufen.
+            </DialogDescription>
+          </DialogHeader>
+          {linkSearching ? (
+            <div className="flex items-center gap-2 text-muted-foreground py-6">
+              <Loader2 className="h-4 w-4 animate-spin" /> Suche läuft…
+            </div>
+          ) : linkMatches.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-6">
+              Kein passendes synchronisiertes Fahrzeug gefunden.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[60vh] overflow-auto">
+              {linkMatches.map((v) => (
+                <Card key={v.id} className="p-3 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium truncate">
+                      {[v.brand, v.model].filter(Boolean).join(" ") || v.title || "Fahrzeug"}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {v.model_description || v.title || "—"}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {fmtPrice(v.price)}
+                      {v.mileage ? ` · ${v.mileage.toLocaleString("de-DE")} km` : ""}
+                      {v.year ? ` · ${v.year}` : ""}
+                      {v.mobile_de_id ? ` · Mobile.de ID ${v.mobile_de_id}` : " · keine Mobile.de-ID"}
+                      {` · Score ${v._score}`}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => linkVehicle(v)}
+                    disabled={!v.mobile_de_id || linking === v.id}
+                  >
+                    {linking === v.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                    Verknüpfen
+                  </Button>
+                </Card>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setLinkDraft(null); setLinkMatches([]); }}>
+              Schließen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
