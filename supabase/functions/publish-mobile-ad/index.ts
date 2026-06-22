@@ -612,15 +612,13 @@ Deno.serve(async (req) => {
     }
 
     // ── Step 3: success ───────────────────────────────────────
-    let mobileAdId: string | undefined;
+    const { mobileAdId, source: idSource } = extractMobileAdId(createRes, createText);
     let detailPageUrl: string | undefined;
     try {
       const j = JSON.parse(createText);
-      mobileAdId = String(j?.mobileAdId ?? j?.id ?? j?.adId ?? "");
       detailPageUrl = j?.detailPageUrl ?? j?.detail_page_url ?? j?.url;
-    } catch {
-      mobileAdId = createRes.headers.get("Location")?.split("/").pop() ?? undefined;
-    }
+    } catch { /* ignore */ }
+    console.log(`Mobile.de ad created. mobileAdId=${mobileAdId ?? "(none)"} source=${idSource}`);
 
     // ── Verify: GET /sellers/{SELLER_ID}/ads/{mobileAdId} (best-effort) ──
     if (mobileAdId) {
@@ -650,16 +648,37 @@ Deno.serve(async (req) => {
       }
     }
 
-
     const skippedNote = skipped.length
       ? `Hinweis: ${skipped.length} Bild(er) übersprungen: ${skipped.map((s) => `#${s.index} (${s.reason})`).join("; ")}`
       : null;
+
+    if (!mobileAdId) {
+      const warnMsg = "Inserat wurde vermutlich erstellt, aber Mobile.de-ID konnte nicht aus der Antwort gelesen werden. Bitte im Adminbereich nachträglich mit synchronisiertem Fahrzeug verknüpfen.";
+      console.warn(`extractMobileAdId failed. location=${createRes.headers.get("Location") ?? "(none)"} bodyPreview=${createText.slice(0, 300)}`);
+      await admin
+        .from("mobile_ad_drafts")
+        .update({
+          status: "published_with_warning",
+          mobile_ad_id: null,
+          error_message: [warnMsg, skippedNote].filter(Boolean).join(" "),
+        })
+        .eq("id", draftId);
+      return json(200, {
+        ok: true,
+        warning: true,
+        mobileAdId: null,
+        message: warnMsg,
+        detailPageUrl,
+        uploadedImages: refs.length,
+        skippedImages: skipped,
+      });
+    }
 
     await admin
       .from("mobile_ad_drafts")
       .update({
         status: "published",
-        mobile_ad_id: mobileAdId ?? null,
+        mobile_ad_id: mobileAdId,
         error_message: skippedNote,
       })
       .eq("id", draftId);
