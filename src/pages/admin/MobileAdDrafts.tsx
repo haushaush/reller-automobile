@@ -67,6 +67,27 @@ export default function MobileAdDrafts() {
       load();
     }
   };
+  const publish = async (id: string) => {
+    if (!confirm("Wirklich live auf Mobile.de stellen? Das Inserat wird öffentlich sichtbar.")) return;
+    setPublishing(id);
+    try {
+      const { data, error } = await supabase.functions.invoke("publish-mobile-ad", {
+        body: { draftId: id },
+      });
+      if (error) {
+        const msg = (data as { error?: string; details?: unknown } | null)?.error
+          || error.message
+          || "Unbekannter Fehler";
+        toast.error(`Veröffentlichen fehlgeschlagen: ${msg}`);
+      } else {
+        toast.success("Auf Mobile.de veröffentlicht");
+      }
+      await load();
+    } finally {
+      setPublishing(null);
+    }
+  };
+
 
   return (
     <div className="space-y-6">
