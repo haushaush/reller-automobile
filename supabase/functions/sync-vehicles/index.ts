@@ -347,15 +347,49 @@ async function enrichWithDetailImages(
   }
 }
 
-async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Promise<string[]> {
+interface PaginationResult {
+  pages: string[];
+  totalCount: number | null;
+  maxPages: number | null;
+  lastCurrentPage: number | null;
+  pageSize: number;
+  stopReason: string;
+  paginationConfident: boolean;
+}
+
+function parsePageInt(xml: string, tagBase: string): number | null {
+  // matches <resource:tag>123</resource:tag>, <resource:tag value="123"/>, <tag>123</tag>, <tag value="123"/>
+  const patterns = [
+    new RegExp(`<resource:${tagBase}[^>]*value="(\\d+)"`, "i"),
+    new RegExp(`<resource:${tagBase}[^>]*>(\\d+)</resource:${tagBase}>`, "i"),
+    new RegExp(`<${tagBase}[^>]*value="(\\d+)"`, "i"),
+    new RegExp(`<${tagBase}[^>]*>(\\d+)</${tagBase}>`, "i"),
+  ];
+  for (const p of patterns) {
+    const m = xml.match(p);
+    if (m) return parseInt(m[1], 10);
+  }
+  return null;
+}
+
+function countAdsInXml(xml: string): number {
+  const matches = xml.match(/<ad:ad\b/gi);
+  return matches ? matches.length : 0;
+}
+
+async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Promise<PaginationResult> {
   const allXmlPages: string[] = [];
   let pageNumber = 1;
-  let hasMorePages = true;
   const maxPages = 50;
+  let lastTotalCount: number | null = null;
+  let lastMaxPages: number | null = null;
+  let lastCurrentPage: number | null = null;
+  let stopReason = "unknown";
+  let paginationConfident = false;
 
-  while (hasMorePages && pageNumber <= maxPages) {
+  while (pageNumber <= maxPages) {
     const apiUrl = `https://services.mobile.de/search-api/search?page.size=${pageSize}&page.number=${pageNumber}`;
-    console.log(`Fetching page ${pageNumber} from Mobile.de...`);
+    console.log(`Fetching ${apiUrl}`);
 
     const response = await fetch(apiUrl, {
       headers: { Authorization: authHeader, Accept: "application/xml", "Accept-Language": "de" },
@@ -374,26 +408,60 @@ async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Pro
     const xmlText = await response.text();
     allXmlPages.push(xmlText);
 
-    const totalCountMatch = xmlText.match(/<resource:total-results-count>(\d+)<\/resource:total-results-count>/);
-    const maxPagesMatch = xmlText.match(/<resource:max-pages>(\d+)<\/resource:max-pages>/);
-    const currentPageMatch = xmlText.match(/<resource:current-page>(\d+)<\/resource:current-page>/);
+    const totalCount = parsePageInt(xmlText, "total-results-count");
+    const totalPages = parsePageInt(xmlText, "max-pages");
+    const currentPage = parsePageInt(xmlText, "current-page") ?? pageNumber;
+    const adsOnPage = countAdsInXml(xmlText);
 
-    const totalCount = totalCountMatch ? parseInt(totalCountMatch[1], 10) : 0;
-    const totalPages = maxPagesMatch ? parseInt(maxPagesMatch[1], 10) : 1;
-    const currentPage = currentPageMatch ? parseInt(currentPageMatch[1], 10) : pageNumber;
+    lastTotalCount = totalCount;
+    lastMaxPages = totalPages;
+    lastCurrentPage = currentPage;
 
-    console.log(`Page ${currentPage}/${totalPages}, total ads: ${totalCount}`);
+    console.log(
+      `Page ${currentPage} (req=${pageNumber}, size=${pageSize}): http=${response.status}, ` +
+      `ads=${adsOnPage}, total-results-count=${totalCount ?? "n/a"}, max-pages=${totalPages ?? "n/a"}`
+    );
 
-    if (currentPage >= totalPages) {
-      hasMorePages = false;
-    } else {
-      pageNumber++;
-      await new Promise((r) => setTimeout(r, 200));
+    // Stop conditions
+    if (totalPages != null && currentPage >= totalPages) {
+      stopReason = `currentPage(${currentPage}) >= totalPages(${totalPages})`;
+      paginationConfident = true;
+      break;
     }
+    if (adsOnPage === 0) {
+      stopReason = `empty page at ${pageNumber}`;
+      paginationConfident = true;
+      break;
+    }
+    if (adsOnPage < pageSize) {
+      stopReason = `page vehicle count (${adsOnPage}) < pageSize (${pageSize})`;
+      paginationConfident = true;
+      break;
+    }
+    if (pageNumber >= maxPages) {
+      stopReason = `maxPages safety cap (${maxPages}) reached`;
+      paginationConfident = false;
+      break;
+    }
+
+    pageNumber++;
+    await new Promise((r) => setTimeout(r, 200));
   }
 
-  console.log(`Fetched ${allXmlPages.length} pages total`);
-  return allXmlPages;
+  console.log(
+    `Pagination done: pages=${allXmlPages.length}, stop=${stopReason}, ` +
+    `confident=${paginationConfident}, mobile-total=${lastTotalCount ?? "n/a"}`
+  );
+
+  return {
+    pages: allXmlPages,
+    totalCount: lastTotalCount,
+    maxPages: lastMaxPages,
+    lastCurrentPage,
+    pageSize,
+    stopReason,
+    paginationConfident,
+  };
 }
 
 Deno.serve(async (req) => {
