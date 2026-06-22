@@ -98,8 +98,8 @@ export default function MobileAdCreate() {
         setFuels(f);
         setGearboxes(g);
         setVatRates(v.length ? v : [
-          { key: "19", name: "19% (Deutschland)" },
-          { key: "0", name: "0% (differenzbesteuert/keine MwSt.)" },
+          { key: "19.00", name: "19 %" },
+          { key: "OTHER", name: "Differenzbesteuert" },
         ]);
       } catch (err) {
         console.error(err);
