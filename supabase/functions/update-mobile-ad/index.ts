@@ -245,6 +245,12 @@ Deno.serve(async (req) => {
       if (JSON.stringify((currentMobileAd as AdPayload)[k]) !== JSON.stringify(mapped[k])) changedKeys.push(k);
     }
     console.log(`finalBody root-keys=${Object.keys(finalBody).join(",")}`);
+    console.log("Mobile.de PUT field debug:", JSON.stringify({
+      cylinder: finalBody.cylinder,
+      seats: finalBody.seats,
+      matteColor: finalBody.matteColor,
+      metallic: finalBody.metallic,
+    }));
     console.log(`changed keys=${changedKeys.join(",")}`);
 
     // 4) PUT
