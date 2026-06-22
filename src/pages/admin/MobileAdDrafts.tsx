@@ -96,6 +96,47 @@ export default function MobileAdDrafts() {
     }
   };
 
+  const copyAsDraft = async (id: string) => {
+    const orig = rows.find((r) => r.id === id);
+    if (!orig) return;
+    setCopying(id);
+    try {
+      const basePayload = orig.payload && typeof orig.payload === "object"
+        ? JSON.parse(JSON.stringify(orig.payload))
+        : {};
+      const newPayload = {
+        ...basePayload,
+        _copiedFromDraftId: orig.id,
+        _copiedFromMobileAdId: orig.mobile_ad_id ?? null,
+        _copiedAt: new Date().toISOString(),
+      };
+      const { data: userRes } = await supabase.auth.getUser();
+      const insertRow: Record<string, unknown> = {
+        status: "draft",
+        payload: newPayload,
+        image_paths: Array.isArray(orig.image_paths) ? [...orig.image_paths] : [],
+        mobile_ad_id: null,
+        error_message: null,
+      };
+      if (userRes?.user?.id) insertRow.created_by = userRes.user.id;
+      const { data, error } = await supabase
+        .from("mobile_ad_drafts")
+        .insert(insertRow)
+        .select("id")
+        .single();
+      if (error || !data?.id) {
+        console.error("Kopieren fehlgeschlagen:", error?.message);
+        toast.error(`Kopieren fehlgeschlagen: ${error?.message || "Unbekannter Fehler"}`);
+        return;
+      }
+      toast.success("Inserat wurde als neuer Entwurf kopiert.");
+      navigate(`/admin/mobile-ad/edit/${data.id}`);
+    } finally {
+      setCopying(null);
+      setConfirmCopyId(null);
+    }
+  };
+
 
   return (
     <div className="space-y-6">
