@@ -19,20 +19,34 @@ const REFDATA_BASE = "https://services.mobile.de/refdata";
 type RefItem = { key: string; name: string };
 
 function parseRefdataXml(xml: string): RefItem[] {
-  // Mobile.de refdata XML: <reference:item key="Golf"><resource:local-description xml-lang="de">Golf</resource:local-description></reference:item>
+  // Mobile.de refdata XML: <reference:item key="DIESEL">
+  //   <resource:local-description xml-lang="de">Diesel</resource:local-description>
+  //   <resource:local-description xml-lang="en">Diesel</resource:local-description>
+  // </reference:item>
   // Also tolerate legacy <value key="..."><local-description>...</local-description></value>.
   const items: RefItem[] = [];
   const itemRe = /<(?:[\w-]+:)?(item|value)\b([^>]*)>([\s\S]*?)<\/(?:[\w-]+:)?\1>/g;
   const keyRe = /\bkey="([^"]+)"/;
-  const descRe = /<(?:[\w-]+:)?local-description[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?local-description>/;
+  const descAllRe = /<(?:[\w-]+:)?local-description\b([^>]*)>([\s\S]*?)<\/(?:[\w-]+:)?local-description>/g;
+  const langRe = /\bxml-lang="([^"]+)"/;
   let m: RegExpExecArray | null;
   while ((m = itemRe.exec(xml)) !== null) {
     const attrs = m[2];
     const body = m[3];
     const k = keyRe.exec(attrs)?.[1];
     if (!k) continue;
-    const d = descRe.exec(body)?.[1]?.trim();
-    items.push({ key: k, name: d || k });
+    let de: string | undefined;
+    let firstAny: string | undefined;
+    let dm: RegExpExecArray | null;
+    descAllRe.lastIndex = 0;
+    while ((dm = descAllRe.exec(body)) !== null) {
+      const lang = langRe.exec(dm[1])?.[1];
+      const text = dm[2].trim();
+      if (!text) continue;
+      if (firstAny === undefined) firstAny = text;
+      if (lang === "de") { de = text; break; }
+    }
+    items.push({ key: k, name: de ?? firstAny ?? k });
   }
   return items;
 }
