@@ -393,13 +393,24 @@ export default function MobileAdCreate() {
     return Array.from({ length: 40 }, (_, i) => String(now - i));
   }, []);
 
+  if (loadingDraft) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade Entwurf…
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Mobile.de Inserat anlegen</h1>
+        <h1 className="text-2xl font-semibold">
+          {isEdit ? "Mobile.de Inserat bearbeiten" : "Mobile.de Inserat anlegen"}
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Pflichtfelder ausfüllen und als Entwurf speichern. Die Veröffentlichung auf Mobile.de
-          folgt in Etappe 2.
+          {isEdit
+            ? "Änderungen werden im bestehenden Entwurf gespeichert."
+            : "Pflichtfelder ausfüllen und als Entwurf speichern."}
         </p>
       </div>
 
