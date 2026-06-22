@@ -293,6 +293,8 @@ export default function MobileAdCreate() {
   };
 
   const buildPayload = () => ({
+    // Mobile.de: vehicleClass ist Pflicht und für dieses Portal IMMER "Car".
+    vehicleClass: "Car",
     vehicle: {
       class: { key: "Car" },
       make: form.make ? { key: form.make } : undefined,
