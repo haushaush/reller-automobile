@@ -1335,7 +1335,7 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
     addIf("trimLine", form.trimLine);
     addIf("doors", form.doors); addIf("seats", form.seats);
     addIf("vin", form.vin); addIf("internalNumber", form.internalNumber);
-    addIf("cylinders", form.cylinders); addIf("fuelCapacity", form.fuelCapacity);
+    addIf("cylinder", form.cylinders); addIf("fuelCapacity", form.fuelCapacity);
     addIf("driveType", form.driveType);
     addIf("exteriorColor", form.exteriorColor);
     addIf("manufacturerColorName", form.manufacturerColorName);
