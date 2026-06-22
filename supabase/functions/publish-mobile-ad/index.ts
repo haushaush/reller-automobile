@@ -438,6 +438,12 @@ Deno.serve(async (req) => {
     }
 
     console.log("Mobile.de POST adBody root-keys:", Object.keys(adBody).join(","));
+    console.log("Mobile.de field debug:", JSON.stringify({
+      cylinder: adBody.cylinder,
+      seats: adBody.seats,
+      matteColor: adBody.matteColor,
+      metallic: adBody.metallic,
+    }));
     console.log("Mobile.de required fields:", JSON.stringify({
       vehicleClass: adBody.vehicleClass,
       make: adBody.make,
