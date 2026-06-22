@@ -228,12 +228,16 @@ Deno.serve(async (req) => {
       mobileAdId = createRes.headers.get("Location")?.split("/").pop() ?? undefined;
     }
 
+    const skippedNote = skipped.length
+      ? `Hinweis: ${skipped.length} Bild(er) übersprungen: ${skipped.map((s) => `#${s.index} (${s.reason})`).join("; ")}`
+      : null;
+
     await admin
       .from("mobile_ad_drafts")
       .update({
         status: "published",
         mobile_ad_id: mobileAdId ?? null,
-        error_message: null,
+        error_message: skippedNote,
       })
       .eq("id", draftId);
 
@@ -242,6 +246,7 @@ Deno.serve(async (req) => {
       mobileAdId,
       detailPageUrl,
       uploadedImages: refs.length,
+      skippedImages: skipped,
     });
   } catch (err) {
     console.error("publish-mobile-ad fatal:", err);
