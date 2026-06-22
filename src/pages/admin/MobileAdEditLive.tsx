@@ -418,6 +418,28 @@ export default function MobileAdEditLive() {
         )}
       </Card>
 
+      {lastError && (
+        <Card className="p-4 border-destructive/50 bg-destructive/5 space-y-2">
+          <div className="text-destructive font-medium text-sm">{lastError.msg}</div>
+          {lastError.details && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowErrorDetails((s) => !s)}
+                className="text-xs underline text-muted-foreground"
+              >
+                {showErrorDetails ? "Details ausblenden" : "Details anzeigen"}
+              </button>
+              {showErrorDetails && (
+                <pre className="bg-muted/40 p-2 rounded overflow-x-auto max-h-60 text-xs">
+                  {lastError.details}
+                </pre>
+              )}
+            </>
+          )}
+        </Card>
+      )}
+
       <div className="flex justify-end">
         <AlertDialog>
           <AlertDialogTrigger asChild>
