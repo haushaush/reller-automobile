@@ -326,8 +326,12 @@ export type Database = {
           duration_ms: number | null
           error_message: string | null
           id: string
+          mobile_total_results: number | null
+          page_size: number | null
+          pages_fetched: number | null
           started_at: string
           status: string | null
+          stop_reason: string | null
           sync_name: string
           vehicles_added: number | null
           vehicles_marked_sold: number | null
@@ -340,8 +344,12 @@ export type Database = {
           duration_ms?: number | null
           error_message?: string | null
           id?: string
+          mobile_total_results?: number | null
+          page_size?: number | null
+          pages_fetched?: number | null
           started_at?: string
           status?: string | null
+          stop_reason?: string | null
           sync_name: string
           vehicles_added?: number | null
           vehicles_marked_sold?: number | null
@@ -354,8 +362,12 @@ export type Database = {
           duration_ms?: number | null
           error_message?: string | null
           id?: string
+          mobile_total_results?: number | null
+          page_size?: number | null
+          pages_fetched?: number | null
           started_at?: string
           status?: string | null
+          stop_reason?: string | null
           sync_name?: string
           vehicles_added?: number | null
           vehicles_marked_sold?: number | null
