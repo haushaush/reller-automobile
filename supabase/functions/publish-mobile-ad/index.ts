@@ -475,6 +475,35 @@ Deno.serve(async (req) => {
       mobileAdId = createRes.headers.get("Location")?.split("/").pop() ?? undefined;
     }
 
+    // ── Verify: GET /sellers/{SELLER_ID}/ads/{mobileAdId} (best-effort) ──
+    if (mobileAdId) {
+      try {
+        const verifyRes = await fetch(`${API_BASE}/sellers/${SELLER_ID}/ads/${mobileAdId}`, {
+          headers: { Authorization: basicAuth(), Accept: MOBILE_MIME },
+        });
+        const verifyText = await verifyRes.text();
+        if (verifyRes.ok) {
+          try {
+            const vj = JSON.parse(verifyText);
+            const optionalEchoed = Object.keys(vj).filter(
+              (k) => !["vehicleClass","make","model","modelDescription","category","mileage","firstRegistration","fuel","gearbox","power","cubicCapacity","condition","damageUnrepaired","price","images","creationDate","modificationDate","mobileAdId","detailPageUrl"].includes(k),
+            );
+            const imgCount = Array.isArray(vj.images) ? vj.images.length : 0;
+            console.log(`Verify GET ${mobileAdId}: rootKeys=${Object.keys(vj).join(",")}`);
+            console.log(`Verify optional fields returned: ${optionalEchoed.join(",")}`);
+            console.log(`Verify image count: ${imgCount}`);
+          } catch {
+            console.log(`Verify GET ${mobileAdId}: non-JSON response, status=${verifyRes.status}`);
+          }
+        } else {
+          console.warn(`Verify GET failed (${verifyRes.status}): ${verifyText.slice(0, 200)}`);
+        }
+      } catch (e) {
+        console.warn(`Verify GET error: ${(e as Error).message}`);
+      }
+    }
+
+
     const skippedNote = skipped.length
       ? `Hinweis: ${skipped.length} Bild(er) übersprungen: ${skipped.map((s) => `#${s.index} (${s.reason})`).join("; ")}`
       : null;
