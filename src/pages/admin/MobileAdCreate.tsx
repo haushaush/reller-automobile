@@ -315,12 +315,10 @@ export default function MobileAdCreate() {
       vin: form.vin || undefined,
     },
     price: {
-      "consumer-price-gross": form.consumerPriceGross
-        ? parseFloat(form.consumerPriceGross)
-        : undefined,
-      "vat-rate": form.vatRate || undefined,
-      type: "FIXED",
+      consumerPriceGross: String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""),
       currency: "EUR",
+      vatRate: "19.00",
+      type: "FIXED",
     },
     description: form.description || undefined,
   });
