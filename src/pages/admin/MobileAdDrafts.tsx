@@ -493,6 +493,7 @@ export default function MobileAdDrafts() {
                       Inserat öffnen
                     </a>
                   )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {!isPublished ? (
