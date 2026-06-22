@@ -294,15 +294,48 @@ async function enrichWithDetailImages(vehicles: VehicleRow[], authHeader: string
   }
 }
 
-async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Promise<string[]> {
+interface PaginationResult {
+  pages: string[];
+  totalCount: number | null;
+  maxPages: number | null;
+  lastCurrentPage: number | null;
+  pageSize: number;
+  stopReason: string;
+  paginationConfident: boolean;
+}
+
+function parsePageInt(xml: string, tagBase: string): number | null {
+  const patterns = [
+    new RegExp(`<resource:${tagBase}[^>]*value="(\\d+)"`, "i"),
+    new RegExp(`<resource:${tagBase}[^>]*>(\\d+)</resource:${tagBase}>`, "i"),
+    new RegExp(`<${tagBase}[^>]*value="(\\d+)"`, "i"),
+    new RegExp(`<${tagBase}[^>]*>(\\d+)</${tagBase}>`, "i"),
+  ];
+  for (const p of patterns) {
+    const m = xml.match(p);
+    if (m) return parseInt(m[1], 10);
+  }
+  return null;
+}
+
+function countAdsInXml(xml: string): number {
+  const matches = xml.match(/<ad:ad\b/gi);
+  return matches ? matches.length : 0;
+}
+
+async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Promise<PaginationResult> {
   const allXmlPages: string[] = [];
   let pageNumber = 1;
-  let hasMorePages = true;
   const maxPages = 50;
+  let lastTotalCount: number | null = null;
+  let lastMaxPages: number | null = null;
+  let lastCurrentPage: number | null = null;
+  let stopReason = "unknown";
+  let paginationConfident = false;
 
-  while (hasMorePages && pageNumber <= maxPages) {
+  while (pageNumber <= maxPages) {
     const apiUrl = `https://services.mobile.de/search-api/search?page.size=${pageSize}&page.number=${pageNumber}`;
-    console.log(`[accident] Fetching page ${pageNumber}...`);
+    console.log(`[accident] Fetching ${apiUrl}`);
 
     const response = await fetch(apiUrl, {
       headers: { Authorization: authHeader, Accept: "application/xml", "Accept-Language": "de" },
@@ -310,33 +343,66 @@ async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Pro
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[accident] Mobile.de API error on page ${pageNumber}:`, response.status, errorText);
+      console.error(`[accident] Mobile.de API error on page ${pageNumber}:`, response.status, (errorText || "").slice(0, 300));
       throw new Error(`Mobile.de API returned ${response.status} on page ${pageNumber}`);
     }
 
     const xmlText = await response.text();
     allXmlPages.push(xmlText);
 
-    const totalCountMatch = xmlText.match(/<resource:total-results-count>(\d+)<\/resource:total-results-count>/);
-    const maxPagesMatch = xmlText.match(/<resource:max-pages>(\d+)<\/resource:max-pages>/);
-    const currentPageMatch = xmlText.match(/<resource:current-page>(\d+)<\/resource:current-page>/);
+    const totalCount = parsePageInt(xmlText, "total-results-count");
+    const totalPages = parsePageInt(xmlText, "max-pages");
+    const currentPage = parsePageInt(xmlText, "current-page") ?? pageNumber;
+    const adsOnPage = countAdsInXml(xmlText);
 
-    const totalCount = totalCountMatch ? parseInt(totalCountMatch[1], 10) : 0;
-    const totalPages = maxPagesMatch ? parseInt(maxPagesMatch[1], 10) : 1;
-    const currentPage = currentPageMatch ? parseInt(currentPageMatch[1], 10) : pageNumber;
+    lastTotalCount = totalCount;
+    lastMaxPages = totalPages;
+    lastCurrentPage = currentPage;
 
-    console.log(`[accident] Page ${currentPage}/${totalPages}, total ads: ${totalCount}`);
+    console.log(
+      `[accident] Page ${currentPage} (req=${pageNumber}, size=${pageSize}): http=${response.status}, ` +
+      `ads=${adsOnPage}, total-results-count=${totalCount ?? "n/a"}, max-pages=${totalPages ?? "n/a"}`
+    );
 
-    if (currentPage >= totalPages) {
-      hasMorePages = false;
-    } else {
-      pageNumber++;
-      await new Promise((r) => setTimeout(r, 200));
+    if (totalPages != null && currentPage >= totalPages) {
+      stopReason = `currentPage(${currentPage}) >= totalPages(${totalPages})`;
+      paginationConfident = true;
+      break;
     }
+    if (adsOnPage === 0) {
+      stopReason = `empty page at ${pageNumber}`;
+      paginationConfident = true;
+      break;
+    }
+    if (adsOnPage < pageSize) {
+      stopReason = `page vehicle count (${adsOnPage}) < pageSize (${pageSize})`;
+      paginationConfident = true;
+      break;
+    }
+    if (pageNumber >= maxPages) {
+      stopReason = `maxPages safety cap (${maxPages}) reached`;
+      paginationConfident = false;
+      break;
+    }
+
+    pageNumber++;
+    await new Promise((r) => setTimeout(r, 200));
   }
 
-  console.log(`[accident] Fetched ${allXmlPages.length} pages total`);
-  return allXmlPages;
+  console.log(
+    `[accident] Pagination done: pages=${allXmlPages.length}, stop=${stopReason}, ` +
+    `confident=${paginationConfident}, mobile-total=${lastTotalCount ?? "n/a"}`
+  );
+
+  return {
+    pages: allXmlPages,
+    totalCount: lastTotalCount,
+    maxPages: lastMaxPages,
+    lastCurrentPage,
+    pageSize,
+    stopReason,
+    paginationConfident,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -379,12 +445,17 @@ Deno.serve(async (req) => {
     .select("id")
     .single();
 
-  let logStatus: "success" | "failed" | "skipped" = "failed";
+  let logStatus: "success" | "success_with_warning" | "failed" | "skipped" = "failed";
   let logError: string | null = null;
   let logTotal = 0;
   let logAdded = 0;
   let logUpdated = 0;
   let logSold = 0;
+  let logPagesFetched = 0;
+  let logPageSize = 100;
+  let logMobileTotal: number | null = null;
+  let logStopReason: string | null = null;
+  let paginationConfident = false;
 
   try {
     const username = Deno.env.get("MOBILE_DE_ACCIDENT_USERNAME");
@@ -402,7 +473,13 @@ Deno.serve(async (req) => {
     const authHeader = "Basic " + btoa(`${username}:${password}`);
     console.log(`=== [accident] Sync Start === ${new Date().toISOString()}`);
 
-    const allXmlPages = await fetchAllAdsPages(authHeader, 100);
+    const paginationResult = await fetchAllAdsPages(authHeader, 100);
+    const allXmlPages = paginationResult.pages;
+    logPagesFetched = allXmlPages.length;
+    logPageSize = paginationResult.pageSize;
+    logMobileTotal = paginationResult.totalCount;
+    logStopReason = paginationResult.stopReason;
+    paginationConfident = paginationResult.paginationConfident;
 
     const rawVehicleRows: VehicleRow[] = [];
     for (const xmlText of allXmlPages) {
@@ -506,25 +583,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
-    const { data: allDbVehicles } = await supabase
-      .from("vehicles")
-      .select("id, mobile_de_id, is_sold")
-      .eq("vehicle_category", "accident");
+    if (!paginationConfident) {
+      console.warn(
+        `[accident] Skipping soft-delete: pagination not confident (stop=${logStopReason}). ` +
+        `Fetched ${logPagesFetched} page(s), ${vehicleRows.length} vehicle(s).`
+      );
+      logStatus = "success_with_warning";
+      logError = `Soft-delete skipped: pagination unsicher (${logStopReason})`;
+    } else {
+      const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
+      const { data: allDbVehicles } = await supabase
+        .from("vehicles")
+        .select("id, mobile_de_id, is_sold")
+        .eq("vehicle_category", "accident");
 
-    if (allDbVehicles) {
-      const syncedSet = new Set(mobileDeIds);
-      const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
-      const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
+      if (allDbVehicles) {
+        const syncedSet = new Set(mobileDeIds);
+        const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
+        const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
 
-      for (const v of toMarkSold) {
-        await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
+        for (const v of toMarkSold) {
+          await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
+        }
+        for (const v of toMarkAvailable) {
+          await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
+        }
+        logSold = toMarkSold.length;
+        console.log(`[accident] Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
       }
-      for (const v of toMarkAvailable) {
-        await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
-      }
-      logSold = toMarkSold.length;
-      console.log(`[accident] Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
     }
 
     try {
@@ -541,8 +627,10 @@ Deno.serve(async (req) => {
       console.error("[accident] Failed to trigger check-alerts:", e);
     }
 
-    logStatus = "success";
-    console.log(`=== [accident] Sync Complete ===`);
+    if (logStatus !== "success_with_warning") {
+      logStatus = "success";
+    }
+    console.log(`=== [accident] Sync Complete (status=${logStatus}) ===`);
     return new Response(
       JSON.stringify({ success: true, scope: "accident", synced: vehicleRows.length, totalImages }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -570,6 +658,10 @@ Deno.serve(async (req) => {
           vehicles_added: logAdded,
           vehicles_updated: logUpdated,
           vehicles_marked_sold: logSold,
+          pages_fetched: logPagesFetched,
+          page_size: logPageSize,
+          mobile_total_results: logMobileTotal,
+          stop_reason: logStopReason,
           status: logStatus,
           error_message: logError,
         })
@@ -577,7 +669,8 @@ Deno.serve(async (req) => {
     }
     console.log(
       `[accident] Sync lock released (status=${logStatus}, duration=${Date.now() - startTime}ms, ` +
-      `total=${logTotal}, added=${logAdded}, updated=${logUpdated}, sold=${logSold})`
+      `pages=${logPagesFetched}, total=${logTotal}, added=${logAdded}, updated=${logUpdated}, ` +
+      `sold=${logSold}, mobile-total=${logMobileTotal ?? "n/a"}, stop=${logStopReason ?? "n/a"})`
     );
   }
 });
