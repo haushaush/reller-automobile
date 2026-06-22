@@ -701,6 +701,76 @@ export default function MobileAdDrafts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !deleting && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          {(() => {
+            const t = deleteTarget;
+            if (!t) return null;
+            const isPublished = t.status === "published" || t.status === "published_with_warning";
+            if (isPublished && !t.mobile_ad_id) {
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Keine Mobile.de-ID vorhanden</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Keine Mobile.de-ID vorhanden. Bitte zuerst mit synchronisiertem Fahrzeug verknüpfen oder manuell prüfen.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Schließen</AlertDialogCancel>
+                  </AlertDialogFooter>
+                </>
+              );
+            }
+            if (isPublished) {
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Inserat wirklich löschen?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Dieses Inserat wird live bei Mobile.de gelöscht und anschließend aus Lovable entfernt.
+                      Diese Aktion kann nicht rückgängig gemacht werden.
+                      <br />
+                      Mobile.de ID: <span className="font-mono">{t.mobile_ad_id}</span>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={deleting === t.id}>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={(e) => { e.preventDefault(); doDelete(t); }}
+                      disabled={deleting === t.id}
+                    >
+                      {deleting === t.id && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      Ja, bei Mobile.de und Lovable löschen
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </>
+              );
+            }
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Entwurf löschen?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Dieser Entwurf wird lokal gelöscht. Bei Mobile.de wird nichts geändert.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting === t.id}>Abbrechen</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => { e.preventDefault(); doDelete(t); }}
+                    disabled={deleting === t.id}
+                  >
+                    {deleting === t.id && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    Entwurf löschen
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
