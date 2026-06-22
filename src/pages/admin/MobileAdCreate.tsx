@@ -826,6 +826,39 @@ export default function MobileAdCreate() {
     }
   };
 
+  const saveLive = async () => {
+    if (!draftId) return;
+    const err = validate();
+    if (err) { toast.error(err); return; }
+    setSaving(true);
+    setLastUpdateError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("update-mobile-ad", {
+        body: { draftId, mobileAdId: liveMobileAdId || undefined, formPayload: buildPayload() },
+      });
+      const d = (data ?? null) as { success?: boolean; error?: string; details?: unknown } | null;
+      if (error || !d?.success) {
+        const raw = d?.error || error?.message || "Update fehlgeschlagen";
+        const detStr = typeof d?.details === "string" ? d.details : JSON.stringify(d?.details ?? raw, null, 2);
+        const isPriceErr = /price|consumer-?price|consumerValue|consumer-price-not-in-range/i.test(raw + " " + detStr);
+        const msg = isPriceErr
+          ? "Mobile.de hat das Update abgelehnt: Preis prüfen."
+          : `Mobile.de hat das Update abgelehnt: ${raw}`;
+        setLastUpdateError({ msg, details: detStr });
+        toast.error(msg);
+        return;
+      }
+      toast.success("Inserat wurde live bei Mobile.de aktualisiert.");
+      navigate("/admin/mobile-ad");
+    } catch (e) {
+      const msg = (e as Error)?.message || "Unbekannter Fehler beim Live-Update";
+      setLastUpdateError({ msg });
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const months = useMemo(
     () => Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")),
     [],
