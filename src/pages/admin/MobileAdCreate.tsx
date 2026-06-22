@@ -423,10 +423,8 @@ export default function MobileAdCreate() {
     });
   };
 
-  const buildPayload = () => ({
-    // Mobile.de: vehicleClass ist Pflicht und für dieses Portal IMMER "Car".
-    vehicleClass: "Car",
-    vehicle: {
+  const buildPayload = () => {
+    const vehicle: Record<string, unknown> = {
       class: { key: "Car" },
       make: form.make ? { key: form.make } : undefined,
       model: form.model ? { key: form.model } : undefined,
@@ -444,15 +442,49 @@ export default function MobileAdCreate() {
       condition: form.condition,
       "damage-unrepaired": form.damageUnrepaired === "true",
       vin: form.vin || undefined,
-    },
-    price: {
-      consumerPriceGross: String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""),
-      currency: "EUR",
-      vatRate: "19.00",
-      type: "FIXED",
-    },
-    description: form.description || undefined,
-  });
+    };
+
+    // Stage 2 — optional fields
+    if (form.exteriorColor) vehicle.exteriorColor = { key: form.exteriorColor };
+    if (form.metallic) vehicle.metallic = true;
+    if (form.manufacturerColorName) vehicle.manufacturerColorName = form.manufacturerColorName;
+    if (form.doors) vehicle.doors = { key: form.doors };
+    if (form.seats) {
+      const n = parseInt(form.seats, 10);
+      if (!Number.isNaN(n)) vehicle.seats = n;
+    }
+    if (form.accidentDamaged === "true") vehicle.accidentDamaged = true;
+    else if (form.accidentDamaged === "false") vehicle.accidentDamaged = false;
+    if (form.fullServiceHistory) vehicle.fullServiceHistory = true;
+    if (form.nonSmokerVehicle) vehicle.nonSmokerVehicle = true;
+    if (form.numberOfPreviousOwners) {
+      const n = parseInt(form.numberOfPreviousOwners, 10);
+      if (!Number.isNaN(n)) vehicle.numberOfPreviousOwners = n;
+    }
+    if (form.hsnYear && form.hsnMonth) {
+      vehicle.generalInspection = `${form.hsnYear}${form.hsnMonth.padStart(2, "0")}`;
+    }
+    if (form.climatisation) vehicle.climatisation = { key: form.climatisation };
+    if (form.parkingAssistants.length) {
+      vehicle.parkingAssistants = form.parkingAssistants.map((k) => ({ key: k }));
+    }
+    for (const f of FEATURE_FIELDS) {
+      if (form.features[f.key]) vehicle[f.key] = true;
+    }
+
+    return {
+      vehicleClass: "Car",
+      vehicle,
+      price: {
+        consumerPriceGross: String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""),
+        currency: "EUR",
+        vatRate: "19.00",
+        type: "FIXED",
+      },
+      description: form.description || undefined,
+    };
+  };
+
 
   const validate = (): string | null => {
     if (!form.make) return "Marke fehlt";
