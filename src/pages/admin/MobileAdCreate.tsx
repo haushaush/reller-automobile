@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -48,6 +49,67 @@ const CATEGORY_LABELS: Record<string, string> = {
   OtherCar: "Andere",
 };
 
+const EXTERIOR_COLOR_OPTIONS: { key: string; label: string }[] = [
+  { key: "BLACK", label: "Schwarz" },
+  { key: "WHITE", label: "Weiß" },
+  { key: "SILVER", label: "Silber" },
+  { key: "GREY", label: "Grau" },
+  { key: "BLUE", label: "Blau" },
+  { key: "RED", label: "Rot" },
+  { key: "GREEN", label: "Grün" },
+  { key: "BROWN", label: "Braun" },
+  { key: "BEIGE", label: "Beige" },
+  { key: "YELLOW", label: "Gelb" },
+  { key: "ORANGE", label: "Orange" },
+  { key: "GOLD", label: "Gold" },
+  { key: "VIOLET", label: "Violett" },
+];
+
+const DOORS_OPTIONS: { key: string; label: string }[] = [
+  { key: "TWO_OR_THREE", label: "2/3" },
+  { key: "FOUR_OR_FIVE", label: "4/5" },
+];
+
+const CLIMATISATION_OPTIONS: { key: string; label: string }[] = [
+  { key: "NO_CLIMATISATION", label: "keine" },
+  { key: "MANUAL_CLIMATISATION", label: "Klimaanlage" },
+  { key: "AUTOMATIC_CLIMATISATION", label: "Klimaautomatik" },
+  { key: "2_ZONE_AUTOMATIC_AIR_CONDITIONING", label: "2-Zonen-Klimaautomatik" },
+  { key: "3_ZONE_AUTOMATIC_AIR_CONDITIONING", label: "3-Zonen-Klimaautomatik" },
+  { key: "4_ZONE_AUTOMATIC_AIR_CONDITIONING", label: "4-Zonen-Klimaautomatik" },
+];
+
+const PARKING_ASSIST_OPTIONS: { key: string; label: string }[] = [
+  { key: "FRONT", label: "vorne" },
+  { key: "REAR", label: "hinten" },
+  { key: "CAMERA", label: "Kamera" },
+  { key: "AUTOMATIC_PARKING", label: "Selbstlenkend" },
+];
+
+// Boolean equipment checkboxes (key in payload -> german label)
+const FEATURE_FIELDS: { key: string; label: string }[] = [
+  { key: "alloyWheels", label: "Leichtmetallfelgen" },
+  { key: "navigationSystem", label: "Navigationssystem" },
+  { key: "electricHeatedSeats", label: "Sitzheizung" },
+  { key: "bluetooth", label: "Bluetooth" },
+  { key: "carplay", label: "Apple CarPlay" },
+  { key: "androidAuto", label: "Android Auto" },
+  { key: "electricWindows", label: "Elektr. Fensterheber" },
+  { key: "centralLocking", label: "Zentralverriegelung" },
+  { key: "isofix", label: "Isofix" },
+  { key: "sunroof", label: "Schiebedach" },
+  { key: "panoramicGlassRoof", label: "Panoramadach" },
+  { key: "abs", label: "ABS" },
+  { key: "esp", label: "ESP" },
+  { key: "immobilizer", label: "Elektr. Wegfahrsperre" },
+  { key: "usb", label: "USB" },
+  { key: "touchscreen", label: "Touchscreen" },
+  { key: "soundSystem", label: "Soundsystem" },
+  { key: "summerTires", label: "Sommerreifen" },
+  { key: "winterTires", label: "Winterreifen" },
+  { key: "allSeasonTires", label: "Allwetterreifen" },
+];
+
 const labelFor = (map: Record<string, string>, key: string, fallback: string) =>
   map[key] ?? fallback ?? key;
 
@@ -69,6 +131,21 @@ interface FormState {
   vatRate: string;
   description: string;
   vin: string;
+  // Stage 2 — all optional
+  exteriorColor: string;
+  metallic: boolean;
+  manufacturerColorName: string;
+  doors: string;
+  seats: string;
+  accidentDamaged: "" | "true" | "false";
+  fullServiceHistory: boolean;
+  nonSmokerVehicle: boolean;
+  numberOfPreviousOwners: string;
+  hsnYear: string; // generalInspection year
+  hsnMonth: string; // generalInspection month
+  climatisation: string;
+  parkingAssistants: string[];
+  features: Record<string, boolean>;
 }
 
 const EMPTY: FormState = {
@@ -89,6 +166,20 @@ const EMPTY: FormState = {
   vatRate: "",
   description: "",
   vin: "",
+  exteriorColor: "",
+  metallic: false,
+  manufacturerColorName: "",
+  doors: "",
+  seats: "",
+  accidentDamaged: "",
+  fullServiceHistory: false,
+  nonSmokerVehicle: false,
+  numberOfPreviousOwners: "",
+  hsnYear: "",
+  hsnMonth: "",
+  climatisation: "",
+  parkingAssistants: [],
+  features: {},
 };
 
 async function loadRef(kind: string, make?: string): Promise<RefItem[]> {
