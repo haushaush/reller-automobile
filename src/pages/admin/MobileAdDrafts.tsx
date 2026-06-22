@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Trash2, Upload, Loader2, Pencil, Radio } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2, Pencil, Radio, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface DraftRow {
   id: string;
@@ -15,6 +19,7 @@ interface DraftRow {
   mobile_ad_id: string | null;
   error_message: string | null;
   created_at: string;
+  image_paths: string[] | null;
 }
 
 function readPath(obj: unknown, path: string[]): unknown {
@@ -40,12 +45,14 @@ export default function MobileAdDrafts() {
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState<string | null>(null);
+  const [copying, setCopying] = useState<string | null>(null);
+  const [confirmCopyId, setConfirmCopyId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("mobile_ad_drafts")
-      .select("id, status, payload, mobile_ad_id, error_message, created_at")
+      .select("id, status, payload, mobile_ad_id, error_message, created_at, image_paths")
       .order("created_at", { ascending: false });
     if (error) {
       toast.error("Laden fehlgeschlagen");
@@ -89,6 +96,47 @@ export default function MobileAdDrafts() {
     }
   };
 
+  const copyAsDraft = async (id: string) => {
+    const orig = rows.find((r) => r.id === id);
+    if (!orig) return;
+    setCopying(id);
+    try {
+      const basePayload = orig.payload && typeof orig.payload === "object"
+        ? JSON.parse(JSON.stringify(orig.payload))
+        : {};
+      const newPayload = {
+        ...basePayload,
+        _copiedFromDraftId: orig.id,
+        _copiedFromMobileAdId: orig.mobile_ad_id ?? null,
+        _copiedAt: new Date().toISOString(),
+      };
+      const { data: userRes } = await supabase.auth.getUser();
+      const insertRow: Record<string, unknown> = {
+        status: "draft",
+        payload: newPayload,
+        image_paths: Array.isArray(orig.image_paths) ? [...orig.image_paths] : [],
+        mobile_ad_id: null,
+        error_message: null,
+      };
+      if (userRes?.user?.id) insertRow.created_by = userRes.user.id;
+      const { data, error } = await supabase
+        .from("mobile_ad_drafts")
+        .insert(insertRow as never)
+        .select("id")
+        .single();
+      if (error || !data?.id) {
+        console.error("Kopieren fehlgeschlagen:", error?.message);
+        toast.error(`Kopieren fehlgeschlagen: ${error?.message || "Unbekannter Fehler"}`);
+        return;
+      }
+      toast.success("Inserat wurde als neuer Entwurf kopiert.");
+      navigate(`/admin/mobile-ad/edit/${data.id}`);
+    } finally {
+      setCopying(null);
+      setConfirmCopyId(null);
+    }
+  };
+
 
   return (
     <div className="space-y-6">
@@ -124,6 +172,9 @@ export default function MobileAdDrafts() {
             const model = readPath(r.payload, ["vehicle", "model", "key"]) as string | undefined;
             const desc = readPath(r.payload, ["vehicle", "model-description"]) as string | undefined;
             const price = readPath(r.payload, ["price", "consumer-price-gross"]);
+            const copiedFromId = readPath(r.payload, ["_copiedFromDraftId"]) as string | undefined;
+            const copiedFromAd = readPath(r.payload, ["_copiedFromMobileAdId"]) as string | undefined;
+            const canCopy = r.status === "published" || r.status === "error";
             return (
               <Card key={r.id} className="p-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
@@ -143,6 +194,11 @@ export default function MobileAdDrafts() {
                     >
                       {r.status}
                     </Badge>
+                    {copiedFromId && (
+                      <Badge variant="outline" className="text-xs">
+                        Kopie von {desc || copiedFromAd || copiedFromId.slice(0, 8)}
+                      </Badge>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     {fmtPrice(price)} · erstellt {fmtDate(r.created_at)}
@@ -211,6 +267,17 @@ export default function MobileAdDrafts() {
                       Veröffentlichen
                     </Button>
                   )}
+                  {canCopy && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmCopyId(r.id)}
+                      disabled={copying === r.id}
+                    >
+                      {copying === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+                      Als Entwurf kopieren
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
@@ -225,6 +292,23 @@ export default function MobileAdDrafts() {
           })}
         </div>
       )}
+
+      <AlertDialog open={!!confirmCopyId} onOpenChange={(o) => !o && setConfirmCopyId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Inserat als Entwurf kopieren?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Es wird ein neuer lokaler Entwurf erstellt. Das veröffentlichte Mobile.de-Inserat bleibt unverändert.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmCopyId && copyAsDraft(confirmCopyId)}>
+              Kopieren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
