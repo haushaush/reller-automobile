@@ -14,21 +14,21 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const MOBILE_USER = Deno.env.get("MOBILE_DE_USERNAME")!;
 const MOBILE_PASS = Deno.env.get("MOBILE_DE_PASSWORD")!;
 
-const REFDATA_BASE = "https://services.mobile.de/refdata/sites/GERMANY";
+const REFDATA_BASE = "https://services.mobile.de/refdata";
 
 type RefItem = { key: string; name: string };
 
 function parseRefdataXml(xml: string): RefItem[] {
-  // Mobile.de refdata XML uses <values><value key="VW"><local-description>...</local-description></value>...</values>
-  // Be forgiving: extract every <value key="..."> with its first <local-description> or fall back to key.
+  // Mobile.de refdata XML: <reference:item key="Golf"><resource:local-description xml-lang="de">Golf</resource:local-description></reference:item>
+  // Also tolerate legacy <value key="..."><local-description>...</local-description></value>.
   const items: RefItem[] = [];
-  const valueRe = /<value\b([^>]*)>([\s\S]*?)<\/value>/g;
-  const keyRe = /key="([^"]+)"/;
-  const descRe = /<local-description[^>]*>([\s\S]*?)<\/local-description>/;
+  const itemRe = /<(?:[\w-]+:)?(item|value)\b([^>]*)>([\s\S]*?)<\/(?:[\w-]+:)?\1>/g;
+  const keyRe = /\bkey="([^"]+)"/;
+  const descRe = /<(?:[\w-]+:)?local-description[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?local-description>/;
   let m: RegExpExecArray | null;
-  while ((m = valueRe.exec(xml)) !== null) {
-    const attrs = m[1];
-    const body = m[2];
+  while ((m = itemRe.exec(xml)) !== null) {
+    const attrs = m[2];
+    const body = m[3];
     const k = keyRe.exec(attrs)?.[1];
     if (!k) continue;
     const d = descRe.exec(body)?.[1]?.trim();
@@ -48,7 +48,8 @@ async function fetchRef(path: string): Promise<RefItem[]> {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Refdata ${res.status}: ${body.slice(0, 200)}`);
+    console.error(`Refdata ${res.status} for ${url}: ${body.slice(0, 300)}`);
+    throw new Error(`Refdata ${res.status} for ${url}: ${body.slice(0, 300)}`);
   }
   const xml = await res.text();
   return parseRefdataXml(xml);
