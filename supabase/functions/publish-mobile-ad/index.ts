@@ -327,6 +327,10 @@ Deno.serve(async (req) => {
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
     if (claimsError || !claimsData?.claims?.sub) return json(401, { error: "Unauthorized" });
+
+    if (!MOBILE_USER || !MOBILE_PASS) {
+      return json(500, { error: "Mobile.de Seller-API Zugangsdaten fehlen" });
+    }
     const userId = claimsData.claims.sub as string;
     const { data: roleRow } = await admin
       .from("user_roles")
