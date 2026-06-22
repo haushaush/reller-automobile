@@ -1267,6 +1267,10 @@ export default function MobileAdCreate() {
         </div>
       </Card>
 
+      {/* ── Mobile.de Payload Vorschau (Debug) ── */}
+      <PayloadPreview form={form} imageCount={imagePaths.length} />
+
+
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => navigate("/admin/mobile-ad")} disabled={saving}>
           Abbrechen
