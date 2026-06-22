@@ -346,19 +346,38 @@ export default function MobileAdCreate() {
     }
     setSaving(true);
     try {
-      const { data: userRes } = await supabase.auth.getUser();
-      const { error } = await supabase.from("mobile_ad_drafts").insert({
-        status: "draft",
-        payload: buildPayload() as never,
-        image_paths: imagePaths,
-        created_by: userRes.user?.id ?? null,
-      });
-      if (error) {
-        console.error(error);
-        toast.error(`Speichern fehlgeschlagen: ${error.message}`);
-        return;
+      if (isEdit && draftId) {
+        const nextStatus = draftStatus === "error" ? "draft" : draftStatus;
+        const { error } = await supabase
+          .from("mobile_ad_drafts")
+          .update({
+            payload: buildPayload() as never,
+            image_paths: imagePaths,
+            status: nextStatus,
+            error_message: nextStatus === "draft" ? null : undefined,
+          })
+          .eq("id", draftId);
+        if (error) {
+          console.error(error);
+          toast.error(`Speichern fehlgeschlagen: ${error.message}`);
+          return;
+        }
+        toast.success("Entwurf aktualisiert");
+      } else {
+        const { data: userRes } = await supabase.auth.getUser();
+        const { error } = await supabase.from("mobile_ad_drafts").insert({
+          status: "draft",
+          payload: buildPayload() as never,
+          image_paths: imagePaths,
+          created_by: userRes.user?.id ?? null,
+        });
+        if (error) {
+          console.error(error);
+          toast.error(`Speichern fehlgeschlagen: ${error.message}`);
+          return;
+        }
+        toast.success("Entwurf gespeichert");
       }
-      toast.success("Entwurf gespeichert");
       navigate("/admin/mobile-ad");
     } finally {
       setSaving(false);
