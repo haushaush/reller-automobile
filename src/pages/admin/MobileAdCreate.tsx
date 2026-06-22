@@ -335,7 +335,8 @@ export default function MobileAdCreate() {
     if (!form.gearbox) return "Getriebe fehlt";
     if (!form.power) return "Leistung (kW) fehlt";
     if (!form.cubicCapacity) return "Hubraum fehlt";
-    if (!form.consumerPriceGross) return "Preis fehlt";
+    const cleanPrice = String(form.consumerPriceGross || "").replace(/[^0-9]/g, "");
+    if (!cleanPrice || cleanPrice === "0") return "Preis fehlt/ungültig";
     if (!form.vatRate) return "MwSt.-Satz fehlt";
     return null;
   };
