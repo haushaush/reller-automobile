@@ -119,6 +119,8 @@ export default function SyncStatus() {
     switch (status) {
       case "success":
         return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+      case "success_with_warning":
+        return <CheckCircle2 className="h-4 w-4 text-amber-500" />;
       case "failed":
         return <XCircle className="h-4 w-4 text-destructive" />;
       case "running":
