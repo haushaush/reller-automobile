@@ -309,12 +309,30 @@ Deno.serve(async (req) => {
     // undefined-Werte entfernen
     for (const k of Object.keys(finalBody)) if (finalBody[k] === undefined) delete finalBody[k];
 
+    // Preis IMMER neu normalisieren – egal was currentMobileAd/mapped enthielten
+    const normalizedPrice = normalizeSellerApiPrice(
+      currentMobileAd.price as Record<string, unknown> | undefined,
+      formPayload as Record<string, unknown>
+    );
+    if (!normalizedPrice || !normalizedPrice.consumerPriceGross) {
+      const msg = "Preis fehlt: consumerPriceGross konnte nicht ermittelt werden.";
+      await admin.from("mobile_ad_drafts").update({ error_message: msg }).eq("id", draftId);
+      return json(400, { error: msg });
+    }
+    const hadConsumerValue =
+      !!(currentMobileAd.price && typeof currentMobileAd.price === "object" &&
+        ("consumerValue" in (currentMobileAd.price as Record<string, unknown>)));
+    finalBody.price = stripInvalidPriceFields(normalizedPrice);
+    delete (finalBody.price as Record<string, unknown>).consumerValue;
+
     // Geänderte Felder ermitteln (Top-Level)
     const changedKeys: string[] = [];
     for (const k of Object.keys(mapped)) {
       if (JSON.stringify((currentMobileAd as AdPayload)[k]) !== JSON.stringify(mapped[k])) changedKeys.push(k);
     }
     console.log(`finalBody root-keys=${Object.keys(finalBody).join(",")}`);
+    console.log("Mobile.de PUT price:", JSON.stringify(finalBody.price));
+    console.log(`consumerValue removed from price: ${hadConsumerValue}`);
     console.log("Mobile.de PUT field debug:", JSON.stringify({
       cylinder: finalBody.cylinder,
       seats: finalBody.seats,
