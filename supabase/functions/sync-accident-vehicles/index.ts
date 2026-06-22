@@ -523,6 +523,7 @@ Deno.serve(async (req) => {
       for (const v of toMarkAvailable) {
         await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
       }
+      logSold = toMarkSold.length;
       console.log(`[accident] Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
     }
 
