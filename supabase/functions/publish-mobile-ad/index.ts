@@ -182,6 +182,101 @@ Deno.serve(async (req) => {
     };
     if (payload.description) mobilePayload.description = payload.description;
 
+    // ── Pass-through optional fields (only when present) ──
+    const optional: Record<string, unknown> = {};
+    const addStr = (k: string, v: unknown) => {
+      if (typeof v === "string" && v.trim()) optional[k] = v.trim();
+    };
+    const addNum = (k: string, v: unknown) => {
+      if (typeof v === "number" && Number.isFinite(v)) optional[k] = v;
+      else if (typeof v === "string" && v.trim() && !Number.isNaN(Number(v))) optional[k] = Number(v);
+    };
+    const addBoolTrue = (k: string, v: unknown) => {
+      if (v === true) optional[k] = true;
+    };
+    const addBoolEither = (k: string, v: unknown) => {
+      if (v === true || v === false) optional[k] = v;
+    };
+    const addKey = (k: string, v: unknown) => {
+      const key = getKey(v) ?? (typeof v === "string" ? v : undefined);
+      if (key) optional[k] = key;
+    };
+
+    // Basis & Karosserie
+    addStr("trimLine", vehicle.trimLine);
+    addNum("seats", vehicle.seats);
+    addKey("doors", vehicle.doors);
+    addStr("vin", vehicle.vin);
+    addStr("internalNumber", vehicle.internalNumber);
+
+    // Motor / Technik
+    addNum("cylinders", vehicle.cylinders);
+    addNum("fuelCapacity", vehicle.fuelCapacity);
+    addKey("driveType", vehicle.driveType);
+
+    // Farbe
+    addKey("exteriorColor", vehicle.exteriorColor);
+    addStr("manufacturerColorName", vehicle.manufacturerColorName);
+    addBoolTrue("metallic", vehicle.metallic);
+    addBoolTrue("matt", vehicle.matt);
+
+    // Historie / Zustand
+    addBoolEither("accidentDamaged", vehicle.accidentDamaged);
+    addBoolTrue("fullServiceHistory", vehicle.fullServiceHistory);
+    addBoolTrue("nonSmokerVehicle", vehicle.nonSmokerVehicle);
+    addBoolTrue("warranty", vehicle.warranty);
+    addBoolEither("roadworthy", vehicle.roadworthy);
+    addNum("numberOfPreviousOwners", vehicle.numberOfPreviousOwners);
+
+    // Umwelt / Untersuchungen
+    addStr("generalInspection", vehicle.generalInspection); // YYYYMM
+    addBoolTrue("huNew", vehicle.huNew);
+    addBoolTrue("inspectionNew", vehicle.inspectionNew);
+    addBoolTrue("particulateFilter", vehicle.particulateFilter);
+    addKey("emissionClass", vehicle.emissionClass);
+    addKey("emissionSticker", vehicle.emissionSticker);
+    addNum("co2EmissionsCombined", vehicle.co2EmissionsCombined);
+    addNum("consumptionCombined", vehicle.consumptionCombined);
+    addNum("consumptionInner", vehicle.consumptionInner);
+    addNum("consumptionOuter", vehicle.consumptionOuter);
+    addNum("consumptionUrban", vehicle.consumptionUrban);
+    addNum("consumptionExtraUrban", vehicle.consumptionExtraUrban);
+
+    // Klimatisierung / Komfort enums
+    addKey("climatisation", vehicle.climatisation);
+
+    // parkingAssistants array
+    if (Array.isArray(vehicle.parkingAssistants)) {
+      const pa = (vehicle.parkingAssistants as unknown[])
+        .map((x) => getKey(x) ?? (typeof x === "string" ? x : undefined))
+        .filter((x): x is string => Boolean(x));
+      if (pa.length) optional.parkingAssistants = pa.map((k) => ({ key: k }));
+    }
+
+    // Boolean equipment / safety feature flags — whitelist of known Mobile.de keys
+    const FEATURE_KEYS = [
+      // Comfort / Equipment
+      "alloyWheels", "navigationSystem", "electricHeatedSeats", "bluetooth",
+      "carplay", "androidAuto", "electricWindows", "centralLocking", "isofix",
+      "sunroof", "panoramicGlassRoof", "usb", "touchscreen", "soundSystem",
+      "summerTires", "winterTires", "allSeasonTires",
+      "tintedWindows", "ambientLighting", "electricExteriorMirrors",
+      "electricAdjustableSeats", "powerSteering", "hillStartAssist",
+      "onBoardComputer", "handsFreePhoneSystem", "roofRack", "winterPackage",
+      "multifunctionalSteeringWheel", "daytimeRunningLamps",
+      // Safety
+      "abs", "esp", "immobilizer", "highBeamAssistant", "fatigueWarningSystem",
+      "emergencyBrakeAssistant", "emergencyCallSystem", "rainSensor",
+      "tirePressureMonitoring", "laneDepartureWarning", "startStopSystem",
+      "trafficSignRecognition",
+    ];
+    for (const f of FEATURE_KEYS) {
+      if (vehicle[f] === true) optional[f] = true;
+    }
+
+    Object.assign(mobilePayload, optional);
+    console.log(`Optional fields forwarded (${Object.keys(optional).length}):`, Object.keys(optional).join(","));
+
     // ── Validate required fields BEFORE posting ──
     const missing: string[] = [];
     if (!mobilePayload.make) missing.push("make");

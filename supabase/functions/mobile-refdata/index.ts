@@ -164,6 +164,24 @@ Deno.serve(async (req) => {
       case "vatrates":
         path = "/sites/GERMANY/vatrates";
         break;
+      case "exterior-colors":
+        path = "/colors";
+        break;
+      case "climatisations":
+        path = "/climatisations";
+        break;
+      case "emission-classes":
+        path = "/emission-classes";
+        break;
+      case "emission-stickers":
+        path = "/emission-stickers";
+        break;
+      case "drive-types":
+        path = "/drive-types";
+        break;
+      case "parking-assistants":
+        path = "/parking-assistants";
+        break;
       default:
         return new Response(JSON.stringify({ error: `unknown kind: ${kind}` }), {
           status: 400,
