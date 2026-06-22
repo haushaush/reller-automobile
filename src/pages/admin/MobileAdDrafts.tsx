@@ -292,6 +292,23 @@ export default function MobileAdDrafts() {
           })}
         </div>
       )}
+
+      <AlertDialog open={!!confirmCopyId} onOpenChange={(o) => !o && setConfirmCopyId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Inserat als Entwurf kopieren?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Es wird ein neuer lokaler Entwurf erstellt. Das veröffentlichte Mobile.de-Inserat bleibt unverändert.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmCopyId && copyAsDraft(confirmCopyId)}>
+              Kopieren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
