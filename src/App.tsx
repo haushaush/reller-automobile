@@ -91,6 +91,7 @@ const App = () => (
                       <Route path="collage" element={<Collage />} />
                       <Route path="mobile-ad" element={<MobileAdDrafts />} />
                       <Route path="mobile-ad/new" element={<MobileAdCreate />} />
+                      <Route path="mobile-ad/edit/:draftId" element={<MobileAdCreate />} />
                       <Route path="settings" element={<Settings />} />
                       <Route path="vehicles/new" element={<VehicleCreate />} />
                       <Route path="accounts" element={<Accounts />} />
