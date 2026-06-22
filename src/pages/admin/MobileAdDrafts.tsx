@@ -40,6 +40,8 @@ export default function MobileAdDrafts() {
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState<string | null>(null);
+  const [copying, setCopying] = useState<string | null>(null);
+  const [confirmCopyId, setConfirmCopyId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
