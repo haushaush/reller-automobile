@@ -671,11 +671,17 @@ Deno.serve(async (req) => {
           completed_at: new Date().toISOString(),
           duration_ms: Date.now() - startTime,
           vehicles_total: logTotal,
+          vehicles_added: logAdded,
+          vehicles_updated: logUpdated,
+          vehicles_marked_sold: logSold,
           status: logStatus,
           error_message: logError,
         })
         .eq("id", logEntry.id);
     }
-    console.log(`Sync lock released (status=${logStatus}, duration=${Date.now() - startTime}ms)`);
+    console.log(
+      `Sync lock released (status=${logStatus}, duration=${Date.now() - startTime}ms, ` +
+      `total=${logTotal}, added=${logAdded}, updated=${logUpdated}, sold=${logSold}, manual=${logSkippedManual})`
+    );
   }
 });
