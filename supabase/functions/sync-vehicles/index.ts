@@ -602,8 +602,16 @@ Deno.serve(async (req) => {
       for (const v of toMarkAvailable) {
         await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
       }
+      logSold = toMarkSold.length;
       console.log(`Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
     }
+
+    const { count: manualCount } = await supabase
+      .from("vehicles")
+      .select("*", { count: "exact", head: true })
+      .eq("source", "manual");
+    logSkippedManual = manualCount ?? 0;
+    console.log(`Skipped ${logSkippedManual} manual vehicles (protected from soft-delete)`);
 
     try {
       const alertsUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/check-alerts`;
