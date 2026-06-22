@@ -129,7 +129,7 @@ function mobileAdToForm(mobileAd: AnyObj | null, draftPayload: AnyObj | null): F
     condition: String(pick(m.condition, d.condition, veh.condition) ?? "USED"),
     damageUnrepaired: pick(m.damageUnrepaired, d.damageUnrepaired, veh["damage-unrepaired"]) === true,
     accidentDamaged: pick(m.accidentDamaged, d.accidentDamaged) === true,
-    consumerPriceGross: String(pick(priceM.consumerPriceGross, priceD.consumerPriceGross, priceD["consumer-price-gross"]) ?? "").replace(/[^0-9]/g, ""),
+    consumerPriceGross: normalizePriceInput(pick(priceM.consumerPriceGross, priceD.consumerPriceGross, priceD["consumer-price-gross"], (priceM as AnyObj).consumerValue)),
     vatRate: String(pick(priceM.vatRate, priceD.vatRate, priceD["vat-rate"]) ?? "19.00"),
     description: String(pick(m.description, d.description, veh.description) ?? ""),
     exteriorColor: getKey(pick(m.exteriorColor, d.exteriorColor)),
