@@ -164,6 +164,26 @@ export default function MobileAdDrafts() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  {r.status !== "published" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate(`/admin/mobile-ad/edit/${r.id}`)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Bearbeiten
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      title="Bearbeiten veröffentlichter Inserate folgt"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Bearbeiten
+                    </Button>
+                  )}
                   {r.status !== "published" && (
                     <Button
                       size="sm"
