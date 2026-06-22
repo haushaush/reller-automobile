@@ -62,42 +62,40 @@ async function ensureJpegUnder2MB(input: Uint8Array): Promise<Uint8Array> {
 }
 
 async function uploadOneImage(jpeg: Uint8Array, filename: string): Promise<string> {
-  // Mobile.de Seller-API: POST /sellers/{sellerId}/ads/images  (multipart, part name "image")
-  // Reference: https://services.mobile.de/seller-api/openapi-docs  (operation "Upload Image")
-  const url = `${API_BASE}/sellers/${SELLER_ID}/ads/images`;
-  const form = new FormData();
-  form.append("image", new Blob([jpeg], { type: "image/jpeg" }), filename);
-
+  // Mobile.de Seller-API: pre-upload image via POST /images with raw JPEG body.
+  // Docs: https://services.mobile.de/seller-api/openapi-docs (operation "Upload Image")
+  const url = `${API_BASE}/images`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: basicAuth(),
       Accept: MOBILE_MIME,
+      "Content-Type": "image/jpeg",
     },
-    body: form,
+    body: jpeg,
   });
   const text = await res.text();
+  console.log(`Image upload ${filename}: status=${res.status}, body=${text.slice(0, 200)}`);
   if (!res.ok) {
-    console.error(`Image upload failed ${res.status}: ${text.slice(0, 500)}`);
     throw new Error(`Image upload failed (${res.status}): ${text.slice(0, 300)}`);
   }
-  // Response is JSON with the image reference. Tolerate a few shapes.
   let ref: string | undefined;
+  let hash: string | undefined;
   try {
     const j = JSON.parse(text);
-    ref = j?.reference ?? j?.ref ?? j?.hash ?? j?.imageReference ?? j?.id;
-    if (!ref && Array.isArray(j?.images) && j.images[0]) {
-      ref = j.images[0]?.ref ?? j.images[0]?.reference;
-    }
+    ref = j?.ref ?? j?.reference;
+    hash = j?.hash;
   } catch {
-    // Some responses may put the reference in a header
-    ref = res.headers.get("Location")?.split("/").pop() ?? undefined;
+    // fall through to Location header
   }
   if (!ref) {
-    console.error("No image reference in upload response:", text.slice(0, 500));
+    ref = res.headers.get("Location")?.split("/").pop() ?? undefined;
+  }
+  if (hash) console.log(`Image ${filename} hash=${hash}`);
+  if (!ref) {
     throw new Error("Mobile.de Upload-Antwort ohne Bildreferenz");
   }
-  console.log(`Uploaded image -> ref=${ref}`);
+  console.log(`Uploaded image ${filename} -> ref=${ref}`);
   return String(ref);
 }
 
