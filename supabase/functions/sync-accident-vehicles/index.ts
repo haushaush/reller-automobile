@@ -445,12 +445,17 @@ Deno.serve(async (req) => {
     .select("id")
     .single();
 
-  let logStatus: "success" | "failed" | "skipped" = "failed";
+  let logStatus: "success" | "success_with_warning" | "failed" | "skipped" = "failed";
   let logError: string | null = null;
   let logTotal = 0;
   let logAdded = 0;
   let logUpdated = 0;
   let logSold = 0;
+  let logPagesFetched = 0;
+  let logPageSize = 100;
+  let logMobileTotal: number | null = null;
+  let logStopReason: string | null = null;
+  let paginationConfident = false;
 
   try {
     const username = Deno.env.get("MOBILE_DE_ACCIDENT_USERNAME");
