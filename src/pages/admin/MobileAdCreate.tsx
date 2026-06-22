@@ -452,9 +452,16 @@ function mobileAdToFormFlat(
 
 export default function MobileAdCreate() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { draftId } = useParams<{ draftId?: string }>();
-  const isEdit = Boolean(draftId);
+  const isLive = location.pathname.includes("/live-edit");
+  const isEdit = Boolean(draftId) && !isLive;
   const [form, setForm] = useState<FormState>(EMPTY);
+  const [liveMobileAdId, setLiveMobileAdId] = useState<string>("");
+  const [liveImageCount, setLiveImageCount] = useState<number>(0);
+  const [liveLoadError, setLiveLoadError] = useState<string | null>(null);
+  const [lastUpdateError, setLastUpdateError] = useState<{ msg: string; details?: string } | null>(null);
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
 
   // Refdata
   const [makes, setMakes] = useState<RefItem[]>([]);
