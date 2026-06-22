@@ -147,17 +147,38 @@ export default function MobileAdDrafts() {
                     {fmtPrice(price)} · erstellt {fmtDate(r.created_at)}
                     {r.mobile_ad_id ? ` · Mobile.de ID ${r.mobile_ad_id}` : ""}
                   </div>
+                  {r.status === "error" && r.error_message && (
+                    <div className="text-xs text-destructive mt-1 break-all">
+                      {r.error_message}
+                    </div>
+                  )}
+                  {r.status === "published" && r.mobile_ad_id && (
+                    <a
+                      href={`https://suchen.mobile.de/fahrzeuge/details.html?id=${r.mobile_ad_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs underline mt-1 inline-block"
+                    >
+                      Inserat öffnen
+                    </a>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled
-                    title="Etappe 2"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Veröffentlichen
-                  </Button>
+                  {r.status !== "published" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => publish(r.id)}
+                      disabled={publishing === r.id}
+                    >
+                      {publishing === r.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4" />
+                      )}
+                      Veröffentlichen
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
