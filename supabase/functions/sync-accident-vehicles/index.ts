@@ -583,25 +583,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
-    const { data: allDbVehicles } = await supabase
-      .from("vehicles")
-      .select("id, mobile_de_id, is_sold")
-      .eq("vehicle_category", "accident");
+    if (!paginationConfident) {
+      console.warn(
+        `[accident] Skipping soft-delete: pagination not confident (stop=${logStopReason}). ` +
+        `Fetched ${logPagesFetched} page(s), ${vehicleRows.length} vehicle(s).`
+      );
+      logStatus = "success_with_warning";
+      logError = `Soft-delete skipped: pagination unsicher (${logStopReason})`;
+    } else {
+      const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
+      const { data: allDbVehicles } = await supabase
+        .from("vehicles")
+        .select("id, mobile_de_id, is_sold")
+        .eq("vehicle_category", "accident");
 
-    if (allDbVehicles) {
-      const syncedSet = new Set(mobileDeIds);
-      const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
-      const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
+      if (allDbVehicles) {
+        const syncedSet = new Set(mobileDeIds);
+        const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
+        const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
 
-      for (const v of toMarkSold) {
-        await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
+        for (const v of toMarkSold) {
+          await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
+        }
+        for (const v of toMarkAvailable) {
+          await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
+        }
+        logSold = toMarkSold.length;
+        console.log(`[accident] Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
       }
-      for (const v of toMarkAvailable) {
-        await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
-      }
-      logSold = toMarkSold.length;
-      console.log(`[accident] Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
     }
 
     try {
