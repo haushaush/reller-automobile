@@ -132,8 +132,10 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
     cubicCapacity: asStr(get(payload, ["vehicle", "cubic-capacity"])),
     condition: asStr(get(payload, ["vehicle", "condition"])) || "USED",
     damageUnrepaired: get(payload, ["vehicle", "damage-unrepaired"]) === true ? "true" : "false",
-    consumerPriceGross: asStr(get(payload, ["price", "consumer-price-gross"])),
-    vatRate: asStr(get(payload, ["price", "vat-rate"])),
+    consumerPriceGross: asStr(
+      get(payload, ["price", "consumerPriceGross"]) ?? get(payload, ["price", "consumer-price-gross"]),
+    ),
+    vatRate: asStr(get(payload, ["price", "vatRate"]) ?? get(payload, ["price", "vat-rate"])),
     description: asStr(get(payload, ["description"])),
     vin: asStr(get(payload, ["vehicle", "vin"])),
   };
