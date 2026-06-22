@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -48,6 +49,67 @@ const CATEGORY_LABELS: Record<string, string> = {
   OtherCar: "Andere",
 };
 
+const EXTERIOR_COLOR_OPTIONS: { key: string; label: string }[] = [
+  { key: "BLACK", label: "Schwarz" },
+  { key: "WHITE", label: "Weiß" },
+  { key: "SILVER", label: "Silber" },
+  { key: "GREY", label: "Grau" },
+  { key: "BLUE", label: "Blau" },
+  { key: "RED", label: "Rot" },
+  { key: "GREEN", label: "Grün" },
+  { key: "BROWN", label: "Braun" },
+  { key: "BEIGE", label: "Beige" },
+  { key: "YELLOW", label: "Gelb" },
+  { key: "ORANGE", label: "Orange" },
+  { key: "GOLD", label: "Gold" },
+  { key: "VIOLET", label: "Violett" },
+];
+
+const DOORS_OPTIONS: { key: string; label: string }[] = [
+  { key: "TWO_OR_THREE", label: "2/3" },
+  { key: "FOUR_OR_FIVE", label: "4/5" },
+];
+
+const CLIMATISATION_OPTIONS: { key: string; label: string }[] = [
+  { key: "NO_CLIMATISATION", label: "keine" },
+  { key: "MANUAL_CLIMATISATION", label: "Klimaanlage" },
+  { key: "AUTOMATIC_CLIMATISATION", label: "Klimaautomatik" },
+  { key: "2_ZONE_AUTOMATIC_AIR_CONDITIONING", label: "2-Zonen-Klimaautomatik" },
+  { key: "3_ZONE_AUTOMATIC_AIR_CONDITIONING", label: "3-Zonen-Klimaautomatik" },
+  { key: "4_ZONE_AUTOMATIC_AIR_CONDITIONING", label: "4-Zonen-Klimaautomatik" },
+];
+
+const PARKING_ASSIST_OPTIONS: { key: string; label: string }[] = [
+  { key: "FRONT", label: "vorne" },
+  { key: "REAR", label: "hinten" },
+  { key: "CAMERA", label: "Kamera" },
+  { key: "AUTOMATIC_PARKING", label: "Selbstlenkend" },
+];
+
+// Boolean equipment checkboxes (key in payload -> german label)
+const FEATURE_FIELDS: { key: string; label: string }[] = [
+  { key: "alloyWheels", label: "Leichtmetallfelgen" },
+  { key: "navigationSystem", label: "Navigationssystem" },
+  { key: "electricHeatedSeats", label: "Sitzheizung" },
+  { key: "bluetooth", label: "Bluetooth" },
+  { key: "carplay", label: "Apple CarPlay" },
+  { key: "androidAuto", label: "Android Auto" },
+  { key: "electricWindows", label: "Elektr. Fensterheber" },
+  { key: "centralLocking", label: "Zentralverriegelung" },
+  { key: "isofix", label: "Isofix" },
+  { key: "sunroof", label: "Schiebedach" },
+  { key: "panoramicGlassRoof", label: "Panoramadach" },
+  { key: "abs", label: "ABS" },
+  { key: "esp", label: "ESP" },
+  { key: "immobilizer", label: "Elektr. Wegfahrsperre" },
+  { key: "usb", label: "USB" },
+  { key: "touchscreen", label: "Touchscreen" },
+  { key: "soundSystem", label: "Soundsystem" },
+  { key: "summerTires", label: "Sommerreifen" },
+  { key: "winterTires", label: "Winterreifen" },
+  { key: "allSeasonTires", label: "Allwetterreifen" },
+];
+
 const labelFor = (map: Record<string, string>, key: string, fallback: string) =>
   map[key] ?? fallback ?? key;
 
@@ -69,6 +131,21 @@ interface FormState {
   vatRate: string;
   description: string;
   vin: string;
+  // Stage 2 — all optional
+  exteriorColor: string;
+  metallic: boolean;
+  manufacturerColorName: string;
+  doors: string;
+  seats: string;
+  accidentDamaged: "" | "true" | "false";
+  fullServiceHistory: boolean;
+  nonSmokerVehicle: boolean;
+  numberOfPreviousOwners: string;
+  hsnYear: string; // generalInspection year
+  hsnMonth: string; // generalInspection month
+  climatisation: string;
+  parkingAssistants: string[];
+  features: Record<string, boolean>;
 }
 
 const EMPTY: FormState = {
@@ -89,6 +166,20 @@ const EMPTY: FormState = {
   vatRate: "",
   description: "",
   vin: "",
+  exteriorColor: "",
+  metallic: false,
+  manufacturerColorName: "",
+  doors: "",
+  seats: "",
+  accidentDamaged: "",
+  fullServiceHistory: false,
+  nonSmokerVehicle: false,
+  numberOfPreviousOwners: "",
+  hsnYear: "",
+  hsnMonth: "",
+  climatisation: "",
+  parkingAssistants: [],
+  features: {},
 };
 
 async function loadRef(kind: string, make?: string): Promise<RefItem[]> {
@@ -118,6 +209,30 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
     regMonth = firstReg.slice(4, 6);
   }
   const asStr = (v: unknown) => (v === undefined || v === null ? "" : String(v));
+  const insp = get(payload, ["vehicle", "generalInspection"]) as string | undefined;
+  let hsnYear = "";
+  let hsnMonth = "";
+  if (insp && /^\d{6}$/.test(insp)) {
+    hsnYear = insp.slice(0, 4);
+    hsnMonth = insp.slice(4, 6);
+  }
+  const features: Record<string, boolean> = {};
+  for (const f of FEATURE_FIELDS) {
+    if (get(payload, ["vehicle", f.key]) === true) features[f.key] = true;
+  }
+  const pa = get(payload, ["vehicle", "parkingAssistants"]);
+  const parkingAssistants: string[] = Array.isArray(pa)
+    ? (pa as unknown[])
+        .map((x) =>
+          x && typeof x === "object" && "key" in (x as Record<string, unknown>)
+            ? String((x as { key: unknown }).key)
+            : typeof x === "string"
+              ? x
+              : "",
+        )
+        .filter(Boolean)
+    : [];
+  const accidentRaw = get(payload, ["vehicle", "accidentDamaged"]);
   return {
     make: asStr(get(payload, ["vehicle", "make", "key"])),
     model: asStr(get(payload, ["vehicle", "model", "key"])),
@@ -138,6 +253,20 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
     vatRate: asStr(get(payload, ["price", "vatRate"]) ?? get(payload, ["price", "vat-rate"])),
     description: asStr(get(payload, ["description"])),
     vin: asStr(get(payload, ["vehicle", "vin"])),
+    exteriorColor: asStr(get(payload, ["vehicle", "exteriorColor", "key"])),
+    metallic: get(payload, ["vehicle", "metallic"]) === true,
+    manufacturerColorName: asStr(get(payload, ["vehicle", "manufacturerColorName"])),
+    doors: asStr(get(payload, ["vehicle", "doors", "key"])),
+    seats: asStr(get(payload, ["vehicle", "seats"])),
+    accidentDamaged: accidentRaw === true ? "true" : accidentRaw === false ? "false" : "",
+    fullServiceHistory: get(payload, ["vehicle", "fullServiceHistory"]) === true,
+    nonSmokerVehicle: get(payload, ["vehicle", "nonSmokerVehicle"]) === true,
+    numberOfPreviousOwners: asStr(get(payload, ["vehicle", "numberOfPreviousOwners"])),
+    hsnYear,
+    hsnMonth,
+    climatisation: asStr(get(payload, ["vehicle", "climatisation", "key"])),
+    parkingAssistants,
+    features,
   };
 }
 
@@ -294,10 +423,8 @@ export default function MobileAdCreate() {
     });
   };
 
-  const buildPayload = () => ({
-    // Mobile.de: vehicleClass ist Pflicht und für dieses Portal IMMER "Car".
-    vehicleClass: "Car",
-    vehicle: {
+  const buildPayload = () => {
+    const vehicle: Record<string, unknown> = {
       class: { key: "Car" },
       make: form.make ? { key: form.make } : undefined,
       model: form.model ? { key: form.model } : undefined,
@@ -315,15 +442,49 @@ export default function MobileAdCreate() {
       condition: form.condition,
       "damage-unrepaired": form.damageUnrepaired === "true",
       vin: form.vin || undefined,
-    },
-    price: {
-      consumerPriceGross: String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""),
-      currency: "EUR",
-      vatRate: "19.00",
-      type: "FIXED",
-    },
-    description: form.description || undefined,
-  });
+    };
+
+    // Stage 2 — optional fields
+    if (form.exteriorColor) vehicle.exteriorColor = { key: form.exteriorColor };
+    if (form.metallic) vehicle.metallic = true;
+    if (form.manufacturerColorName) vehicle.manufacturerColorName = form.manufacturerColorName;
+    if (form.doors) vehicle.doors = { key: form.doors };
+    if (form.seats) {
+      const n = parseInt(form.seats, 10);
+      if (!Number.isNaN(n)) vehicle.seats = n;
+    }
+    if (form.accidentDamaged === "true") vehicle.accidentDamaged = true;
+    else if (form.accidentDamaged === "false") vehicle.accidentDamaged = false;
+    if (form.fullServiceHistory) vehicle.fullServiceHistory = true;
+    if (form.nonSmokerVehicle) vehicle.nonSmokerVehicle = true;
+    if (form.numberOfPreviousOwners) {
+      const n = parseInt(form.numberOfPreviousOwners, 10);
+      if (!Number.isNaN(n)) vehicle.numberOfPreviousOwners = n;
+    }
+    if (form.hsnYear && form.hsnMonth) {
+      vehicle.generalInspection = `${form.hsnYear}${form.hsnMonth.padStart(2, "0")}`;
+    }
+    if (form.climatisation) vehicle.climatisation = { key: form.climatisation };
+    if (form.parkingAssistants.length) {
+      vehicle.parkingAssistants = form.parkingAssistants.map((k) => ({ key: k }));
+    }
+    for (const f of FEATURE_FIELDS) {
+      if (form.features[f.key]) vehicle[f.key] = true;
+    }
+
+    return {
+      vehicleClass: "Car",
+      vehicle,
+      price: {
+        consumerPriceGross: String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""),
+        currency: "EUR",
+        vatRate: "19.00",
+        type: "FIXED",
+      },
+      description: form.description || undefined,
+    };
+  };
+
 
   const validate = (): string | null => {
     if (!form.make) return "Marke fehlt";
@@ -621,6 +782,197 @@ export default function MobileAdCreate() {
           </div>
         </div>
       </Card>
+
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Außenfarbe</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Farbe</Label>
+            <Select
+              value={form.exteriorColor}
+              onValueChange={(v) => update("exteriorColor", v)}
+            >
+              <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                {EXTERIOR_COLOR_OPTIONS.map((c) => (
+                  <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Herstellerfarbe</Label>
+            <Input
+              value={form.manufacturerColorName}
+              onChange={(e) => update("manufacturerColorName", e.target.value)}
+              placeholder="z. B. MYTHOS BLACK"
+            />
+          </div>
+          <div className="flex items-center gap-2 md:col-span-2">
+            <Checkbox
+              id="metallic"
+              checked={form.metallic}
+              onCheckedChange={(c) => update("metallic", c === true)}
+            />
+            <Label htmlFor="metallic" className="cursor-pointer">Metallic</Label>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Karosserie</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Türen</Label>
+            <Select value={form.doors} onValueChange={(v) => update("doors", v)}>
+              <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+              <SelectContent>
+                {DOORS_OPTIONS.map((d) => (
+                  <SelectItem key={d.key} value={d.key}>{d.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Sitze</Label>
+            <Input
+              type="number"
+              value={form.seats}
+              onChange={(e) => update("seats", e.target.value)}
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Zustand &amp; Historie</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Unfallfahrzeug</Label>
+            <Select
+              value={form.accidentDamaged}
+              onValueChange={(v) => update("accidentDamaged", v as "" | "true" | "false")}
+            >
+              <SelectTrigger><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="false">Nein</SelectItem>
+                <SelectItem value="true">Ja</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Anzahl Fahrzeughalter</Label>
+            <Input
+              type="number"
+              value={form.numberOfPreviousOwners}
+              onChange={(e) => update("numberOfPreviousOwners", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Nächste HU</Label>
+            <div className="flex gap-2">
+              <Select value={form.hsnMonth} onValueChange={(v) => update("hsnMonth", v)}>
+                <SelectTrigger className="w-24"><SelectValue placeholder="MM" /></SelectTrigger>
+                <SelectContent>
+                  {months.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={form.hsnYear} onValueChange={(v) => update("hsnYear", v)}>
+                <SelectTrigger className="flex-1"><SelectValue placeholder="YYYY" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() + i)).map(
+                    (y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="fsh"
+              checked={form.fullServiceHistory}
+              onCheckedChange={(c) => update("fullServiceHistory", c === true)}
+            />
+            <Label htmlFor="fsh" className="cursor-pointer">Scheckheftgepflegt</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="nonsmoker"
+              checked={form.nonSmokerVehicle}
+              onCheckedChange={(c) => update("nonSmokerVehicle", c === true)}
+            />
+            <Label htmlFor="nonsmoker" className="cursor-pointer">Nichtraucherfahrzeug</Label>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Klimatisierung</h2>
+        <Select value={form.climatisation} onValueChange={(v) => update("climatisation", v)}>
+          <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+          <SelectContent>
+            {CLIMATISATION_OPTIONS.map((o) => (
+              <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Ausstattung</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {FEATURE_FIELDS.map((f) => (
+            <div key={f.key} className="flex items-center gap-2">
+              <Checkbox
+                id={`f-${f.key}`}
+                checked={!!form.features[f.key]}
+                onCheckedChange={(c) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    features: { ...prev.features, [f.key]: c === true },
+                  }))
+                }
+              />
+              <Label htmlFor={`f-${f.key}`} className="cursor-pointer text-sm">
+                {f.label}
+              </Label>
+            </div>
+          ))}
+        </div>
+        <div className="pt-4 border-t border-border">
+          <Label className="mb-2 block">Einparkhilfe</Label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {PARKING_ASSIST_OPTIONS.map((p) => {
+              const checked = form.parkingAssistants.includes(p.key);
+              return (
+                <div key={p.key} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`pa-${p.key}`}
+                    checked={checked}
+                    onCheckedChange={(c) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        parkingAssistants:
+                          c === true
+                            ? [...prev.parkingAssistants, p.key]
+                            : prev.parkingAssistants.filter((x) => x !== p.key),
+                      }))
+                    }
+                  />
+                  <Label htmlFor={`pa-${p.key}`} className="cursor-pointer text-sm">
+                    {p.label}
+                  </Label>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
+
 
       <Card className="p-6 space-y-4">
         <h2 className="text-lg font-semibold">Beschreibung</h2>
