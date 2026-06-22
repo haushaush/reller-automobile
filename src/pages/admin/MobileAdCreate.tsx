@@ -1327,7 +1327,7 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
       if (!k.startsWith("price.") && !root.includes(k)) root.push(k);
     }
 
-    // Optional roots
+    // Optional roots (finale Mobile.de-Feldnamen)
     const addIf = (k: string, v: unknown) => {
       if (v !== undefined && v !== null && v !== "" && v !== false && !root.includes(k)) root.push(k);
     };
@@ -1335,7 +1335,8 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
     addIf("trimLine", form.trimLine);
     addIf("doors", form.doors); addIf("seats", form.seats);
     addIf("vin", form.vin); addIf("internalNumber", form.internalNumber);
-    addIf("cylinder", form.cylinders); addIf("fuelCapacity", form.fuelCapacity);
+    addIf("cylinder", form.cylinders);
+    addIf("fuelTankVolume", form.fuelCapacity);
     addIf("driveType", form.driveType);
     addIf("exteriorColor", form.exteriorColor);
     addIf("manufacturerColorName", form.manufacturerColorName);
@@ -1348,13 +1349,17 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
     if (form.fullServiceHistory) addIf("fullServiceHistory", true);
     addIf("numberOfPreviousOwners", form.numberOfPreviousOwners);
     if (form.hsnYear && form.hsnMonth) addIf("generalInspection", true);
-    if (form.huNew) addIf("huNew", true);
-    if (form.inspectionNew) addIf("inspectionNew", true);
-    if (form.particulateFilter) addIf("particulateFilter", true);
+    if (form.huNew) addIf("newHuAu", true);
+    if (form.inspectionNew) addIf("newService", true);
+    if (form.particulateFilter) addIf("particulateFilterDiesel", true);
     addIf("emissionClass", form.emissionClass);
     addIf("emissionSticker", form.emissionSticker);
-    addIf("co2EmissionsCombined", form.co2EmissionsCombined);
-    addIf("consumptionCombined", form.consumptionCombined);
+    if (form.co2EmissionsCombined) addIf("emissions", true);
+    if (
+      form.consumptionCombined || form.consumptionUrban || form.consumptionInner ||
+      form.consumptionExtraUrban || form.consumptionOuter
+    ) addIf("consumptions", true);
+    if (form.condition === "NEW") addIf("countryVersion", "DE");
 
     const warnings: string[] = [];
     if (form.climatisation) {
@@ -1371,9 +1376,22 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
       if (safe.length) addIf("parkingAssistants", true);
       if (unsafe.length) warnings.push(`parkingAssistants ${unsafe.join(", ")} unsicher – nicht gesendet`);
     }
-    
+    if (form.consumptionOuter) {
+      warnings.push("TODO: Verbrauch Landstraße/Autobahn — separate UI-Felder fehlen, wird als rural gesendet");
+    }
 
-    const feats = Object.entries(form.features).filter(([, v]) => v).map(([k]) => k);
+    // Feature-Aliase auf API-Namen mappen für Preview
+    const FEATURE_ALIAS_UI: Record<string, string> = {
+      powerSteering: "powerAssistedSteering",
+      roofRack: "roofRails",
+      multifunctionalSteeringWheel: "multifunctionalWheel",
+      emergencyBrakeAssistant: "collisionAvoidance",
+      rainSensor: "automaticRainSensor",
+      highBeamAssistant: "highBeamAssist",
+    };
+    const feats = Object.entries(form.features)
+      .filter(([, v]) => v)
+      .map(([k]) => FEATURE_ALIAS_UI[k] ?? k);
     if (feats.length) root.push(...feats);
 
     if (imageCount > 0) root.push("images");
