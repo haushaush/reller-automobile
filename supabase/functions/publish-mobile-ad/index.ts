@@ -107,6 +107,49 @@ async function uploadOneImage(jpeg: Uint8Array, filename: string): Promise<strin
   return String(ref);
 }
 
+// Robust extractor for the Mobile.de ad ID from create-ad responses.
+// Tries multiple JSON keys and both relative + absolute Location header URLs.
+export function extractMobileAdId(
+  res: { headers: { get(name: string): string | null } },
+  bodyText: string,
+): { mobileAdId: string | undefined; source: string } {
+  const looksLikeId = (v: unknown): string | undefined => {
+    if (v === null || v === undefined) return undefined;
+    const s = String(v).trim();
+    if (!s) return undefined;
+    // Mobile.de IDs are numeric strings, typically 8-12 digits.
+    if (/^\d{6,}$/.test(s)) return s;
+    return undefined;
+  };
+
+  // 1) JSON body — try multiple keys, including nested ad object
+  try {
+    const j = JSON.parse(bodyText);
+    const candidates = [
+      j?.mobileAdId, j?.id, j?.adId,
+      j?.ad?.id, j?.ad?.mobileAdId, j?.ad?.adId,
+    ];
+    for (const c of candidates) {
+      const id = looksLikeId(c);
+      if (id) return { mobileAdId: id, source: "json" };
+    }
+  } catch { /* not JSON */ }
+
+  // 2) Location header — supports relative path or absolute URL
+  const loc = res.headers.get("Location") ?? res.headers.get("location");
+  if (loc) {
+    const tail = loc.split("?")[0].split("#")[0].replace(/\/+$/, "").split("/").pop() ?? "";
+    const id = looksLikeId(tail);
+    if (id) return { mobileAdId: id, source: "location-header" };
+  }
+
+  // 3) Last resort: regex over body for /ads/<digits>
+  const m = bodyText.match(/\/ads\/(\d{6,})/);
+  if (m) return { mobileAdId: m[1], source: "body-regex" };
+
+  return { mobileAdId: undefined, source: "none" };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Mapping: bequemer Draft (flach ODER verschachtelt) → flacher Seller-API Body.
 // Sendet NIE die interne `vehicle`-Property oder deutsche Labels an Mobile.de.
