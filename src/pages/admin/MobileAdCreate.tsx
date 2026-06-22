@@ -132,8 +132,10 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
     cubicCapacity: asStr(get(payload, ["vehicle", "cubic-capacity"])),
     condition: asStr(get(payload, ["vehicle", "condition"])) || "USED",
     damageUnrepaired: get(payload, ["vehicle", "damage-unrepaired"]) === true ? "true" : "false",
-    consumerPriceGross: asStr(get(payload, ["price", "consumer-price-gross"])),
-    vatRate: asStr(get(payload, ["price", "vat-rate"])),
+    consumerPriceGross: asStr(
+      get(payload, ["price", "consumerPriceGross"]) ?? get(payload, ["price", "consumer-price-gross"]),
+    ),
+    vatRate: asStr(get(payload, ["price", "vatRate"]) ?? get(payload, ["price", "vat-rate"])),
     description: asStr(get(payload, ["description"])),
     vin: asStr(get(payload, ["vehicle", "vin"])),
   };
@@ -315,12 +317,10 @@ export default function MobileAdCreate() {
       vin: form.vin || undefined,
     },
     price: {
-      "consumer-price-gross": form.consumerPriceGross
-        ? parseFloat(form.consumerPriceGross)
-        : undefined,
-      "vat-rate": form.vatRate || undefined,
-      type: "FIXED",
+      consumerPriceGross: String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""),
       currency: "EUR",
+      vatRate: "19.00",
+      type: "FIXED",
     },
     description: form.description || undefined,
   });
@@ -335,7 +335,8 @@ export default function MobileAdCreate() {
     if (!form.gearbox) return "Getriebe fehlt";
     if (!form.power) return "Leistung (kW) fehlt";
     if (!form.cubicCapacity) return "Hubraum fehlt";
-    if (!form.consumerPriceGross) return "Preis fehlt";
+    const cleanPrice = String(form.consumerPriceGross || "").replace(/[^0-9]/g, "");
+    if (!cleanPrice || cleanPrice === "0") return "Preis fehlt/ungültig";
     if (!form.vatRate) return "MwSt.-Satz fehlt";
     return null;
   };
