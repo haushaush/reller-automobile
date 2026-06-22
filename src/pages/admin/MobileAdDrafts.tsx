@@ -267,6 +267,17 @@ export default function MobileAdDrafts() {
                       Veröffentlichen
                     </Button>
                   )}
+                  {canCopy && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmCopyId(r.id)}
+                      disabled={copying === r.id}
+                    >
+                      {copying === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+                      Als Entwurf kopieren
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
