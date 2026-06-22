@@ -148,6 +148,54 @@ Deno.serve(async (req) => {
     const imagePaths = (draft.image_paths ?? []) as string[];
     console.log(`Publishing draft ${draftId}, ${imagePaths.length} image(s)`);
 
+    // ── Ensure vehicleClass is set (always "Car" for this portal) ──
+    if (!payload.vehicleClass || typeof payload.vehicleClass !== "string") {
+      console.log(`Defaulting missing vehicleClass to "Car" for draftId=${draftId}`);
+      payload.vehicleClass = "Car";
+    }
+    const vehicle = (payload.vehicle ?? {}) as Record<string, unknown>;
+    if (!vehicle.class) {
+      vehicle.class = { key: "Car" };
+      payload.vehicle = vehicle;
+    }
+
+    // ── Validate required fields BEFORE posting ──
+    const price = (payload.price ?? {}) as Record<string, unknown>;
+    const missing: string[] = [];
+    const hasKey = (v: unknown) =>
+      v && typeof v === "object" && typeof (v as { key?: unknown }).key === "string" &&
+      (v as { key: string }).key.length > 0;
+    if (!hasKey(vehicle.make)) missing.push("make");
+    if (!hasKey(vehicle.model)) missing.push("model");
+    if (!vehicle["model-description"]) missing.push("modelDescription");
+    if (!hasKey(vehicle.category)) missing.push("category");
+    if (vehicle.mileage === undefined || vehicle.mileage === null) missing.push("mileage");
+    if (!vehicle["first-registration"] || !/^\d{6}$/.test(String(vehicle["first-registration"])))
+      missing.push("firstRegistration (YYYYMM)");
+    if (!hasKey(vehicle.fuel)) missing.push("fuel");
+    if (!hasKey(vehicle.gearbox)) missing.push("gearbox");
+    if (vehicle.power === undefined || vehicle.power === null) missing.push("power");
+    if (vehicle["cubic-capacity"] === undefined || vehicle["cubic-capacity"] === null)
+      missing.push("cubicCapacity");
+    if (!vehicle.condition) missing.push("condition");
+    if (typeof vehicle["damage-unrepaired"] !== "boolean") missing.push("damageUnrepaired");
+    if (price["consumer-price-gross"] === undefined || price["consumer-price-gross"] === null)
+      missing.push("price.consumerPriceGross");
+    if (price.currency !== "EUR") missing.push('price.currency ("EUR")');
+    if (!price["vat-rate"]) missing.push("price.vatRate");
+    if (price.type !== "FIXED") missing.push('price.type ("FIXED")');
+
+    if (missing.length) {
+      const msg = `Pflichtfelder fehlen oder ungültig: ${missing.join(", ")}`;
+      console.error(msg);
+      await admin
+        .from("mobile_ad_drafts")
+        .update({ status: "error", error_message: msg })
+        .eq("id", draftId);
+      return json(400, { error: msg, missing });
+    }
+
+
     // ── Step 1: upload images one by one (skip individual failures) ──
     const refs: string[] = [];
     const skipped: { index: number; path: string; reason: string }[] = [];
