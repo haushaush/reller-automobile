@@ -1340,6 +1340,7 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
     addIf("exteriorColor", form.exteriorColor);
     addIf("manufacturerColorName", form.manufacturerColorName);
     if (form.metallic) addIf("metallic", true);
+    if (form.matt) addIf("matteColor", true);
     if (form.accidentDamaged) addIf("accidentDamaged", true);
     if (form.roadworthy) addIf("roadworthy", true);
     if (form.warranty) addIf("warranty", true);
