@@ -596,10 +596,11 @@ export default function MobileAdDrafts() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => remove(r.id)}
+                    onClick={() => setDeleteTarget(r)}
+                    disabled={deleting === r.id || r.status === "deleted"}
                     aria-label="Löschen"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    {deleting === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                   </Button>
                 </div>
               </Card>
