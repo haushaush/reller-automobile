@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState, ChangeEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Upload, X, Save, ChevronDown } from "lucide-react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { Loader2, Upload, X, Save, ChevronDown, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -309,11 +315,153 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
   };
 }
 
+// Map a live Mobile.de ad (flat seller-api shape) plus an optional persisted
+// draft payload into the same FormState the create/draft-edit UI uses.
+// Live keys (e.g. make="VW", category="SmallCar") are kept as-is; the rich
+// dropdowns display them with their German labels.
+function mobileAdToFormFlat(
+  mobileAd: Record<string, unknown> | null | undefined,
+  draftPayload: Record<string, unknown> | null | undefined,
+): FormState {
+  const m = (mobileAd ?? {}) as Record<string, unknown>;
+  const d = (draftPayload ?? {}) as Record<string, unknown>;
+  const veh = (d.vehicle && typeof d.vehicle === "object" ? d.vehicle : {}) as Record<string, unknown>;
+  const priceM = (m.price && typeof m.price === "object" ? m.price : {}) as Record<string, unknown>;
+  const priceD = (d.price && typeof d.price === "object" ? d.price : {}) as Record<string, unknown>;
+
+  const pick = (...c: unknown[]): unknown => {
+    for (const x of c) if (x !== undefined && x !== null && x !== "") return x;
+    return undefined;
+  };
+  const asKey = (v: unknown): string => {
+    if (typeof v === "string") return v;
+    if (v && typeof v === "object" && typeof (v as { key?: unknown }).key === "string") {
+      return (v as { key: string }).key;
+    }
+    return "";
+  };
+  const asStr = (v: unknown) => (v === undefined || v === null ? "" : String(v));
+  const splitYM = (v: unknown): [string, string] => {
+    const s = asStr(v);
+    return /^\d{6}$/.test(s) ? [s.slice(0, 4), s.slice(4, 6)] : ["", ""];
+  };
+  const [regYear, regMonth] = splitYM(
+    pick(m.firstRegistration, veh["first-registration"], veh.firstRegistration),
+  );
+  const [hsnYear, hsnMonth] = splitYM(
+    pick(m.generalInspection, veh.generalInspection),
+  );
+
+  const featObj = (m.features && typeof m.features === "object") ? (m.features as Record<string, unknown>) : {};
+  const features: Record<string, boolean> = {};
+  for (const f of ALL_FEATURES) {
+    if (m[f.key] === true || featObj[f.key] === true || veh[f.key] === true) features[f.key] = true;
+  }
+  // Server-seitige Alias-Felder zurück mappen, damit Checkboxen aktiv erscheinen.
+  const aliasBack: Record<string, string> = {
+    powerAssistedSteering: "powerSteering",
+    roofRails: "roofRack",
+    multifunctionalWheel: "multifunctionalSteeringWheel",
+    collisionAvoidance: "emergencyBrakeAssistant",
+    automaticRainSensor: "rainSensor",
+    highBeamAssist: "highBeamAssistant",
+  };
+  for (const [apiKey, uiKey] of Object.entries(aliasBack)) {
+    if (m[apiKey] === true || featObj[apiKey] === true) features[uiKey] = true;
+  }
+
+  const pa = pick(m.parkingAssistants, veh.parkingAssistants);
+  const parkingAssistants: string[] = Array.isArray(pa)
+    ? (pa as unknown[])
+        .map((x) => asKey(x))
+        .filter(Boolean)
+    : [];
+
+  const triBool = (v: unknown): "" | "true" | "false" =>
+    v === true ? "true" : v === false ? "false" : "";
+
+  // Preis: Zahl, String oder verschachtelt – auf Ganzzahl-EUR-String reduzieren.
+  const priceRaw = pick(
+    priceM.consumerPriceGross,
+    (priceM as Record<string, unknown>).consumerValue,
+    priceD.consumerPriceGross,
+    priceD["consumer-price-gross"],
+  );
+  const priceStr = (() => {
+    if (priceRaw === undefined || priceRaw === null) return "";
+    if (typeof priceRaw === "number") return Number.isFinite(priceRaw) ? String(Math.round(priceRaw)) : "";
+    if (typeof priceRaw === "object") {
+      const o = priceRaw as Record<string, unknown>;
+      const v = o.amount ?? o.value ?? o.gross ?? o.consumerValue ?? o.net;
+      return typeof v === "number" ? String(Math.round(v)) : typeof v === "string" ? v.replace(/[^0-9]/g, "") : "";
+    }
+    return String(priceRaw).replace(/[^0-9]/g, "");
+  })();
+
+  return {
+    make: asKey(pick(m.make, veh.make)),
+    model: asKey(pick(m.model, veh.model)),
+    modelDescription: asStr(pick(m.modelDescription, veh["model-description"], veh.modelDescription)),
+    trimLine: asStr(pick(m.trimLine, veh.trimLine)),
+    category: asKey(pick(m.category, veh.category)),
+    mileage: asStr(pick(m.mileage, veh.mileage)),
+    regYear, regMonth,
+    doors: asKey(pick(m.doors, veh.doors)),
+    seats: asStr(pick(m.seats, veh.seats)),
+    fuel: asKey(pick(m.fuel, veh.fuel)),
+    gearbox: asKey(pick(m.gearbox, veh.gearbox)),
+    power: asStr(pick(m.power, veh.power)),
+    cubicCapacity: asStr(pick(m.cubicCapacity, veh["cubic-capacity"], veh.cubicCapacity)),
+    cylinders: asStr(pick(m.cylinder, m.cylinders, veh.cylinder, veh.cylinders)),
+    fuelCapacity: asStr(pick(m.fuelCapacity, veh.fuelCapacity)),
+    driveType: asKey(pick(m.driveType, veh.driveType)),
+    exteriorColor: asKey(pick(m.exteriorColor, veh.exteriorColor)),
+    manufacturerColorName: asStr(pick(m.manufacturerColorName, veh.manufacturerColorName)),
+    metallic: pick(m.metallic, veh.metallic) === true,
+    matt: pick(m.matteColor, veh.matteColor, veh.matt) === true,
+    condition: asStr(pick(m.condition, veh.condition)) || "USED",
+    accidentDamaged: triBool(pick(m.accidentDamaged, veh.accidentDamaged)),
+    damageUnrepaired: pick(m.damageUnrepaired, veh["damage-unrepaired"]) === true ? "true" : "false",
+    roadworthy: triBool(pick(m.roadworthy, veh.roadworthy)),
+    numberOfPreviousOwners: asStr(pick(m.numberOfPreviousOwners, veh.numberOfPreviousOwners)),
+    warranty: pick(m.warranty, veh.warranty) === true,
+    nonSmokerVehicle: pick(m.nonSmokerVehicle, veh.nonSmokerVehicle) === true,
+    fullServiceHistory: pick(m.fullServiceHistory, veh.fullServiceHistory) === true,
+    particulateFilter: pick(m.particulateFilter, m.particulateFilterDiesel, veh.particulateFilter) === true,
+    emissionClass: asKey(pick(m.emissionClass, veh.emissionClass)),
+    emissionSticker: asKey(pick(m.emissionSticker, veh.emissionSticker)),
+    hsnYear, hsnMonth,
+    huNew: pick(m.huNew, m.newHuAu, veh.huNew) === true,
+    inspectionNew: pick(m.inspectionNew, m.newService, veh.inspectionNew) === true,
+    co2EmissionsCombined: asStr(pick(m.co2EmissionsCombined, veh.co2EmissionsCombined)),
+    consumptionCombined: asStr(pick(m.consumptionCombined, veh.consumptionCombined)),
+    consumptionInner: asStr(pick(m.consumptionInner, veh.consumptionInner)),
+    consumptionOuter: asStr(pick(m.consumptionOuter, veh.consumptionOuter)),
+    consumptionUrban: asStr(pick(m.consumptionUrban, veh.consumptionUrban)),
+    consumptionExtraUrban: asStr(pick(m.consumptionExtraUrban, veh.consumptionExtraUrban)),
+    climatisation: asKey(pick(m.climatisation, veh.climatisation)),
+    parkingAssistants,
+    features,
+    internalNumber: asStr(pick(m.internalNumber, veh.internalNumber)),
+    vin: asStr(pick(m.vin, veh.vin)),
+    description: asStr(pick(m.description, d.description, veh.description)),
+    consumerPriceGross: priceStr,
+    vatRate: asStr(pick(priceM.vatRate, priceD.vatRate, priceD["vat-rate"])) || "19.00",
+  };
+}
+
 export default function MobileAdCreate() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { draftId } = useParams<{ draftId?: string }>();
-  const isEdit = Boolean(draftId);
+  const isLive = location.pathname.includes("/live-edit");
+  const isEdit = Boolean(draftId) && !isLive;
   const [form, setForm] = useState<FormState>(EMPTY);
+  const [liveMobileAdId, setLiveMobileAdId] = useState<string>("");
+  const [liveImageCount, setLiveImageCount] = useState<number>(0);
+  const [liveLoadError, setLiveLoadError] = useState<string | null>(null);
+  const [lastUpdateError, setLastUpdateError] = useState<{ msg: string; details?: string } | null>(null);
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
 
   // Refdata
   const [makes, setMakes] = useState<RefItem[]>([]);
@@ -331,7 +479,7 @@ export default function MobileAdCreate() {
 
   const [loadingMakes, setLoadingMakes] = useState(true);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [loadingDraft, setLoadingDraft] = useState(isEdit);
+  const [loadingDraft, setLoadingDraft] = useState(isEdit || isLive);
   const [draftStatus, setDraftStatus] = useState<string>("draft");
   const [imagePaths, setImagePaths] = useState<string[]>([]);
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
@@ -392,6 +540,37 @@ export default function MobileAdCreate() {
 
   useEffect(() => {
     if (!draftId) return;
+    if (isLive) {
+      (async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke("get-mobile-ad", {
+            body: { draftId },
+          });
+          const d = data as { success?: boolean; error?: string; draft?: Record<string, unknown>; mobileAd?: Record<string, unknown> | null } | null;
+          if (error || !d?.success) {
+            const msg = d?.error || error?.message || "Live-Daten konnten nicht geladen werden";
+            setLiveLoadError(msg);
+            toast.error(msg);
+            return;
+          }
+          const ad = d.mobileAd ?? null;
+          const draft = d.draft ?? {};
+          const mobileAdId = String((draft as { mobile_ad_id?: string }).mobile_ad_id ?? "");
+          setLiveMobileAdId(mobileAdId);
+          const imgs = ad && Array.isArray((ad as Record<string, unknown>).images)
+            ? ((ad as { images: unknown[] }).images).length : 0;
+          setLiveImageCount(imgs);
+          setForm(mobileAdToFormFlat(ad, (draft as { payload?: Record<string, unknown> }).payload ?? null));
+          setDraftStatus("published");
+        } catch (e) {
+          console.error(e);
+          setLiveLoadError("Live-Daten konnten nicht geladen werden");
+        } finally {
+          setLoadingDraft(false);
+        }
+      })();
+      return;
+    }
     (async () => {
       try {
         const { data, error } = await supabase
@@ -430,7 +609,8 @@ export default function MobileAdCreate() {
         setLoadingDraft(false);
       }
     })();
-  }, [draftId, navigate]);
+  }, [draftId, isLive, navigate]);
+
 
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -646,6 +826,39 @@ export default function MobileAdCreate() {
     }
   };
 
+  const saveLive = async () => {
+    if (!draftId) return;
+    const err = validate();
+    if (err) { toast.error(err); return; }
+    setSaving(true);
+    setLastUpdateError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("update-mobile-ad", {
+        body: { draftId, mobileAdId: liveMobileAdId || undefined, formPayload: buildPayload() },
+      });
+      const d = (data ?? null) as { success?: boolean; error?: string; details?: unknown } | null;
+      if (error || !d?.success) {
+        const raw = d?.error || error?.message || "Update fehlgeschlagen";
+        const detStr = typeof d?.details === "string" ? d.details : JSON.stringify(d?.details ?? raw, null, 2);
+        const isPriceErr = /price|consumer-?price|consumerValue|consumer-price-not-in-range/i.test(raw + " " + detStr);
+        const msg = isPriceErr
+          ? "Mobile.de hat das Update abgelehnt: Preis prüfen."
+          : `Mobile.de hat das Update abgelehnt: ${raw}`;
+        setLastUpdateError({ msg, details: detStr });
+        toast.error(msg);
+        return;
+      }
+      toast.success("Inserat wurde live bei Mobile.de aktualisiert.");
+      navigate("/admin/mobile-ad");
+    } catch (e) {
+      const msg = (e as Error)?.message || "Unbekannter Fehler beim Live-Update";
+      setLastUpdateError({ msg });
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const months = useMemo(
     () => Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")),
     [],
@@ -662,10 +875,35 @@ export default function MobileAdCreate() {
   if (loadingDraft) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade Entwurf…
+        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+        {isLive ? "Lade Live-Daten von Mobile.de…" : "Lade Entwurf…"}
       </div>
     );
   }
+  if (isLive && liveLoadError) {
+    return (
+      <Card className="p-6 space-y-3 max-w-2xl">
+        <div className="text-destructive font-medium">{liveLoadError}</div>
+        <Button variant="outline" onClick={() => navigate("/admin/mobile-ad")}>
+          <ArrowLeft className="h-4 w-4" /> Zurück
+        </Button>
+      </Card>
+    );
+  }
+
+  // Inject an "Unknown" fallback item when the current live value is not part
+  // of the loaded refdata, so live keys (e.g. legacy ones) are never silently lost.
+  const withUnknown = (items: RefItem[], current: string): RefItem[] => {
+    if (!current || items.some((i) => i.key === current)) return items;
+    return [{ key: current, name: `Unbekannter Wert: ${current}` }, ...items];
+  };
+  const withUnknownDoors = (
+    items: { key: string; label: string }[],
+    current: string,
+  ): { key: string; label: string }[] => {
+    if (!current || items.some((i) => i.key === current)) return items;
+    return [{ key: current, label: `Unbekannter Wert: ${current}` }, ...items];
+  };
 
   const featureGrid = (items: { key: string; label: string }[]) => (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -693,14 +931,40 @@ export default function MobileAdCreate() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">
-          {isEdit ? "Mobile.de Inserat bearbeiten" : "Mobile.de Inserat anlegen"}
+          {isLive
+            ? "Live-Bearbeitung"
+            : isEdit
+            ? "Mobile.de Inserat bearbeiten"
+            : "Mobile.de Inserat anlegen"}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {isEdit
-            ? "Änderungen werden im bestehenden Entwurf gespeichert."
-            : "Pflichtfelder ausfüllen und als Entwurf speichern."}
-        </p>
+        <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+          {isLive ? (
+            <>
+              <span>Änderungen werden direkt im veröffentlichten Mobile.de-Inserat gespeichert.</span>
+              {liveMobileAdId && (
+                <>
+                  <span>·</span>
+                  <span>Mobile.de ID: <span className="font-mono">{liveMobileAdId}</span></span>
+                </>
+              )}
+              <Badge variant="default">published</Badge>
+            </>
+          ) : (
+            <span>
+              {isEdit
+                ? "Änderungen werden im bestehenden Entwurf gespeichert."
+                : "Pflichtfelder ausfüllen und als Entwurf speichern."}
+            </span>
+          )}
+        </div>
       </div>
+
+      {isLive && (
+        <Card className="p-4 bg-muted/30 text-sm">
+          Bilder bleiben bei dieser Live-Bearbeitung unverändert.
+          {liveImageCount > 0 && <> Aktuell {liveImageCount} Bild(er) bei Mobile.de.</>}
+        </Card>
+      )}
 
       {/* ── Fahrzeuggrunddaten ── */}
       <Card className="p-6 space-y-4">
@@ -731,7 +995,7 @@ export default function MobileAdCreate() {
                 <SelectValue placeholder={loadingMakes ? "Lade…" : "Marke wählen"} />
               </SelectTrigger>
               <SelectContent className="max-h-72">
-                {makes.map((m) => (
+                {withUnknown(makes, form.make).map((m) => (
                   <SelectItem key={m.key} value={m.key}>{m.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -748,7 +1012,7 @@ export default function MobileAdCreate() {
                 <SelectValue placeholder={!form.make ? "Erst Marke wählen" : loadingModels ? "Lade…" : "Modell wählen"} />
               </SelectTrigger>
               <SelectContent className="max-h-72">
-                {models.map((m) => (
+                {withUnknown(models, form.model).map((m) => (
                   <SelectItem key={m.key} value={m.key}>{m.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -806,7 +1070,7 @@ export default function MobileAdCreate() {
             <Select value={form.category} onValueChange={(v) => update("category", v)}>
               <SelectTrigger><SelectValue placeholder="Kategorie wählen" /></SelectTrigger>
               <SelectContent className="max-h-72">
-                {categories.map((c) => (
+                {withUnknown(categories, form.category).map((c) => (
                   <SelectItem key={c.key} value={c.key}>
                     {labelFor(CATEGORY_LABELS, c.key, c.name)}
                   </SelectItem>
@@ -819,7 +1083,7 @@ export default function MobileAdCreate() {
             <Select value={form.doors} onValueChange={(v) => update("doors", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent>
-                {DOORS_OPTIONS.map((d) => (
+                {withUnknownDoors(DOORS_OPTIONS, form.doors).map((d) => (
                   <SelectItem key={d.key} value={d.key}>{d.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -845,7 +1109,7 @@ export default function MobileAdCreate() {
             <Select value={form.gearbox} onValueChange={(v) => update("gearbox", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent>
-                {gearboxes.map((g) => (
+                {withUnknown(gearboxes, form.gearbox).map((g) => (
                   <SelectItem key={g.key} value={g.key}>{labelFor(GEARBOX_LABELS, g.key, g.name)}</SelectItem>
                 ))}
               </SelectContent>
@@ -856,7 +1120,7 @@ export default function MobileAdCreate() {
             <Select value={form.fuel} onValueChange={(v) => update("fuel", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent className="max-h-72">
-                {fuels.map((f) => (
+                {withUnknown(fuels, form.fuel).map((f) => (
                   <SelectItem key={f.key} value={f.key}>{labelFor(FUEL_LABELS, f.key, f.name)}</SelectItem>
                 ))}
               </SelectContent>
@@ -896,12 +1160,12 @@ export default function MobileAdCreate() {
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label>Antriebsart</Label>
-            <Select value={form.driveType} onValueChange={(v) => update("driveType", v)} disabled={!driveTypes.length}>
+            <Select value={form.driveType} onValueChange={(v) => update("driveType", v)} disabled={!driveTypes.length && !form.driveType}>
               <SelectTrigger>
                 <SelectValue placeholder={driveTypes.length ? "Wählen" : "Refdata nicht verfügbar"} />
               </SelectTrigger>
               <SelectContent>
-                {driveTypes.map((d) => (
+                {withUnknown(driveTypes, form.driveType).map((d) => (
                   <SelectItem key={d.key} value={d.key}>{d.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -919,7 +1183,7 @@ export default function MobileAdCreate() {
             <Select value={form.exteriorColor} onValueChange={(v) => update("exteriorColor", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent className="max-h-72">
-                {exteriorColors.map((c) => (
+                {withUnknown(exteriorColors, form.exteriorColor).map((c) => (
                   <SelectItem key={c.key} value={c.key}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -1026,19 +1290,19 @@ export default function MobileAdCreate() {
           </div>
           <div className="space-y-2">
             <Label>Schadstoffklasse</Label>
-            <Select value={form.emissionClass} onValueChange={(v) => update("emissionClass", v)} disabled={!emissionClasses.length}>
+            <Select value={form.emissionClass} onValueChange={(v) => update("emissionClass", v)} disabled={!emissionClasses.length && !form.emissionClass}>
               <SelectTrigger><SelectValue placeholder={emissionClasses.length ? "Wählen" : "Refdata nicht verfügbar"} /></SelectTrigger>
               <SelectContent className="max-h-72">
-                {emissionClasses.map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
+                {withUnknown(emissionClasses, form.emissionClass).map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
             <Label>Umweltplakette</Label>
-            <Select value={form.emissionSticker} onValueChange={(v) => update("emissionSticker", v)} disabled={!emissionStickers.length}>
+            <Select value={form.emissionSticker} onValueChange={(v) => update("emissionSticker", v)} disabled={!emissionStickers.length && !form.emissionSticker}>
               <SelectTrigger><SelectValue placeholder={emissionStickers.length ? "Wählen" : "Refdata nicht verfügbar"} /></SelectTrigger>
               <SelectContent>
-                {emissionStickers.map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
+                {withUnknown(emissionStickers, form.emissionSticker).map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
@@ -1095,12 +1359,12 @@ export default function MobileAdCreate() {
       {/* ── Klimatisierung ── */}
       <Card className="p-6 space-y-4">
         <h2 className="text-lg font-semibold">Klimatisierung</h2>
-        <Select value={form.climatisation} onValueChange={(v) => update("climatisation", v)} disabled={!climatisations.length}>
+        <Select value={form.climatisation} onValueChange={(v) => update("climatisation", v)} disabled={!climatisations.length && !form.climatisation}>
           <SelectTrigger>
             <SelectValue placeholder={climatisations.length ? "Wählen" : "Refdata nicht verfügbar (TODO)"} />
           </SelectTrigger>
           <SelectContent>
-            {climatisations.map((o) => (<SelectItem key={o.key} value={o.key}>{o.name}</SelectItem>))}
+            {withUnknown(climatisations, form.climatisation).map((o) => (<SelectItem key={o.key} value={o.key}>{o.name}</SelectItem>))}
           </SelectContent>
         </Select>
       </Card>
@@ -1211,7 +1475,7 @@ export default function MobileAdCreate() {
             <Select value={form.vatRate} onValueChange={(v) => update("vatRate", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent>
-                {vatRates.map((v) => (
+                {withUnknown(vatRates, form.vatRate).map((v) => (
                   <SelectItem key={v.key} value={v.key}>{v.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -1224,61 +1488,115 @@ export default function MobileAdCreate() {
       </Card>
 
       {/* ── Bilder ── */}
-      <Card className="p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Bilder</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {imagePaths.map((path) => (
-            <div key={path} className="relative aspect-[4/3] rounded-md overflow-hidden border border-border bg-muted">
-              {imagePreviews[path] ? (
-                <img src={imagePreviews[path]} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
-                  {path.split("/").pop()}
-                </div>
-              )}
+      {isLive ? (
+        <Card className="p-6 space-y-2 bg-muted/30">
+          <h2 className="text-lg font-semibold">Bilder</h2>
+          <p className="text-sm text-muted-foreground">
+            Bilder bleiben bei dieser Live-Bearbeitung unverändert.
+            {liveImageCount > 0 && <> Aktuell {liveImageCount} Bild(er) bei Mobile.de.</>}
+          </p>
+        </Card>
+      ) : (
+        <Card className="p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Bilder</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {imagePaths.map((path) => (
+              <div key={path} className="relative aspect-[4/3] rounded-md overflow-hidden border border-border bg-muted">
+                {imagePreviews[path] ? (
+                  <img src={imagePreviews[path]} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
+                    {path.split("/").pop()}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeImage(path)}
+                  aria-label="Bild entfernen"
+                  className="absolute top-1 right-1 bg-background/90 rounded-full p-1 hover:bg-background"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div>
+            <Label
+              htmlFor="ad-images"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground px-4 h-10 text-sm font-medium"
+            >
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Bilder hochladen
+            </Label>
+            <input
+              id="ad-images"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleUpload}
+              className="hidden"
+              disabled={uploading}
+            />
+          </div>
+        </Card>
+      )}
+
+      {/* ── Technische Mobile.de-Payload-Vorschau (Debug) ── */}
+      <PayloadPreview form={form} imageCount={isLive ? liveImageCount : imagePaths.length} />
+
+      {isLive && lastUpdateError && (
+        <Card className="p-4 border-destructive/50 bg-destructive/5 space-y-2">
+          <div className="text-destructive font-medium text-sm">{lastUpdateError.msg}</div>
+          {lastUpdateError.details && (
+            <>
               <button
                 type="button"
-                onClick={() => removeImage(path)}
-                aria-label="Bild entfernen"
-                className="absolute top-1 right-1 bg-background/90 rounded-full p-1 hover:bg-background"
+                onClick={() => setShowErrorDetails((s) => !s)}
+                className="text-xs underline text-muted-foreground"
               >
-                <X className="h-3.5 w-3.5" />
+                {showErrorDetails ? "Details ausblenden" : "Details anzeigen"}
               </button>
-            </div>
-          ))}
-        </div>
-        <div>
-          <Label
-            htmlFor="ad-images"
-            className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground px-4 h-10 text-sm font-medium"
-          >
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Bilder hochladen
-          </Label>
-          <input
-            id="ad-images"
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleUpload}
-            className="hidden"
-            disabled={uploading}
-          />
-        </div>
-      </Card>
-
-      {/* ── Mobile.de Payload Vorschau (Debug) ── */}
-      <PayloadPreview form={form} imageCount={imagePaths.length} />
-
+              {showErrorDetails && (
+                <pre className="bg-muted/40 p-2 rounded overflow-x-auto max-h-60 text-xs">
+                  {lastUpdateError.details}
+                </pre>
+              )}
+            </>
+          )}
+        </Card>
+      )}
 
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => navigate("/admin/mobile-ad")} disabled={saving}>
           Abbrechen
         </Button>
-        <Button onClick={saveDraft} disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {isEdit ? "Änderungen speichern" : "Als Entwurf speichern"}
-        </Button>
+        {isLive ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Änderungen live speichern
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Änderungen live bei Mobile.de speichern?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Diese Änderung wird direkt im veröffentlichten Mobile.de-Inserat sichtbar. Bitte vorher prüfen.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction onClick={saveLive}>Ja, live aktualisieren</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button onClick={saveDraft} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {isEdit ? "Änderungen speichern" : "Als Entwurf speichern"}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -1402,10 +1720,13 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
   return (
     <details className="rounded-md border border-border bg-muted/30 p-4 group">
       <summary className="cursor-pointer flex items-center justify-between text-sm font-medium">
-        <span>Mobile.de Payload Vorschau (Debug)</span>
+        <span>Technische Mobile.de-Payload-Vorschau</span>
         <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
       </summary>
       <div className="mt-4 space-y-4 text-xs">
+        <p className="text-muted-foreground">
+          Diese Werte werden an die Mobile.de Seller-API gesendet. Die Formularanzeige nutzt deutsche Labels.
+        </p>
         <div>
           <div className="font-semibold mb-1">Root-Keys ({rootKeys.length})</div>
           <div className="font-mono break-all text-muted-foreground">{rootKeys.join(", ")}</div>
