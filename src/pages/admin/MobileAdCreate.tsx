@@ -417,7 +417,7 @@ export default function MobileAdCreate() {
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent>
                 {gearboxes.map((g) => (
-                  <SelectItem key={g.key} value={g.key}>{g.name}</SelectItem>
+                  <SelectItem key={g.key} value={g.key}>{labelFor(GEARBOX_LABELS, g.key, g.name)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
