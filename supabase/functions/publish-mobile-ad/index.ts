@@ -25,22 +25,25 @@ function basicAuth(): string {
   return `Basic ${btoa(`${MOBILE_USER}:${MOBILE_PASS}`)}`;
 }
 
-async function ensureJpegUnder2MB(input: Uint8Array, contentType: string): Promise<Uint8Array> {
-  // Fast path: already a JPEG and small enough
-  if ((contentType?.toLowerCase().includes("jpeg") || contentType?.toLowerCase().includes("jpg")) &&
-      input.byteLength <= MAX_IMAGE_BYTES) {
-    return input;
-  }
-  // Decode (handles jpeg/png/etc) and re-encode as JPEG, ratcheting quality/resolution down
+function detectFormat(bytes: Uint8Array): string {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpeg";
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "png";
+  if (bytes.length >= 12 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+      bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return "webp";
+  if (bytes.length >= 6 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return "gif";
+  return "unknown";
+}
+
+async function ensureJpegUnder2MB(input: Uint8Array): Promise<Uint8Array> {
+  // ALWAYS decode + re-encode as real JPEG, never trust file extension/content-type.
   const decoded = await decodeImage(input);
   if (!(decoded instanceof Image)) {
     throw new Error("Unsupported image format (multi-frame / not a static image)");
   }
-  let img: Image = decoded;
-  const qualities = [85, 75, 65, 55, 45, 35];
+  const qualities = [90, 80, 70, 60, 50, 40, 30];
   // First try original size at decreasing quality
   for (const q of qualities) {
-    const buf = await img.encodeJPEG(q);
+    const buf = await decoded.encodeJPEG(q);
     if (buf.byteLength <= MAX_IMAGE_BYTES) return buf;
   }
   // Still too big: progressively shrink
@@ -48,7 +51,7 @@ async function ensureJpegUnder2MB(input: Uint8Array, contentType: string): Promi
   while (scale >= 0.2) {
     const w = Math.max(640, Math.round(decoded.width * scale));
     const h = Math.max(480, Math.round(decoded.height * scale));
-    img = decoded.clone().resize(w, h);
+    const img = decoded.clone().resize(w, h);
     for (const q of qualities) {
       const buf = await img.encodeJPEG(q);
       if (buf.byteLength <= MAX_IMAGE_BYTES) return buf;
@@ -145,8 +148,9 @@ Deno.serve(async (req) => {
     const imagePaths = (draft.image_paths ?? []) as string[];
     console.log(`Publishing draft ${draftId}, ${imagePaths.length} image(s)`);
 
-    // ── Step 1: upload images one by one ──────────────────────
+    // ── Step 1: upload images one by one (skip individual failures) ──
     const refs: string[] = [];
+    const skipped: { index: number; path: string; reason: string }[] = [];
     for (let i = 0; i < imagePaths.length; i++) {
       const p = imagePaths[i];
       try {
@@ -155,20 +159,25 @@ Deno.serve(async (req) => {
           .download(p);
         if (dlErr || !file) throw new Error(`Storage download failed: ${dlErr?.message}`);
         const bytes = new Uint8Array(await file.arrayBuffer());
-        const jpeg = await ensureJpegUnder2MB(bytes, file.type || "application/octet-stream");
+        const origFormat = detectFormat(bytes);
+        const origSize = bytes.byteLength;
+        const jpeg = await ensureJpegUnder2MB(bytes);
+        console.log(
+          `Image ${i + 1}/${imagePaths.length} ${p}: original=${origFormat} ${origSize}B -> jpeg ${jpeg.byteLength}B`,
+        );
         const filename = (p.split("/").pop() ?? `image_${i}.jpg`).replace(/\.[^.]+$/, ".jpg");
         const ref = await uploadOneImage(jpeg, filename);
         refs.push(ref);
       } catch (e) {
         const msg = (e as Error).message || String(e);
-        console.error(`Image ${i} (${p}) failed: ${msg}`);
-        await admin
-          .from("mobile_ad_drafts")
-          .update({ status: "error", error_message: `Bild ${i + 1}: ${msg}` })
-          .eq("id", draftId);
-        return json(502, { error: `Bild ${i + 1}: ${msg}` });
+        console.error(`Image ${i + 1} (${p}) skipped: ${msg}`);
+        skipped.push({ index: i + 1, path: p, reason: msg });
       }
     }
+    if (skipped.length) {
+      console.warn(`Skipped ${skipped.length}/${imagePaths.length} image(s):`, skipped);
+    }
+
 
     // ── Step 2: create ad with image refs ─────────────────────
     const adBody: Record<string, unknown> = { ...payload };
@@ -219,12 +228,16 @@ Deno.serve(async (req) => {
       mobileAdId = createRes.headers.get("Location")?.split("/").pop() ?? undefined;
     }
 
+    const skippedNote = skipped.length
+      ? `Hinweis: ${skipped.length} Bild(er) übersprungen: ${skipped.map((s) => `#${s.index} (${s.reason})`).join("; ")}`
+      : null;
+
     await admin
       .from("mobile_ad_drafts")
       .update({
         status: "published",
         mobile_ad_id: mobileAdId ?? null,
-        error_message: null,
+        error_message: skippedNote,
       })
       .eq("id", draftId);
 
@@ -233,6 +246,7 @@ Deno.serve(async (req) => {
       mobileAdId,
       detailPageUrl,
       uploadedImages: refs.length,
+      skippedImages: skipped,
     });
   } catch (err) {
     console.error("publish-mobile-ad fatal:", err);

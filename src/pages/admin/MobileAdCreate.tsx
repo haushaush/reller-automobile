@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, ChangeEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Loader2, Upload, X, Save } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -99,8 +99,50 @@ async function loadRef(kind: string, make?: string): Promise<RefItem[]> {
   return (data as { items: RefItem[] })?.items ?? [];
 }
 
+function payloadToForm(payload: Record<string, unknown> | null | undefined): FormState {
+  if (!payload) return EMPTY;
+  const get = (obj: unknown, path: string[]): unknown => {
+    let cur: unknown = obj;
+    for (const k of path) {
+      if (cur && typeof cur === "object" && k in (cur as Record<string, unknown>)) {
+        cur = (cur as Record<string, unknown>)[k];
+      } else return undefined;
+    }
+    return cur;
+  };
+  const firstReg = get(payload, ["vehicle", "first-registration"]) as string | undefined;
+  let regYear = "";
+  let regMonth = "";
+  if (firstReg && /^\d{6}$/.test(firstReg)) {
+    regYear = firstReg.slice(0, 4);
+    regMonth = firstReg.slice(4, 6);
+  }
+  const asStr = (v: unknown) => (v === undefined || v === null ? "" : String(v));
+  return {
+    make: asStr(get(payload, ["vehicle", "make", "key"])),
+    model: asStr(get(payload, ["vehicle", "model", "key"])),
+    modelDescription: asStr(get(payload, ["vehicle", "model-description"])),
+    category: asStr(get(payload, ["vehicle", "category", "key"])),
+    mileage: asStr(get(payload, ["vehicle", "mileage"])),
+    regYear,
+    regMonth,
+    fuel: asStr(get(payload, ["vehicle", "fuel", "key"])),
+    gearbox: asStr(get(payload, ["vehicle", "gearbox", "key"])),
+    power: asStr(get(payload, ["vehicle", "power"])),
+    cubicCapacity: asStr(get(payload, ["vehicle", "cubic-capacity"])),
+    condition: asStr(get(payload, ["vehicle", "condition"])) || "USED",
+    damageUnrepaired: get(payload, ["vehicle", "damage-unrepaired"]) === true ? "true" : "false",
+    consumerPriceGross: asStr(get(payload, ["price", "consumer-price-gross"])),
+    vatRate: asStr(get(payload, ["price", "vat-rate"])),
+    description: asStr(get(payload, ["description"])),
+    vin: asStr(get(payload, ["vehicle", "vin"])),
+  };
+}
+
 export default function MobileAdCreate() {
   const navigate = useNavigate();
+  const { draftId } = useParams<{ draftId?: string }>();
+  const isEdit = Boolean(draftId);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [makes, setMakes] = useState<RefItem[]>([]);
   const [models, setModels] = useState<RefItem[]>([]);
@@ -110,6 +152,8 @@ export default function MobileAdCreate() {
   const [vatRates, setVatRates] = useState<RefItem[]>([]);
   const [loadingMakes, setLoadingMakes] = useState(true);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(isEdit);
+  const [draftStatus, setDraftStatus] = useState<string>("draft");
   const [imagePaths, setImagePaths] = useState<string[]>([]);
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
@@ -158,6 +202,50 @@ export default function MobileAdCreate() {
       })
       .finally(() => setLoadingModels(false));
   }, [form.make]);
+
+  // Load existing draft for edit mode
+  useEffect(() => {
+    if (!draftId) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("mobile_ad_drafts")
+          .select("status, payload, image_paths")
+          .eq("id", draftId)
+          .maybeSingle();
+        if (error || !data) {
+          toast.error("Entwurf nicht gefunden");
+          navigate("/admin/mobile-ad");
+          return;
+        }
+        if (data.status === "published") {
+          toast.error("Bereits veröffentlichte Inserate können hier nicht bearbeitet werden");
+          navigate("/admin/mobile-ad");
+          return;
+        }
+        setDraftStatus(data.status);
+        setForm(payloadToForm(data.payload as Record<string, unknown> | null));
+        const paths = (data.image_paths ?? []) as string[];
+        setImagePaths(paths);
+        // signed URLs for previews
+        const previews: Record<string, string> = {};
+        await Promise.all(
+          paths.map(async (p) => {
+            const { data: s } = await supabase.storage
+              .from("mobile-ad-images")
+              .createSignedUrl(p, 60 * 60);
+            if (s?.signedUrl) previews[p] = s.signedUrl;
+          }),
+        );
+        setImagePreviews(previews);
+      } catch (e) {
+        console.error(e);
+        toast.error("Entwurf konnte nicht geladen werden");
+      } finally {
+        setLoadingDraft(false);
+      }
+    })();
+  }, [draftId, navigate]);
 
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -258,19 +346,38 @@ export default function MobileAdCreate() {
     }
     setSaving(true);
     try {
-      const { data: userRes } = await supabase.auth.getUser();
-      const { error } = await supabase.from("mobile_ad_drafts").insert({
-        status: "draft",
-        payload: buildPayload() as never,
-        image_paths: imagePaths,
-        created_by: userRes.user?.id ?? null,
-      });
-      if (error) {
-        console.error(error);
-        toast.error(`Speichern fehlgeschlagen: ${error.message}`);
-        return;
+      if (isEdit && draftId) {
+        const nextStatus = draftStatus === "error" ? "draft" : draftStatus;
+        const { error } = await supabase
+          .from("mobile_ad_drafts")
+          .update({
+            payload: buildPayload() as never,
+            image_paths: imagePaths,
+            status: nextStatus,
+            error_message: nextStatus === "draft" ? null : undefined,
+          })
+          .eq("id", draftId);
+        if (error) {
+          console.error(error);
+          toast.error(`Speichern fehlgeschlagen: ${error.message}`);
+          return;
+        }
+        toast.success("Entwurf aktualisiert");
+      } else {
+        const { data: userRes } = await supabase.auth.getUser();
+        const { error } = await supabase.from("mobile_ad_drafts").insert({
+          status: "draft",
+          payload: buildPayload() as never,
+          image_paths: imagePaths,
+          created_by: userRes.user?.id ?? null,
+        });
+        if (error) {
+          console.error(error);
+          toast.error(`Speichern fehlgeschlagen: ${error.message}`);
+          return;
+        }
+        toast.success("Entwurf gespeichert");
       }
-      toast.success("Entwurf gespeichert");
       navigate("/admin/mobile-ad");
     } finally {
       setSaving(false);
@@ -286,13 +393,24 @@ export default function MobileAdCreate() {
     return Array.from({ length: 40 }, (_, i) => String(now - i));
   }, []);
 
+  if (loadingDraft) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade Entwurf…
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Mobile.de Inserat anlegen</h1>
+        <h1 className="text-2xl font-semibold">
+          {isEdit ? "Mobile.de Inserat bearbeiten" : "Mobile.de Inserat anlegen"}
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Pflichtfelder ausfüllen und als Entwurf speichern. Die Veröffentlichung auf Mobile.de
-          folgt in Etappe 2.
+          {isEdit
+            ? "Änderungen werden im bestehenden Entwurf gespeichert."
+            : "Pflichtfelder ausfüllen und als Entwurf speichern."}
         </p>
       </div>
 
@@ -559,7 +677,7 @@ export default function MobileAdCreate() {
         </Button>
         <Button onClick={saveDraft} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Als Entwurf speichern
+          {isEdit ? "Änderungen speichern" : "Als Entwurf speichern"}
         </Button>
       </div>
     </div>
