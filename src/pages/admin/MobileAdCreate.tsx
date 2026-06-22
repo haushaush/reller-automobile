@@ -479,7 +479,7 @@ export default function MobileAdCreate() {
 
   const [loadingMakes, setLoadingMakes] = useState(true);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [loadingDraft, setLoadingDraft] = useState(isEdit);
+  const [loadingDraft, setLoadingDraft] = useState(isEdit || isLive);
   const [draftStatus, setDraftStatus] = useState<string>("draft");
   const [imagePaths, setImagePaths] = useState<string[]>([]);
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
