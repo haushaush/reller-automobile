@@ -383,7 +383,7 @@ export default function MobileAdEditLive() {
       <Card className="p-4 space-y-4">
         <h2 className="font-semibold">Preis</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Preis brutto (nur Ziffern)" v={form.consumerPriceGross} on={(v) => upd("consumerPriceGross", v.replace(/[^0-9]/g, ""))} />
+          <Field label="Preis brutto (€)" v={form.consumerPriceGross} on={(v) => upd("consumerPriceGross", v.replace(/[^0-9.,]/g, ""))} placeholder="z.B. 10000 oder 10000.00" />
           <Field label="MwSt-Satz" v={form.vatRate} on={(v) => upd("vatRate", v)} placeholder="19.00 / OTHER" />
         </div>
       </Card>
