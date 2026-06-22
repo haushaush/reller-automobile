@@ -431,27 +431,45 @@ export default function MobileAdDrafts() {
             Entwürfe verwalten und auf Mobile.de veröffentlichen.
           </p>
         </div>
-        <Button onClick={() => navigate("/admin/mobile-ad/new")}>
-          <Plus className="h-4 w-4" />
-          Neuer Entwurf
-        </Button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={(e) => setShowDeleted(e.target.checked)}
+            />
+            Gelöschte anzeigen
+          </label>
+          <Button onClick={() => navigate("/admin/mobile-ad/new")}>
+            <Plus className="h-4 w-4" />
+            Neuer Entwurf
+          </Button>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade…
-        </div>
-      ) : rows.length === 0 ? (
-        <Card className="p-10 text-center text-muted-foreground">
-          Noch keine Entwürfe.{" "}
-          <Link to="/admin/mobile-ad/new" className="underline">
-            Jetzt ersten anlegen
-          </Link>
-          .
-        </Card>
-      ) : (
+      {(() => {
+        const visibleRows = rows.filter((r) => showDeleted || r.status !== "deleted");
+        if (loading) {
+          return (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade…
+            </div>
+          );
+        }
+        if (visibleRows.length === 0) {
+          return (
+            <Card className="p-10 text-center text-muted-foreground">
+              {rows.length === 0 ? (
+                <>Noch keine Entwürfe. <Link to="/admin/mobile-ad/new" className="underline">Jetzt ersten anlegen</Link>.</>
+              ) : (
+                <>Keine sichtbaren Einträge. Aktiviere „Gelöschte anzeigen", um entfernte Inserate zu sehen.</>
+              )}
+            </Card>
+          );
+        }
+        return (
         <div className="space-y-3">
-          {rows.map((r) => {
+          {visibleRows.map((r) => {
             const title = getDraftDisplayTitle(r);
             const desc = getDraftSubDescription(r);
             const price = readFirst(r.payload, [
