@@ -511,7 +511,7 @@ export default function MobileAdCreate() {
       return Number.isFinite(n) ? n : undefined;
     };
     const seats = intIf(form.seats); if (seats !== undefined) vehicle.seats = seats;
-    const cyl = intIf(form.cylinders); if (cyl !== undefined) vehicle.cylinders = cyl;
+    const cyl = intIf(form.cylinders); if (cyl !== undefined) vehicle.cylinder = cyl;
     const fc = intIf(form.fuelCapacity); if (fc !== undefined) vehicle.fuelCapacity = fc;
     if (form.driveType) vehicle.driveType = { key: form.driveType };
 
@@ -519,7 +519,7 @@ export default function MobileAdCreate() {
     if (form.exteriorColor) vehicle.exteriorColor = { key: form.exteriorColor };
     if (form.manufacturerColorName) vehicle.manufacturerColorName = form.manufacturerColorName;
     if (form.metallic) vehicle.metallic = true;
-    if (form.matt) vehicle.matt = true;
+    if (form.matt) vehicle.matteColor = true;
 
     // Historie
     if (form.accidentDamaged === "true") vehicle.accidentDamaged = true;
