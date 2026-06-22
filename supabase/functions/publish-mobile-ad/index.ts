@@ -146,155 +146,10 @@ Deno.serve(async (req) => {
     const imagePaths = (draft.image_paths ?? []) as string[];
     console.log(`Publishing draft ${draftId}, ${imagePaths.length} image(s)`);
 
-    // ── Build flat Mobile.de payload from nested draft structure ──
-    const vehicle = (payload.vehicle ?? {}) as Record<string, unknown>;
-    const price = (payload.price ?? {}) as Record<string, unknown>;
-    const getKey = (v: unknown): string | undefined => {
-      if (v && typeof v === "object" && typeof (v as { key?: unknown }).key === "string") {
-        return (v as { key: string }).key;
-      }
-      return undefined;
-    };
-    const rawAmount = price.consumerPriceGross ?? price["consumer-price-gross"] ?? "";
-    const cleanAmount = String(rawAmount).replace(/[^0-9]/g, "");
-    const rawVat = price.vatRate ?? price["vat-rate"] ?? "19.00";
-
-    const mobilePayload: Record<string, unknown> = {
-      vehicleClass: "Car",
-      make: getKey(vehicle.make),
-      model: getKey(vehicle.model),
-      modelDescription: vehicle["model-description"],
-      category: getKey(vehicle.category),
-      mileage: vehicle.mileage,
-      firstRegistration: vehicle["first-registration"],
-      fuel: getKey(vehicle.fuel),
-      gearbox: getKey(vehicle.gearbox),
-      power: vehicle.power,
-      cubicCapacity: vehicle["cubic-capacity"],
-      condition: (vehicle.condition as string) || "USED",
-      damageUnrepaired: vehicle["damage-unrepaired"] === true,
-      price: {
-        consumerPriceGross: cleanAmount,
-        currency: "EUR",
-        vatRate: String(rawVat),
-        type: "FIXED",
-      },
-    };
-    if (payload.description) mobilePayload.description = payload.description;
-
-    // ── Pass-through optional fields (only when present) ──
-    const optional: Record<string, unknown> = {};
-    const addStr = (k: string, v: unknown) => {
-      if (typeof v === "string" && v.trim()) optional[k] = v.trim();
-    };
-    const addNum = (k: string, v: unknown) => {
-      if (typeof v === "number" && Number.isFinite(v)) optional[k] = v;
-      else if (typeof v === "string" && v.trim() && !Number.isNaN(Number(v))) optional[k] = Number(v);
-    };
-    const addBoolTrue = (k: string, v: unknown) => {
-      if (v === true) optional[k] = true;
-    };
-    const addBoolEither = (k: string, v: unknown) => {
-      if (v === true || v === false) optional[k] = v;
-    };
-    const addKey = (k: string, v: unknown) => {
-      const key = getKey(v) ?? (typeof v === "string" ? v : undefined);
-      if (key) optional[k] = key;
-    };
-
-    // Basis & Karosserie
-    addStr("trimLine", vehicle.trimLine);
-    addNum("seats", vehicle.seats);
-    addKey("doors", vehicle.doors);
-    addStr("vin", vehicle.vin);
-    addStr("internalNumber", vehicle.internalNumber);
-
-    // Motor / Technik
-    addNum("cylinders", vehicle.cylinders);
-    addNum("fuelCapacity", vehicle.fuelCapacity);
-    addKey("driveType", vehicle.driveType);
-
-    // Farbe
-    addKey("exteriorColor", vehicle.exteriorColor);
-    addStr("manufacturerColorName", vehicle.manufacturerColorName);
-    addBoolTrue("metallic", vehicle.metallic);
-    addBoolTrue("matt", vehicle.matt);
-
-    // Historie / Zustand
-    addBoolEither("accidentDamaged", vehicle.accidentDamaged);
-    addBoolTrue("fullServiceHistory", vehicle.fullServiceHistory);
-    addBoolTrue("nonSmokerVehicle", vehicle.nonSmokerVehicle);
-    addBoolTrue("warranty", vehicle.warranty);
-    addBoolEither("roadworthy", vehicle.roadworthy);
-    addNum("numberOfPreviousOwners", vehicle.numberOfPreviousOwners);
-
-    // Umwelt / Untersuchungen
-    addStr("generalInspection", vehicle.generalInspection); // YYYYMM
-    addBoolTrue("huNew", vehicle.huNew);
-    addBoolTrue("inspectionNew", vehicle.inspectionNew);
-    addBoolTrue("particulateFilter", vehicle.particulateFilter);
-    addKey("emissionClass", vehicle.emissionClass);
-    addKey("emissionSticker", vehicle.emissionSticker);
-    addNum("co2EmissionsCombined", vehicle.co2EmissionsCombined);
-    addNum("consumptionCombined", vehicle.consumptionCombined);
-    addNum("consumptionInner", vehicle.consumptionInner);
-    addNum("consumptionOuter", vehicle.consumptionOuter);
-    addNum("consumptionUrban", vehicle.consumptionUrban);
-    addNum("consumptionExtraUrban", vehicle.consumptionExtraUrban);
-
-    // Klimatisierung / Komfort enums
-    addKey("climatisation", vehicle.climatisation);
-
-    // parkingAssistants array
-    if (Array.isArray(vehicle.parkingAssistants)) {
-      const pa = (vehicle.parkingAssistants as unknown[])
-        .map((x) => getKey(x) ?? (typeof x === "string" ? x : undefined))
-        .filter((x): x is string => Boolean(x));
-      if (pa.length) optional.parkingAssistants = pa.map((k) => ({ key: k }));
-    }
-
-    // Boolean equipment / safety feature flags — whitelist of known Mobile.de keys
-    const FEATURE_KEYS = [
-      // Comfort / Equipment
-      "alloyWheels", "navigationSystem", "electricHeatedSeats", "bluetooth",
-      "carplay", "androidAuto", "electricWindows", "centralLocking", "isofix",
-      "sunroof", "panoramicGlassRoof", "usb", "touchscreen", "soundSystem",
-      "summerTires", "winterTires", "allSeasonTires",
-      "tintedWindows", "ambientLighting", "electricExteriorMirrors",
-      "electricAdjustableSeats", "powerSteering", "hillStartAssist",
-      "onBoardComputer", "handsFreePhoneSystem", "roofRack", "winterPackage",
-      "multifunctionalSteeringWheel", "daytimeRunningLamps",
-      // Safety
-      "abs", "esp", "immobilizer", "highBeamAssistant", "fatigueWarningSystem",
-      "emergencyBrakeAssistant", "emergencyCallSystem", "rainSensor",
-      "tirePressureMonitoring", "laneDepartureWarning", "startStopSystem",
-      "trafficSignRecognition",
-    ];
-    for (const f of FEATURE_KEYS) {
-      if (vehicle[f] === true) optional[f] = true;
-    }
-
-    Object.assign(mobilePayload, optional);
-    console.log(`Optional fields forwarded (${Object.keys(optional).length}):`, Object.keys(optional).join(","));
-
-    // ── Validate required fields BEFORE posting ──
-    const missing: string[] = [];
-    if (!mobilePayload.make) missing.push("make");
-    if (!mobilePayload.model) missing.push("model");
-    if (!mobilePayload.modelDescription) missing.push("modelDescription");
-    if (!mobilePayload.category) missing.push("category");
-    if (mobilePayload.mileage === undefined || mobilePayload.mileage === null) missing.push("mileage");
-    if (!mobilePayload.firstRegistration || !/^\d{6}$/.test(String(mobilePayload.firstRegistration)))
-      missing.push("firstRegistration (YYYYMM)");
-    if (!mobilePayload.fuel) missing.push("fuel");
-    if (!mobilePayload.gearbox) missing.push("gearbox");
-    if (mobilePayload.power === undefined || mobilePayload.power === null) missing.push("power");
-    if (mobilePayload.cubicCapacity === undefined || mobilePayload.cubicCapacity === null)
-      missing.push("cubicCapacity");
-    if (!mobilePayload.condition) missing.push("condition");
-    if (typeof mobilePayload.damageUnrepaired !== "boolean") missing.push("damageUnrepaired");
-    if (!cleanAmount || cleanAmount === "0") missing.push("price.consumerPriceGross (Preis fehlt/ungültig)");
-    if (!rawVat) missing.push("price.vatRate");
+    // ── Build flat Mobile.de payload — tolerate flat or nested drafts ──
+    const { adBody: mobilePayload, missing, warnings } = buildMobileAdPayload(payload, []);
+    console.log(`buildMobileAdPayload: keys=${Object.keys(mobilePayload).join(",")}`);
+    if (warnings.length) console.warn(`buildMobileAdPayload warnings:`, warnings);
 
     if (missing.length) {
       const msg = `Pflichtfelder fehlen oder ungültig: ${missing.join(", ")}`;
@@ -303,8 +158,9 @@ Deno.serve(async (req) => {
         .from("mobile_ad_drafts")
         .update({ status: "error", error_message: msg })
         .eq("id", draftId);
-      return json(400, { error: msg, missing });
+      return json(400, { error: msg, missing, warnings });
     }
+
 
 
     // ── Step 1: upload images one by one (skip individual failures) ──
