@@ -21,6 +21,76 @@ const MOBILE_MIME = "application/vnd.de.mobile.api+json";
 
 const basicAuth = () => `Basic ${btoa(`${MOBILE_USER}:${MOBILE_PASS}`)}`;
 
+// ── Preis-Normalisierung (Seller-API) ────────────────────────────────────
+const ALLOWED_PRICE_KEYS = new Set([
+  "consumerPriceGross", "consumerPriceNet",
+  "dealerPriceGross", "dealerPriceNet",
+  "vatRate", "type", "currency",
+]);
+
+function extractPriceAmount(v: unknown): string | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (typeof v === "number") return Number.isFinite(v) && v > 0 ? v.toFixed(2) : undefined;
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return extractPriceAmount(
+      o.consumerPriceGross ?? o.amount ?? o.value ?? o.gross ?? o.consumerValue ?? o.net
+    );
+  }
+  if (typeof v === "string") {
+    let s = v.trim().replace(/[€$\s]/g, "");
+    if (s.includes(",") && s.includes(".")) {
+      if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
+      else s = s.replace(/,/g, "");
+    } else if (s.includes(",")) {
+      const parts = s.split(",");
+      if (parts.length === 2 && parts[1].length <= 2) s = parts[0] + "." + parts[1];
+      else s = s.replace(/,/g, "");
+    }
+    s = s.replace(/[^0-9.]/g, "");
+    if (!s) return undefined;
+    const n = Number(s);
+    if (!Number.isFinite(n) || n <= 0) return undefined;
+    return n.toFixed(2);
+  }
+  return undefined;
+}
+
+function normalizeSellerApiPrice(
+  currentPrice: Record<string, unknown> | undefined | null,
+  formPayload: Record<string, unknown> | undefined | null
+): Record<string, unknown> | null {
+  const cur = (currentPrice ?? {}) as Record<string, unknown>;
+  const fp = (formPayload ?? {}) as Record<string, unknown>;
+  const fpPrice = (fp.price && typeof fp.price === "object" ? fp.price : {}) as Record<string, unknown>;
+
+  const amount =
+    extractPriceAmount(fpPrice.consumerPriceGross) ??
+    extractPriceAmount(fpPrice["consumer-price-gross"]) ??
+    extractPriceAmount(fp.consumerPriceGross) ??
+    extractPriceAmount(typeof fp.price === "number" || typeof fp.price === "string" ? fp.price : undefined) ??
+    extractPriceAmount(cur.consumerPriceGross) ??
+    extractPriceAmount(cur.consumerValue);
+
+  if (!amount) return null;
+
+  const rawVat = fpPrice.vatRate ?? fpPrice["vat-rate"] ?? fp.vatRate ?? cur.vatRate ?? "19.00";
+  const vatStr = typeof rawVat === "number" ? rawVat.toFixed(2) : String(rawVat || "19.00");
+
+  return {
+    consumerPriceGross: amount,
+    currency: "EUR",
+    vatRate: vatStr,
+    type: "FIXED",
+  };
+}
+
+function stripInvalidPriceFields(price: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(price)) if (ALLOWED_PRICE_KEYS.has(k)) out[k] = v;
+  return out;
+}
+
 // ── Mapping (kopiert aus publish-mobile-ad, sicher gehalten) ─────────────
 type AdPayload = Record<string, unknown>;
 type BuildResult = { adBody: AdPayload; missing: string[]; warnings: string[] };
