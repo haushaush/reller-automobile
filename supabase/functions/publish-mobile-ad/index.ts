@@ -148,55 +148,60 @@ Deno.serve(async (req) => {
     const imagePaths = (draft.image_paths ?? []) as string[];
     console.log(`Publishing draft ${draftId}, ${imagePaths.length} image(s)`);
 
-    // ── Ensure vehicleClass is set (always "Car" for this portal) ──
-    if (!payload.vehicleClass || typeof payload.vehicleClass !== "string") {
-      console.log(`Defaulting missing vehicleClass to "Car" for draftId=${draftId}`);
-      payload.vehicleClass = "Car";
-    }
+    // ── Build flat Mobile.de payload from nested draft structure ──
     const vehicle = (payload.vehicle ?? {}) as Record<string, unknown>;
-    if (!vehicle.class) {
-      vehicle.class = { key: "Car" };
-      payload.vehicle = vehicle;
-    }
-
-    // ── Validate required fields BEFORE posting ──
     const price = (payload.price ?? {}) as Record<string, unknown>;
-    const missing: string[] = [];
-    const hasKey = (v: unknown) =>
-      v && typeof v === "object" && typeof (v as { key?: unknown }).key === "string" &&
-      (v as { key: string }).key.length > 0;
-    if (!hasKey(vehicle.make)) missing.push("make");
-    if (!hasKey(vehicle.model)) missing.push("model");
-    if (!vehicle["model-description"]) missing.push("modelDescription");
-    if (!hasKey(vehicle.category)) missing.push("category");
-    if (vehicle.mileage === undefined || vehicle.mileage === null) missing.push("mileage");
-    if (!vehicle["first-registration"] || !/^\d{6}$/.test(String(vehicle["first-registration"])))
-      missing.push("firstRegistration (YYYYMM)");
-    if (!hasKey(vehicle.fuel)) missing.push("fuel");
-    if (!hasKey(vehicle.gearbox)) missing.push("gearbox");
-    if (vehicle.power === undefined || vehicle.power === null) missing.push("power");
-    if (vehicle["cubic-capacity"] === undefined || vehicle["cubic-capacity"] === null)
-      missing.push("cubicCapacity");
-    if (!vehicle.condition) missing.push("condition");
-    if (typeof vehicle["damage-unrepaired"] !== "boolean") missing.push("damageUnrepaired");
-    // Normalize price into the exact shape Mobile.de expects (camelCase, string amount)
-    const rawAmount =
-      price.consumerPriceGross ??
-      price["consumer-price-gross"] ??
-      "";
+    const getKey = (v: unknown): string | undefined => {
+      if (v && typeof v === "object" && typeof (v as { key?: unknown }).key === "string") {
+        return (v as { key: string }).key;
+      }
+      return undefined;
+    };
+    const rawAmount = price.consumerPriceGross ?? price["consumer-price-gross"] ?? "";
     const cleanAmount = String(rawAmount).replace(/[^0-9]/g, "");
     const rawVat = price.vatRate ?? price["vat-rate"] ?? "19.00";
-    const normalizedPrice = {
-      consumerPriceGross: cleanAmount,
-      currency: "EUR",
-      vatRate: String(rawVat),
-      type: "FIXED",
+
+    const mobilePayload: Record<string, unknown> = {
+      vehicleClass: "Car",
+      make: getKey(vehicle.make),
+      model: getKey(vehicle.model),
+      modelDescription: vehicle["model-description"],
+      category: getKey(vehicle.category),
+      mileage: vehicle.mileage,
+      firstRegistration: vehicle["first-registration"],
+      fuel: getKey(vehicle.fuel),
+      gearbox: getKey(vehicle.gearbox),
+      power: vehicle.power,
+      cubicCapacity: vehicle["cubic-capacity"],
+      condition: (vehicle.condition as string) || "USED",
+      damageUnrepaired: vehicle["damage-unrepaired"] === true,
+      price: {
+        consumerPriceGross: cleanAmount,
+        currency: "EUR",
+        vatRate: String(rawVat),
+        type: "FIXED",
+      },
     };
-    payload.price = normalizedPrice;
+    if (payload.description) mobilePayload.description = payload.description;
 
+    // ── Validate required fields BEFORE posting ──
+    const missing: string[] = [];
+    if (!mobilePayload.make) missing.push("make");
+    if (!mobilePayload.model) missing.push("model");
+    if (!mobilePayload.modelDescription) missing.push("modelDescription");
+    if (!mobilePayload.category) missing.push("category");
+    if (mobilePayload.mileage === undefined || mobilePayload.mileage === null) missing.push("mileage");
+    if (!mobilePayload.firstRegistration || !/^\d{6}$/.test(String(mobilePayload.firstRegistration)))
+      missing.push("firstRegistration (YYYYMM)");
+    if (!mobilePayload.fuel) missing.push("fuel");
+    if (!mobilePayload.gearbox) missing.push("gearbox");
+    if (mobilePayload.power === undefined || mobilePayload.power === null) missing.push("power");
+    if (mobilePayload.cubicCapacity === undefined || mobilePayload.cubicCapacity === null)
+      missing.push("cubicCapacity");
+    if (!mobilePayload.condition) missing.push("condition");
+    if (typeof mobilePayload.damageUnrepaired !== "boolean") missing.push("damageUnrepaired");
     if (!cleanAmount || cleanAmount === "0") missing.push("price.consumerPriceGross (Preis fehlt/ungültig)");
-    if (!normalizedPrice.vatRate) missing.push("price.vatRate");
-
+    if (!rawVat) missing.push("price.vatRate");
 
     if (missing.length) {
       const msg = `Pflichtfelder fehlen oder ungültig: ${missing.join(", ")}`;
@@ -241,10 +246,30 @@ Deno.serve(async (req) => {
 
 
     // ── Step 2: create ad with image refs ─────────────────────
-    const adBody: Record<string, unknown> = { ...payload };
+    const adBody: Record<string, unknown> = mobilePayload;
     if (refs.length) {
       adBody.images = refs.map((ref) => ({ ref }));
     }
+
+    console.log("Mobile.de POST adBody keys:", Object.keys(adBody).join(","));
+    console.log("Mobile.de required fields:", JSON.stringify({
+      vehicleClass: mobilePayload.vehicleClass,
+      make: mobilePayload.make,
+      model: mobilePayload.model,
+      modelDescription: mobilePayload.modelDescription,
+      category: mobilePayload.category,
+      mileage: mobilePayload.mileage,
+      firstRegistration: mobilePayload.firstRegistration,
+      fuel: mobilePayload.fuel,
+      gearbox: mobilePayload.gearbox,
+      power: mobilePayload.power,
+      cubicCapacity: mobilePayload.cubicCapacity,
+      condition: mobilePayload.condition,
+      damageUnrepaired: mobilePayload.damageUnrepaired,
+      priceAmount: cleanAmount,
+      imageCount: refs.length,
+    }));
+
 
     const createUrl = `${API_BASE}/sellers/${SELLER_ID}/ads`;
     const createRes = await fetch(createUrl, {
