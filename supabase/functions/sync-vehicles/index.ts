@@ -551,7 +551,12 @@ Deno.serve(async (req) => {
 
     console.log(`=== Sync Start === ${new Date().toISOString()}`);
 
-    const allXmlPages = await fetchAllAdsPages(authHeader, 100);
+    const paginationResult = await fetchAllAdsPages(authHeader, 100);
+    const allXmlPages = paginationResult.pages;
+    logPagesFetched = allXmlPages.length;
+    logPageSize = paginationResult.pageSize;
+    logMobileTotal = paginationResult.totalCount;
+    logStopReason = paginationResult.stopReason;
 
     const rawVehicleRows: VehicleRow[] = [];
     for (const xmlText of allXmlPages) {
