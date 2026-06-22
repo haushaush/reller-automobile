@@ -18,6 +18,39 @@ import {
 
 type RefItem = { key: string; name: string };
 
+const FUEL_LABELS: Record<string, string> = {
+  PETROL: "Benzin",
+  DIESEL: "Diesel",
+  LPG: "Autogas (LPG)",
+  CNG: "Erdgas (CNG)",
+  ELECTRICITY: "Elektro",
+  HYBRID: "Hybrid (Benzin/Elektro)",
+  HYBRID_DIESEL: "Hybrid (Diesel/Elektro)",
+  HYDROGENIUM: "Wasserstoff",
+  ETHANOL: "Ethanol (E85)",
+  OTHER: "Andere",
+};
+
+const GEARBOX_LABELS: Record<string, string> = {
+  MANUAL_GEAR: "Schaltgetriebe",
+  SEMIAUTOMATIC_GEAR: "Halbautomatik",
+  AUTOMATIC_GEAR: "Automatik",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  Cabrio: "Cabrio/Roadster",
+  SmallCar: "Kleinwagen",
+  EstateCar: "Kombi",
+  Limousine: "Limousine",
+  SportsCar: "Sportwagen/Coupé",
+  Van: "Van/Kleinbus",
+  OffRoad: "SUV/Geländewagen",
+  OtherCar: "Andere",
+};
+
+const labelFor = (map: Record<string, string>, key: string, fallback: string) =>
+  map[key] ?? fallback ?? key;
+
 interface FormState {
   make: string;
   model: string;
