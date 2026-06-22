@@ -49,137 +49,166 @@ const CATEGORY_LABELS: Record<string, string> = {
   OtherCar: "Andere",
 };
 
-const EXTERIOR_COLOR_OPTIONS: { key: string; label: string }[] = [
-  { key: "BLACK", label: "Schwarz" },
-  { key: "WHITE", label: "Weiß" },
-  { key: "SILVER", label: "Silber" },
-  { key: "GREY", label: "Grau" },
-  { key: "BLUE", label: "Blau" },
-  { key: "RED", label: "Rot" },
-  { key: "GREEN", label: "Grün" },
-  { key: "BROWN", label: "Braun" },
-  { key: "BEIGE", label: "Beige" },
-  { key: "YELLOW", label: "Gelb" },
-  { key: "ORANGE", label: "Orange" },
-  { key: "GOLD", label: "Gold" },
-  { key: "VIOLET", label: "Violett" },
-];
-
 const DOORS_OPTIONS: { key: string; label: string }[] = [
   { key: "TWO_OR_THREE", label: "2/3" },
   { key: "FOUR_OR_FIVE", label: "4/5" },
 ];
 
-const CLIMATISATION_OPTIONS: { key: string; label: string }[] = [
-  { key: "NO_CLIMATISATION", label: "keine" },
-  { key: "MANUAL_CLIMATISATION", label: "Klimaanlage" },
-  { key: "AUTOMATIC_CLIMATISATION", label: "Klimaautomatik" },
-  { key: "2_ZONE_AUTOMATIC_AIR_CONDITIONING", label: "2-Zonen-Klimaautomatik" },
-  { key: "3_ZONE_AUTOMATIC_AIR_CONDITIONING", label: "3-Zonen-Klimaautomatik" },
-  { key: "4_ZONE_AUTOMATIC_AIR_CONDITIONING", label: "4-Zonen-Klimaautomatik" },
+// Fallbacks (only used when refdata returns empty / fails)
+const EXTERIOR_COLOR_FALLBACK: RefItem[] = [
+  { key: "BLACK", name: "Schwarz" }, { key: "WHITE", name: "Weiß" },
+  { key: "SILVER", name: "Silber" }, { key: "GREY", name: "Grau" },
+  { key: "BLUE", name: "Blau" }, { key: "RED", name: "Rot" },
+  { key: "GREEN", name: "Grün" }, { key: "BROWN", name: "Braun" },
+  { key: "BEIGE", name: "Beige" }, { key: "YELLOW", name: "Gelb" },
+  { key: "ORANGE", name: "Orange" }, { key: "GOLD", name: "Gold" },
+  { key: "VIOLET", name: "Violett" },
 ];
 
-const PARKING_ASSIST_OPTIONS: { key: string; label: string }[] = [
-  { key: "FRONT", label: "vorne" },
-  { key: "REAR", label: "hinten" },
-  { key: "CAMERA", label: "Kamera" },
-  { key: "AUTOMATIC_PARKING", label: "Selbstlenkend" },
-];
-
-// Boolean equipment checkboxes (key in payload -> german label)
-const FEATURE_FIELDS: { key: string; label: string }[] = [
-  { key: "alloyWheels", label: "Leichtmetallfelgen" },
-  { key: "navigationSystem", label: "Navigationssystem" },
-  { key: "electricHeatedSeats", label: "Sitzheizung" },
-  { key: "bluetooth", label: "Bluetooth" },
-  { key: "carplay", label: "Apple CarPlay" },
-  { key: "androidAuto", label: "Android Auto" },
+// Boolean equipment checkboxes grouped per UI section.
+// Keys MUST match Mobile.de Seller-API feature names.
+const COMFORT_FEATURES: { key: string; label: string }[] = [
+  { key: "tintedWindows", label: "Abgedunkelte Scheiben" },
+  { key: "ambientLighting", label: "Ambiente-Beleuchtung" },
   { key: "electricWindows", label: "Elektr. Fensterheber" },
+  { key: "electricExteriorMirrors", label: "Elektr. Außenspiegel" },
+  { key: "electricAdjustableSeats", label: "Elektr. Sitze" },
+  { key: "electricHeatedSeats", label: "Sitzheizung" },
   { key: "centralLocking", label: "Zentralverriegelung" },
-  { key: "isofix", label: "Isofix" },
-  { key: "sunroof", label: "Schiebedach" },
-  { key: "panoramicGlassRoof", label: "Panoramadach" },
-  { key: "abs", label: "ABS" },
-  { key: "esp", label: "ESP" },
-  { key: "immobilizer", label: "Elektr. Wegfahrsperre" },
-  { key: "usb", label: "USB" },
+  { key: "hillStartAssist", label: "Berganfahrassistent" },
+  { key: "onBoardComputer", label: "Bordcomputer" },
+  { key: "powerSteering", label: "Servolenkung" },
+  { key: "androidAuto", label: "Android Auto" },
+  { key: "carplay", label: "Apple CarPlay" },
+  { key: "bluetooth", label: "Bluetooth" },
+  { key: "handsFreePhoneSystem", label: "Freisprecheinrichtung" },
+  { key: "navigationSystem", label: "Navigationssystem" },
   { key: "touchscreen", label: "Touchscreen" },
+  { key: "usb", label: "USB" },
+  { key: "alloyWheels", label: "Leichtmetallfelgen" },
+  { key: "roofRack", label: "Dachreling" },
+  { key: "winterPackage", label: "Winterpaket" },
   { key: "soundSystem", label: "Soundsystem" },
+  { key: "multifunctionalSteeringWheel", label: "Multifunktionslenkrad" },
+  { key: "panoramicGlassRoof", label: "Panoramadach" },
+  { key: "sunroof", label: "Schiebedach" },
+  { key: "daytimeRunningLamps", label: "Tagfahrlicht" },
   { key: "summerTires", label: "Sommerreifen" },
   { key: "winterTires", label: "Winterreifen" },
   { key: "allSeasonTires", label: "Allwetterreifen" },
+];
+
+const SAFETY_FEATURES: { key: string; label: string }[] = [
+  { key: "abs", label: "ABS" },
+  { key: "esp", label: "ESP" },
+  { key: "isofix", label: "Isofix" },
+  { key: "immobilizer", label: "Elektr. Wegfahrsperre" },
+  { key: "highBeamAssistant", label: "Fernlichtassistent" },
+  { key: "fatigueWarningSystem", label: "Müdigkeitswarner" },
+  { key: "emergencyBrakeAssistant", label: "Notbremsassistent" },
+  { key: "emergencyCallSystem", label: "Notrufsystem" },
+  { key: "rainSensor", label: "Regensensor" },
+  { key: "tirePressureMonitoring", label: "Reifendruckkontrolle" },
+  { key: "laneDepartureWarning", label: "Spurhalteassistent" },
+  { key: "startStopSystem", label: "Start/Stopp-Automatik" },
+  { key: "trafficSignRecognition", label: "Verkehrszeichenerkennung" },
+];
+
+const ALL_FEATURES = [...COMFORT_FEATURES, ...SAFETY_FEATURES];
+
+// Uncertain enums — UI shown disabled with TODO until refdata is wired up.
+// Do NOT send these to Mobile.de yet (would risk invalid-reference-data-value).
+const TODO_ENUM_FIELDS: { key: string; label: string }[] = [
+  { key: "speedControl", label: "Geschwindigkeitsregelung (Tempomat)" },
+  { key: "headlightType", label: "Hauptscheinwerfer" },
+  { key: "trailerCouplingType", label: "Anhängerkupplung" },
+  { key: "airbag", label: "Airbags" },
+  { key: "breakdownService", label: "Pannenhilfe" },
+  { key: "corneringLight", label: "Kurvenlicht" },
 ];
 
 const labelFor = (map: Record<string, string>, key: string, fallback: string) =>
   map[key] ?? fallback ?? key;
 
 interface FormState {
+  // Basis
   make: string;
   model: string;
   modelDescription: string;
+  trimLine: string;
   category: string;
   mileage: string;
   regYear: string;
   regMonth: string;
+  doors: string;
+  seats: string;
+  // Motor / Technik
   fuel: string;
   gearbox: string;
   power: string;
   cubicCapacity: string;
-  condition: string;
-  damageUnrepaired: "false" | "true";
-  consumerPriceGross: string;
-  vatRate: string;
-  description: string;
-  vin: string;
-  // Stage 2 — all optional
+  cylinders: string;
+  fuelCapacity: string;
+  driveType: string;
+  // Farbe
   exteriorColor: string;
-  metallic: boolean;
   manufacturerColorName: string;
-  doors: string;
-  seats: string;
+  metallic: boolean;
+  matt: boolean;
+  // Historie / Zustand
+  condition: string;
   accidentDamaged: "" | "true" | "false";
-  fullServiceHistory: boolean;
-  nonSmokerVehicle: boolean;
+  damageUnrepaired: "false" | "true";
+  roadworthy: "" | "true" | "false";
   numberOfPreviousOwners: string;
-  hsnYear: string; // generalInspection year
-  hsnMonth: string; // generalInspection month
+  warranty: boolean;
+  nonSmokerVehicle: boolean;
+  fullServiceHistory: boolean;
+  // Umwelt / Untersuchungen
+  particulateFilter: boolean;
+  emissionClass: string;
+  emissionSticker: string;
+  hsnYear: string;
+  hsnMonth: string;
+  huNew: boolean;
+  inspectionNew: boolean;
+  co2EmissionsCombined: string;
+  consumptionCombined: string;
+  consumptionInner: string;
+  consumptionOuter: string;
+  consumptionUrban: string;
+  consumptionExtraUrban: string;
+  // Komfort / Ausstattung
   climatisation: string;
   parkingAssistants: string[];
   features: Record<string, boolean>;
+  // Nummern
+  internalNumber: string;
+  vin: string;
+  // Beschreibung & Preis
+  description: string;
+  consumerPriceGross: string;
+  vatRate: string;
 }
 
 const EMPTY: FormState = {
-  make: "",
-  model: "",
-  modelDescription: "",
-  category: "",
-  mileage: "",
-  regYear: "",
-  regMonth: "",
-  fuel: "",
-  gearbox: "",
-  power: "",
-  cubicCapacity: "",
-  condition: "USED",
-  damageUnrepaired: "false",
-  consumerPriceGross: "",
-  vatRate: "",
-  description: "",
-  vin: "",
-  exteriorColor: "",
-  metallic: false,
-  manufacturerColorName: "",
-  doors: "",
-  seats: "",
-  accidentDamaged: "",
-  fullServiceHistory: false,
-  nonSmokerVehicle: false,
-  numberOfPreviousOwners: "",
-  hsnYear: "",
-  hsnMonth: "",
-  climatisation: "",
-  parkingAssistants: [],
-  features: {},
+  make: "", model: "", modelDescription: "", trimLine: "",
+  category: "", mileage: "", regYear: "", regMonth: "",
+  doors: "", seats: "",
+  fuel: "", gearbox: "", power: "", cubicCapacity: "",
+  cylinders: "", fuelCapacity: "", driveType: "",
+  exteriorColor: "", manufacturerColorName: "", metallic: false, matt: false,
+  condition: "USED", accidentDamaged: "", damageUnrepaired: "false",
+  roadworthy: "", numberOfPreviousOwners: "",
+  warranty: false, nonSmokerVehicle: false, fullServiceHistory: false,
+  particulateFilter: false, emissionClass: "", emissionSticker: "",
+  hsnYear: "", hsnMonth: "", huNew: false, inspectionNew: false,
+  co2EmissionsCombined: "", consumptionCombined: "",
+  consumptionInner: "", consumptionOuter: "",
+  consumptionUrban: "", consumptionExtraUrban: "",
+  climatisation: "", parkingAssistants: [], features: {},
+  internalNumber: "", vin: "",
+  description: "", consumerPriceGross: "", vatRate: "",
 };
 
 async function loadRef(kind: string, make?: string): Promise<RefItem[]> {
@@ -201,23 +230,16 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
     }
     return cur;
   };
-  const firstReg = get(payload, ["vehicle", "first-registration"]) as string | undefined;
-  let regYear = "";
-  let regMonth = "";
-  if (firstReg && /^\d{6}$/.test(firstReg)) {
-    regYear = firstReg.slice(0, 4);
-    regMonth = firstReg.slice(4, 6);
-  }
   const asStr = (v: unknown) => (v === undefined || v === null ? "" : String(v));
-  const insp = get(payload, ["vehicle", "generalInspection"]) as string | undefined;
-  let hsnYear = "";
-  let hsnMonth = "";
-  if (insp && /^\d{6}$/.test(insp)) {
-    hsnYear = insp.slice(0, 4);
-    hsnMonth = insp.slice(4, 6);
-  }
+  const splitYM = (v: unknown): [string, string] => {
+    const s = asStr(v);
+    return /^\d{6}$/.test(s) ? [s.slice(0, 4), s.slice(4, 6)] : ["", ""];
+  };
+  const [regYear, regMonth] = splitYM(get(payload, ["vehicle", "first-registration"]));
+  const [hsnYear, hsnMonth] = splitYM(get(payload, ["vehicle", "generalInspection"]));
+
   const features: Record<string, boolean> = {};
-  for (const f of FEATURE_FIELDS) {
+  for (const f of ALL_FEATURES) {
     if (get(payload, ["vehicle", f.key]) === true) features[f.key] = true;
   }
   const pa = get(payload, ["vehicle", "parkingAssistants"]);
@@ -226,47 +248,64 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
         .map((x) =>
           x && typeof x === "object" && "key" in (x as Record<string, unknown>)
             ? String((x as { key: unknown }).key)
-            : typeof x === "string"
-              ? x
-              : "",
+            : typeof x === "string" ? x : "",
         )
         .filter(Boolean)
     : [];
-  const accidentRaw = get(payload, ["vehicle", "accidentDamaged"]);
+  const triBool = (v: unknown): "" | "true" | "false" =>
+    v === true ? "true" : v === false ? "false" : "";
+
   return {
     make: asStr(get(payload, ["vehicle", "make", "key"])),
     model: asStr(get(payload, ["vehicle", "model", "key"])),
     modelDescription: asStr(get(payload, ["vehicle", "model-description"])),
+    trimLine: asStr(get(payload, ["vehicle", "trimLine"])),
     category: asStr(get(payload, ["vehicle", "category", "key"])),
     mileage: asStr(get(payload, ["vehicle", "mileage"])),
-    regYear,
-    regMonth,
+    regYear, regMonth,
+    doors: asStr(get(payload, ["vehicle", "doors", "key"])),
+    seats: asStr(get(payload, ["vehicle", "seats"])),
     fuel: asStr(get(payload, ["vehicle", "fuel", "key"])),
     gearbox: asStr(get(payload, ["vehicle", "gearbox", "key"])),
     power: asStr(get(payload, ["vehicle", "power"])),
     cubicCapacity: asStr(get(payload, ["vehicle", "cubic-capacity"])),
-    condition: asStr(get(payload, ["vehicle", "condition"])) || "USED",
-    damageUnrepaired: get(payload, ["vehicle", "damage-unrepaired"]) === true ? "true" : "false",
-    consumerPriceGross: asStr(
-      get(payload, ["price", "consumerPriceGross"]) ?? get(payload, ["price", "consumer-price-gross"]),
-    ),
-    vatRate: asStr(get(payload, ["price", "vatRate"]) ?? get(payload, ["price", "vat-rate"])),
-    description: asStr(get(payload, ["description"])),
-    vin: asStr(get(payload, ["vehicle", "vin"])),
+    cylinders: asStr(get(payload, ["vehicle", "cylinders"])),
+    fuelCapacity: asStr(get(payload, ["vehicle", "fuelCapacity"])),
+    driveType: asStr(get(payload, ["vehicle", "driveType", "key"])),
     exteriorColor: asStr(get(payload, ["vehicle", "exteriorColor", "key"])),
-    metallic: get(payload, ["vehicle", "metallic"]) === true,
     manufacturerColorName: asStr(get(payload, ["vehicle", "manufacturerColorName"])),
-    doors: asStr(get(payload, ["vehicle", "doors", "key"])),
-    seats: asStr(get(payload, ["vehicle", "seats"])),
-    accidentDamaged: accidentRaw === true ? "true" : accidentRaw === false ? "false" : "",
-    fullServiceHistory: get(payload, ["vehicle", "fullServiceHistory"]) === true,
-    nonSmokerVehicle: get(payload, ["vehicle", "nonSmokerVehicle"]) === true,
+    metallic: get(payload, ["vehicle", "metallic"]) === true,
+    matt: get(payload, ["vehicle", "matt"]) === true,
+    condition: asStr(get(payload, ["vehicle", "condition"])) || "USED",
+    accidentDamaged: triBool(get(payload, ["vehicle", "accidentDamaged"])),
+    damageUnrepaired: get(payload, ["vehicle", "damage-unrepaired"]) === true ? "true" : "false",
+    roadworthy: triBool(get(payload, ["vehicle", "roadworthy"])),
     numberOfPreviousOwners: asStr(get(payload, ["vehicle", "numberOfPreviousOwners"])),
-    hsnYear,
-    hsnMonth,
+    warranty: get(payload, ["vehicle", "warranty"]) === true,
+    nonSmokerVehicle: get(payload, ["vehicle", "nonSmokerVehicle"]) === true,
+    fullServiceHistory: get(payload, ["vehicle", "fullServiceHistory"]) === true,
+    particulateFilter: get(payload, ["vehicle", "particulateFilter"]) === true,
+    emissionClass: asStr(get(payload, ["vehicle", "emissionClass", "key"])),
+    emissionSticker: asStr(get(payload, ["vehicle", "emissionSticker", "key"])),
+    hsnYear, hsnMonth,
+    huNew: get(payload, ["vehicle", "huNew"]) === true,
+    inspectionNew: get(payload, ["vehicle", "inspectionNew"]) === true,
+    co2EmissionsCombined: asStr(get(payload, ["vehicle", "co2EmissionsCombined"])),
+    consumptionCombined: asStr(get(payload, ["vehicle", "consumptionCombined"])),
+    consumptionInner: asStr(get(payload, ["vehicle", "consumptionInner"])),
+    consumptionOuter: asStr(get(payload, ["vehicle", "consumptionOuter"])),
+    consumptionUrban: asStr(get(payload, ["vehicle", "consumptionUrban"])),
+    consumptionExtraUrban: asStr(get(payload, ["vehicle", "consumptionExtraUrban"])),
     climatisation: asStr(get(payload, ["vehicle", "climatisation", "key"])),
     parkingAssistants,
     features,
+    internalNumber: asStr(get(payload, ["vehicle", "internalNumber"])),
+    vin: asStr(get(payload, ["vehicle", "vin"])),
+    description: asStr(get(payload, ["description"])),
+    consumerPriceGross: asStr(
+      get(payload, ["price", "consumerPriceGross"]) ?? get(payload, ["price", "consumer-price-gross"]),
+    ),
+    vatRate: asStr(get(payload, ["price", "vatRate"]) ?? get(payload, ["price", "vat-rate"])) || "",
   };
 }
 
@@ -275,12 +314,21 @@ export default function MobileAdCreate() {
   const { draftId } = useParams<{ draftId?: string }>();
   const isEdit = Boolean(draftId);
   const [form, setForm] = useState<FormState>(EMPTY);
+
+  // Refdata
   const [makes, setMakes] = useState<RefItem[]>([]);
   const [models, setModels] = useState<RefItem[]>([]);
   const [categories, setCategories] = useState<RefItem[]>([]);
   const [fuels, setFuels] = useState<RefItem[]>([]);
   const [gearboxes, setGearboxes] = useState<RefItem[]>([]);
   const [vatRates, setVatRates] = useState<RefItem[]>([]);
+  const [exteriorColors, setExteriorColors] = useState<RefItem[]>([]);
+  const [climatisations, setClimatisations] = useState<RefItem[]>([]);
+  const [emissionClasses, setEmissionClasses] = useState<RefItem[]>([]);
+  const [emissionStickers, setEmissionStickers] = useState<RefItem[]>([]);
+  const [driveTypes, setDriveTypes] = useState<RefItem[]>([]);
+  const [parkingAssistantOpts, setParkingAssistantOpts] = useState<RefItem[]>([]);
+
   const [loadingMakes, setLoadingMakes] = useState(true);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState(isEdit);
@@ -294,12 +342,18 @@ export default function MobileAdCreate() {
   useEffect(() => {
     (async () => {
       try {
-        const [m, c, f, g, v] = await Promise.all([
+        const [m, c, f, g, v, ec, cl, emC, emS, dt, pa] = await Promise.all([
           loadRef("makes"),
           loadRef("categories").catch(() => []),
           loadRef("fuels").catch(() => []),
           loadRef("gearboxes").catch(() => []),
           loadRef("vatrates").catch(() => []),
+          loadRef("exterior-colors").catch(() => []),
+          loadRef("climatisations").catch(() => []),
+          loadRef("emission-classes").catch(() => []),
+          loadRef("emission-stickers").catch(() => []),
+          loadRef("drive-types").catch(() => []),
+          loadRef("parking-assistants").catch(() => []),
         ]);
         setMakes(m);
         setCategories(c);
@@ -309,6 +363,12 @@ export default function MobileAdCreate() {
           { key: "19.00", name: "19 %" },
           { key: "OTHER", name: "Differenzbesteuert" },
         ]);
+        setExteriorColors(ec.length ? ec : EXTERIOR_COLOR_FALLBACK);
+        setClimatisations(cl);
+        setEmissionClasses(emC);
+        setEmissionStickers(emS);
+        setDriveTypes(dt);
+        setParkingAssistantOpts(pa);
       } catch (err) {
         console.error(err);
         toast.error("Refdaten konnten nicht geladen werden");
@@ -318,12 +378,8 @@ export default function MobileAdCreate() {
     })();
   }, []);
 
-  // Load models when make changes
   useEffect(() => {
-    if (!form.make) {
-      setModels([]);
-      return;
-    }
+    if (!form.make) { setModels([]); return; }
     setLoadingModels(true);
     loadRef("models", form.make)
       .then(setModels)
@@ -334,7 +390,6 @@ export default function MobileAdCreate() {
       .finally(() => setLoadingModels(false));
   }, [form.make]);
 
-  // Load existing draft for edit mode
   useEffect(() => {
     if (!draftId) return;
     (async () => {
@@ -358,7 +413,6 @@ export default function MobileAdCreate() {
         setForm(payloadToForm(data.payload as Record<string, unknown> | null));
         const paths = (data.image_paths ?? []) as string[];
         setImagePaths(paths);
-        // signed URLs for previews
         const previews: Record<string, string> = {};
         await Promise.all(
           paths.map(async (p) => {
@@ -441,36 +495,84 @@ export default function MobileAdCreate() {
       "cubic-capacity": form.cubicCapacity ? parseInt(form.cubicCapacity, 10) : undefined,
       condition: form.condition,
       "damage-unrepaired": form.damageUnrepaired === "true",
-      vin: form.vin || undefined,
     };
 
-    // Stage 2 — optional fields
-    if (form.exteriorColor) vehicle.exteriorColor = { key: form.exteriorColor };
-    if (form.metallic) vehicle.metallic = true;
-    if (form.manufacturerColorName) vehicle.manufacturerColorName = form.manufacturerColorName;
+    // Basis (optional)
+    if (form.trimLine) vehicle.trimLine = form.trimLine;
     if (form.doors) vehicle.doors = { key: form.doors };
-    if (form.seats) {
-      const n = parseInt(form.seats, 10);
-      if (!Number.isNaN(n)) vehicle.seats = n;
-    }
+    const intIf = (s: string) => {
+      if (!s) return undefined;
+      const n = parseInt(s, 10);
+      return Number.isNaN(n) ? undefined : n;
+    };
+    const floatIf = (s: string) => {
+      if (!s) return undefined;
+      const n = Number(s.replace(",", "."));
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const seats = intIf(form.seats); if (seats !== undefined) vehicle.seats = seats;
+    const cyl = intIf(form.cylinders); if (cyl !== undefined) vehicle.cylinders = cyl;
+    const fc = intIf(form.fuelCapacity); if (fc !== undefined) vehicle.fuelCapacity = fc;
+    if (form.driveType) vehicle.driveType = { key: form.driveType };
+
+    // Farbe
+    if (form.exteriorColor) vehicle.exteriorColor = { key: form.exteriorColor };
+    if (form.manufacturerColorName) vehicle.manufacturerColorName = form.manufacturerColorName;
+    if (form.metallic) vehicle.metallic = true;
+    if (form.matt) vehicle.matt = true;
+
+    // Historie
     if (form.accidentDamaged === "true") vehicle.accidentDamaged = true;
     else if (form.accidentDamaged === "false") vehicle.accidentDamaged = false;
+    if (form.roadworthy === "true") vehicle.roadworthy = true;
+    else if (form.roadworthy === "false") vehicle.roadworthy = false;
     if (form.fullServiceHistory) vehicle.fullServiceHistory = true;
     if (form.nonSmokerVehicle) vehicle.nonSmokerVehicle = true;
-    if (form.numberOfPreviousOwners) {
-      const n = parseInt(form.numberOfPreviousOwners, 10);
-      if (!Number.isNaN(n)) vehicle.numberOfPreviousOwners = n;
-    }
+    if (form.warranty) vehicle.warranty = true;
+    const prev = intIf(form.numberOfPreviousOwners);
+    if (prev !== undefined) vehicle.numberOfPreviousOwners = prev;
+
+    // Umwelt
+    if (form.particulateFilter) vehicle.particulateFilter = true;
+    if (form.emissionClass) vehicle.emissionClass = { key: form.emissionClass };
+    if (form.emissionSticker) vehicle.emissionSticker = { key: form.emissionSticker };
     if (form.hsnYear && form.hsnMonth) {
       vehicle.generalInspection = `${form.hsnYear}${form.hsnMonth.padStart(2, "0")}`;
     }
+    if (form.huNew) vehicle.huNew = true;
+    if (form.inspectionNew) vehicle.inspectionNew = true;
+    const co2 = floatIf(form.co2EmissionsCombined);
+    if (co2 !== undefined) vehicle.co2EmissionsCombined = co2;
+    const cc = floatIf(form.consumptionCombined);
+    if (cc !== undefined) vehicle.consumptionCombined = cc;
+    const ci = floatIf(form.consumptionInner);
+    if (ci !== undefined) vehicle.consumptionInner = ci;
+    const co = floatIf(form.consumptionOuter);
+    if (co !== undefined) vehicle.consumptionOuter = co;
+    const cu = floatIf(form.consumptionUrban);
+    if (cu !== undefined) vehicle.consumptionUrban = cu;
+    const ce = floatIf(form.consumptionExtraUrban);
+    if (ce !== undefined) vehicle.consumptionExtraUrban = ce;
+
+    // Klimatisierung / Einparkhilfe
     if (form.climatisation) vehicle.climatisation = { key: form.climatisation };
     if (form.parkingAssistants.length) {
       vehicle.parkingAssistants = form.parkingAssistants.map((k) => ({ key: k }));
     }
-    for (const f of FEATURE_FIELDS) {
+
+    // Equipment / Safety booleans
+    for (const f of ALL_FEATURES) {
       if (form.features[f.key]) vehicle[f.key] = true;
     }
+
+    // Nummern
+    if (form.internalNumber) vehicle.internalNumber = form.internalNumber;
+    if (form.vin) vehicle.vin = form.vin;
+
+    // Mobile.de erwartet vatRate als Dezimal-String ("19.00").
+    // "OTHER" (Differenzbesteuerung) wird zur Sicherheit ebenfalls als "19.00" gesendet,
+    // damit consumerpriceamount-invalid nicht auftritt — Sondersteuerung ist TODO.
+    const vatRate = form.vatRate === "19.00" || form.vatRate === "" ? "19.00" : "19.00";
 
     return {
       vehicleClass: "Car",
@@ -478,13 +580,12 @@ export default function MobileAdCreate() {
       price: {
         consumerPriceGross: String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""),
         currency: "EUR",
-        vatRate: "19.00",
+        vatRate,
         type: "FIXED",
       },
       description: form.description || undefined,
     };
   };
-
 
   const validate = (): string | null => {
     if (!form.make) return "Marke fehlt";
@@ -504,10 +605,7 @@ export default function MobileAdCreate() {
 
   const saveDraft = async () => {
     const err = validate();
-    if (err) {
-      toast.error(err);
-      return;
-    }
+    if (err) { toast.error(err); return; }
     setSaving(true);
     try {
       if (isEdit && draftId) {
@@ -556,6 +654,10 @@ export default function MobileAdCreate() {
     const now = new Date().getFullYear();
     return Array.from({ length: 40 }, (_, i) => String(now - i));
   }, []);
+  const huYears = useMemo(
+    () => Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() + i)),
+    [],
+  );
 
   if (loadingDraft) {
     return (
@@ -564,6 +666,28 @@ export default function MobileAdCreate() {
       </div>
     );
   }
+
+  const featureGrid = (items: { key: string; label: string }[]) => (
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+      {items.map((f) => (
+        <div key={f.key} className="flex items-center gap-2">
+          <Checkbox
+            id={`f-${f.key}`}
+            checked={!!form.features[f.key]}
+            onCheckedChange={(c) =>
+              setForm((prev) => ({
+                ...prev,
+                features: { ...prev.features, [f.key]: c === true },
+              }))
+            }
+          />
+          <Label htmlFor={`f-${f.key}`} className="cursor-pointer text-sm">
+            {f.label}
+          </Label>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -578,17 +702,29 @@ export default function MobileAdCreate() {
         </p>
       </div>
 
+      {/* ── Fahrzeuggrunddaten ── */}
       <Card className="p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Fahrzeug</h2>
+        <h2 className="text-lg font-semibold">Fahrzeuggrunddaten</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Zustand *</Label>
+            <Select value={form.condition} onValueChange={(v) => update("condition", v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USED">Gebrauchtfahrzeug</SelectItem>
+                <SelectItem value="NEW">Neufahrzeug</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Art des Inserats</Label>
+            <Input value="Normales Inserat" disabled />
+          </div>
           <div className="space-y-2">
             <Label>Marke *</Label>
             <Select
               value={form.make}
-              onValueChange={(v) => {
-                update("make", v);
-                update("model", "");
-              }}
+              onValueChange={(v) => { update("make", v); update("model", ""); }}
               disabled={loadingMakes}
             >
               <SelectTrigger>
@@ -596,9 +732,7 @@ export default function MobileAdCreate() {
               </SelectTrigger>
               <SelectContent className="max-h-72">
                 {makes.map((m) => (
-                  <SelectItem key={m.key} value={m.key}>
-                    {m.name}
-                  </SelectItem>
+                  <SelectItem key={m.key} value={m.key}>{m.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -611,23 +745,17 @@ export default function MobileAdCreate() {
               disabled={!form.make || loadingModels}
             >
               <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    !form.make ? "Erst Marke wählen" : loadingModels ? "Lade…" : "Modell wählen"
-                  }
-                />
+                <SelectValue placeholder={!form.make ? "Erst Marke wählen" : loadingModels ? "Lade…" : "Modell wählen"} />
               </SelectTrigger>
               <SelectContent className="max-h-72">
                 {models.map((m) => (
-                  <SelectItem key={m.key} value={m.key}>
-                    {m.name}
-                  </SelectItem>
+                  <SelectItem key={m.key} value={m.key}>{m.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>Modell-Beschreibung</Label>
+            <Label>Modellvariante *</Label>
             <Input
               value={form.modelDescription}
               onChange={(e) => update("modelDescription", e.target.value)}
@@ -635,19 +763,18 @@ export default function MobileAdCreate() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Kategorie *</Label>
-            <Select value={form.category} onValueChange={(v) => update("category", v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Kategorie wählen" />
-              </SelectTrigger>
-              <SelectContent className="max-h-72">
-                {categories.map((c) => (
-                  <SelectItem key={c.key} value={c.key}>
-                    {labelFor(CATEGORY_LABELS, c.key, c.name)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Ausstattungslinie / Trim</Label>
+            <Input
+              value={form.trimLine}
+              onChange={(e) => update("trimLine", e.target.value)}
+              placeholder="z. B. S line"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>
+              Baureihe <span className="text-xs text-muted-foreground">(TODO: Refdata)</span>
+            </Label>
+            <Input disabled placeholder="folgt: per Refdata pro Modell" />
           </div>
           <div className="space-y-2">
             <Label>Kilometerstand *</Label>
@@ -661,26 +788,68 @@ export default function MobileAdCreate() {
             <Label>Erstzulassung *</Label>
             <div className="flex gap-2">
               <Select value={form.regMonth} onValueChange={(v) => update("regMonth", v)}>
-                <SelectTrigger className="w-24">
-                  <SelectValue placeholder="MM" />
-                </SelectTrigger>
+                <SelectTrigger className="w-24"><SelectValue placeholder="MM" /></SelectTrigger>
                 <SelectContent>
-                  {months.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
+                  {months.map((m) => (<SelectItem key={m} value={m}>{m}</SelectItem>))}
                 </SelectContent>
               </Select>
               <Select value={form.regYear} onValueChange={(v) => update("regYear", v)}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="YYYY" />
-                </SelectTrigger>
+                <SelectTrigger className="flex-1"><SelectValue placeholder="YYYY" /></SelectTrigger>
                 <SelectContent className="max-h-72">
-                  {years.map((y) => (
-                    <SelectItem key={y} value={y}>{y}</SelectItem>
-                  ))}
+                  {years.map((y) => (<SelectItem key={y} value={y}>{y}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Kategorie *</Label>
+            <Select value={form.category} onValueChange={(v) => update("category", v)}>
+              <SelectTrigger><SelectValue placeholder="Kategorie wählen" /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                {categories.map((c) => (
+                  <SelectItem key={c.key} value={c.key}>
+                    {labelFor(CATEGORY_LABELS, c.key, c.name)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Türen</Label>
+            <Select value={form.doors} onValueChange={(v) => update("doors", v)}>
+              <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+              <SelectContent>
+                {DOORS_OPTIONS.map((d) => (
+                  <SelectItem key={d.key} value={d.key}>{d.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Anzahl Sitzplätze</Label>
+            <Input
+              type="number"
+              value={form.seats}
+              onChange={(e) => update("seats", e.target.value)}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Motor / Technik ── */}
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Motor / Technik</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Getriebe *</Label>
+            <Select value={form.gearbox} onValueChange={(v) => update("gearbox", v)}>
+              <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+              <SelectContent>
+                {gearboxes.map((g) => (
+                  <SelectItem key={g.key} value={g.key}>{labelFor(GEARBOX_LABELS, g.key, g.name)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label>Kraftstoff *</Label>
@@ -694,15 +863,12 @@ export default function MobileAdCreate() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Getriebe *</Label>
-            <Select value={form.gearbox} onValueChange={(v) => update("gearbox", v)}>
-              <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
-              <SelectContent>
-                {gearboxes.map((g) => (
-                  <SelectItem key={g.key} value={g.key}>{labelFor(GEARBOX_LABELS, g.key, g.name)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Hubraum (ccm) *</Label>
+            <Input
+              type="number"
+              value={form.cubicCapacity}
+              onChange={(e) => update("cubicCapacity", e.target.value)}
+            />
           </div>
           <div className="space-y-2">
             <Label>Leistung (kW) *</Label>
@@ -713,89 +879,48 @@ export default function MobileAdCreate() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Hubraum (ccm) *</Label>
+            <Label>Zylinder</Label>
             <Input
               type="number"
-              value={form.cubicCapacity}
-              onChange={(e) => update("cubicCapacity", e.target.value)}
+              value={form.cylinders}
+              onChange={(e) => update("cylinders", e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label>Zustand *</Label>
-            <Select value={form.condition} onValueChange={(v) => update("condition", v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USED">Gebraucht</SelectItem>
-                <SelectItem value="NEW">Neuwagen</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Unreparierte Schäden</Label>
-            <Select
-              value={form.damageUnrepaired}
-              onValueChange={(v) => update("damageUnrepaired", v as "true" | "false")}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="false">Nein</SelectItem>
-                <SelectItem value="true">Ja</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>Tankgröße (L)</Label>
+            <Input
+              type="number"
+              value={form.fuelCapacity}
+              onChange={(e) => update("fuelCapacity", e.target.value)}
+            />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>FIN (optional)</Label>
-            <Input
-              value={form.vin}
-              onChange={(e) => update("vin", e.target.value.toUpperCase())}
-              maxLength={17}
-              className="font-mono"
-            />
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Preis</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Endkundenpreis brutto (EUR) *</Label>
-            <Input
-              type="number"
-              value={form.consumerPriceGross}
-              onChange={(e) => update("consumerPriceGross", e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>MwSt.-Satz *</Label>
-            <Select value={form.vatRate} onValueChange={(v) => update("vatRate", v)}>
-              <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+            <Label>Antriebsart</Label>
+            <Select value={form.driveType} onValueChange={(v) => update("driveType", v)} disabled={!driveTypes.length}>
+              <SelectTrigger>
+                <SelectValue placeholder={driveTypes.length ? "Wählen" : "Refdata nicht verfügbar"} />
+              </SelectTrigger>
               <SelectContent>
-                {vatRates.map((v) => (
-                  <SelectItem key={v.key} value={v.key}>{v.name}</SelectItem>
+                {driveTypes.map((d) => (
+                  <SelectItem key={d.key} value={d.key}>{d.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2 md:col-span-2 text-xs text-muted-foreground">
-            Typ: FIXED · Währung: EUR
-          </div>
         </div>
       </Card>
 
+      {/* ── Farbe ── */}
       <Card className="p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Außenfarbe</h2>
+        <h2 className="text-lg font-semibold">Farbe</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Farbe</Label>
-            <Select
-              value={form.exteriorColor}
-              onValueChange={(v) => update("exteriorColor", v)}
-            >
+            <Label>Außenfarbe</Label>
+            <Select value={form.exteriorColor} onValueChange={(v) => update("exteriorColor", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent className="max-h-72">
-                {EXTERIOR_COLOR_OPTIONS.map((c) => (
-                  <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
+                {exteriorColors.map((c) => (
+                  <SelectItem key={c.key} value={c.key}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -808,44 +933,20 @@ export default function MobileAdCreate() {
               placeholder="z. B. MYTHOS BLACK"
             />
           </div>
-          <div className="flex items-center gap-2 md:col-span-2">
-            <Checkbox
-              id="metallic"
-              checked={form.metallic}
-              onCheckedChange={(c) => update("metallic", c === true)}
-            />
+          <div className="flex items-center gap-2">
+            <Checkbox id="metallic" checked={form.metallic} onCheckedChange={(c) => update("metallic", c === true)} />
             <Label htmlFor="metallic" className="cursor-pointer">Metallic</Label>
           </div>
-        </div>
-      </Card>
-
-      <Card className="p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Karosserie</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Türen</Label>
-            <Select value={form.doors} onValueChange={(v) => update("doors", v)}>
-              <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
-              <SelectContent>
-                {DOORS_OPTIONS.map((d) => (
-                  <SelectItem key={d.key} value={d.key}>{d.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Sitze</Label>
-            <Input
-              type="number"
-              value={form.seats}
-              onChange={(e) => update("seats", e.target.value)}
-            />
+          <div className="flex items-center gap-2">
+            <Checkbox id="matt" checked={form.matt} onCheckedChange={(c) => update("matt", c === true)} />
+            <Label htmlFor="matt" className="cursor-pointer">Matt</Label>
           </div>
         </div>
       </Card>
 
+      {/* ── Fahrzeughistorie / Zustand ── */}
       <Card className="p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Zustand &amp; Historie</h2>
+        <h2 className="text-lg font-semibold">Fahrzeughistorie &amp; Zustand</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Unfallfahrzeug</Label>
@@ -861,6 +962,32 @@ export default function MobileAdCreate() {
             </Select>
           </div>
           <div className="space-y-2">
+            <Label>Beschädigtes Fahrzeug (unreparierte Schäden)</Label>
+            <Select
+              value={form.damageUnrepaired}
+              onValueChange={(v) => update("damageUnrepaired", v as "true" | "false")}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="false">Nein</SelectItem>
+                <SelectItem value="true">Ja</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Fahrtauglich</Label>
+            <Select
+              value={form.roadworthy}
+              onValueChange={(v) => update("roadworthy", v as "" | "true" | "false")}
+            >
+              <SelectTrigger><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">Ja</SelectItem>
+                <SelectItem value="false">Nein</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label>Anzahl Fahrzeughalter</Label>
             <Input
               type="number"
@@ -868,121 +995,235 @@ export default function MobileAdCreate() {
               onChange={(e) => update("numberOfPreviousOwners", e.target.value)}
             />
           </div>
+          <div className="flex items-center gap-2">
+            <Checkbox id="warranty" checked={form.warranty} onCheckedChange={(c) => update("warranty", c === true)} />
+            <Label htmlFor="warranty" className="cursor-pointer">Garantie</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox id="nonsmoker" checked={form.nonSmokerVehicle} onCheckedChange={(c) => update("nonSmokerVehicle", c === true)} />
+            <Label htmlFor="nonsmoker" className="cursor-pointer">Nichtraucher-Fahrzeug</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox id="fsh" checked={form.fullServiceHistory} onCheckedChange={(c) => update("fullServiceHistory", c === true)} />
+            <Label htmlFor="fsh" className="cursor-pointer">Scheckheftgepflegt</Label>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Umwelt / Untersuchungen ── */}
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Umwelt &amp; Untersuchungen</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-center gap-2">
+            <Checkbox id="pf" checked={form.particulateFilter} onCheckedChange={(c) => update("particulateFilter", c === true)} />
+            <Label htmlFor="pf" className="cursor-pointer">Partikelfilter</Label>
+          </div>
+          <div className="flex items-center gap-2 md:justify-end">
+            <Checkbox id="hunew" checked={form.huNew} onCheckedChange={(c) => update("huNew", c === true)} />
+            <Label htmlFor="hunew" className="cursor-pointer">HU neu</Label>
+            <Checkbox id="inew" checked={form.inspectionNew} onCheckedChange={(c) => update("inspectionNew", c === true)} className="ml-4" />
+            <Label htmlFor="inew" className="cursor-pointer">Inspektion neu</Label>
+          </div>
+          <div className="space-y-2">
+            <Label>Schadstoffklasse</Label>
+            <Select value={form.emissionClass} onValueChange={(v) => update("emissionClass", v)} disabled={!emissionClasses.length}>
+              <SelectTrigger><SelectValue placeholder={emissionClasses.length ? "Wählen" : "Refdata nicht verfügbar"} /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                {emissionClasses.map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Umweltplakette</Label>
+            <Select value={form.emissionSticker} onValueChange={(v) => update("emissionSticker", v)} disabled={!emissionStickers.length}>
+              <SelectTrigger><SelectValue placeholder={emissionStickers.length ? "Wählen" : "Refdata nicht verfügbar"} /></SelectTrigger>
+              <SelectContent>
+                {emissionStickers.map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2 md:col-span-2">
             <Label>Nächste HU</Label>
             <div className="flex gap-2">
               <Select value={form.hsnMonth} onValueChange={(v) => update("hsnMonth", v)}>
                 <SelectTrigger className="w-24"><SelectValue placeholder="MM" /></SelectTrigger>
                 <SelectContent>
-                  {months.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
+                  {months.map((m) => (<SelectItem key={m} value={m}>{m}</SelectItem>))}
                 </SelectContent>
               </Select>
               <Select value={form.hsnYear} onValueChange={(v) => update("hsnYear", v)}>
                 <SelectTrigger className="flex-1"><SelectValue placeholder="YYYY" /></SelectTrigger>
                 <SelectContent className="max-h-72">
-                  {Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() + i)).map(
-                    (y) => (
-                      <SelectItem key={y} value={y}>{y}</SelectItem>
-                    ),
-                  )}
+                  {huYears.map((y) => (<SelectItem key={y} value={y}>{y}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="fsh"
-              checked={form.fullServiceHistory}
-              onCheckedChange={(c) => update("fullServiceHistory", c === true)}
-            />
-            <Label htmlFor="fsh" className="cursor-pointer">Scheckheftgepflegt</Label>
+          <div className="space-y-2">
+            <Label>CO₂ kombiniert (g/km)</Label>
+            <Input type="number" value={form.co2EmissionsCombined}
+              onChange={(e) => update("co2EmissionsCombined", e.target.value)} />
           </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="nonsmoker"
-              checked={form.nonSmokerVehicle}
-              onCheckedChange={(c) => update("nonSmokerVehicle", c === true)}
-            />
-            <Label htmlFor="nonsmoker" className="cursor-pointer">Nichtraucherfahrzeug</Label>
+          <div className="space-y-2">
+            <Label>Verbrauch kombiniert (l/100km)</Label>
+            <Input type="number" step="0.1" value={form.consumptionCombined}
+              onChange={(e) => update("consumptionCombined", e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Verbrauch innerorts</Label>
+            <Input type="number" step="0.1" value={form.consumptionUrban}
+              onChange={(e) => update("consumptionUrban", e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Verbrauch außerorts</Label>
+            <Input type="number" step="0.1" value={form.consumptionExtraUrban}
+              onChange={(e) => update("consumptionExtraUrban", e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Verbrauch Stadtrand</Label>
+            <Input type="number" step="0.1" value={form.consumptionInner}
+              onChange={(e) => update("consumptionInner", e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Verbrauch Landstraße/Autobahn</Label>
+            <Input type="number" step="0.1" value={form.consumptionOuter}
+              onChange={(e) => update("consumptionOuter", e.target.value)} />
           </div>
         </div>
       </Card>
 
+      {/* ── Klimatisierung ── */}
       <Card className="p-6 space-y-4">
         <h2 className="text-lg font-semibold">Klimatisierung</h2>
-        <Select value={form.climatisation} onValueChange={(v) => update("climatisation", v)}>
-          <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+        <Select value={form.climatisation} onValueChange={(v) => update("climatisation", v)} disabled={!climatisations.length}>
+          <SelectTrigger>
+            <SelectValue placeholder={climatisations.length ? "Wählen" : "Refdata nicht verfügbar (TODO)"} />
+          </SelectTrigger>
           <SelectContent>
-            {CLIMATISATION_OPTIONS.map((o) => (
-              <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
-            ))}
+            {climatisations.map((o) => (<SelectItem key={o.key} value={o.key}>{o.name}</SelectItem>))}
           </SelectContent>
         </Select>
       </Card>
 
+      {/* ── Ausstattung / Komfort ── */}
       <Card className="p-6 space-y-4">
         <h2 className="text-lg font-semibold">Ausstattung</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {FEATURE_FIELDS.map((f) => (
-            <div key={f.key} className="flex items-center gap-2">
-              <Checkbox
-                id={`f-${f.key}`}
-                checked={!!form.features[f.key]}
-                onCheckedChange={(c) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    features: { ...prev.features, [f.key]: c === true },
-                  }))
-                }
-              />
-              <Label htmlFor={`f-${f.key}`} className="cursor-pointer text-sm">
-                {f.label}
-              </Label>
+        {featureGrid(COMFORT_FEATURES)}
+        <div className="pt-4 border-t border-border space-y-2">
+          <Label className="block">Einparkhilfe</Label>
+          {parkingAssistantOpts.length ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {parkingAssistantOpts.map((p) => {
+                const checked = form.parkingAssistants.includes(p.key);
+                return (
+                  <div key={p.key} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`pa-${p.key}`}
+                      checked={checked}
+                      onCheckedChange={(c) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          parkingAssistants:
+                            c === true
+                              ? [...prev.parkingAssistants, p.key]
+                              : prev.parkingAssistants.filter((x) => x !== p.key),
+                        }))
+                      }
+                    />
+                    <Label htmlFor={`pa-${p.key}`} className="cursor-pointer text-sm">{p.name}</Label>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          ) : (
+            <p className="text-xs text-muted-foreground">Refdata nicht verfügbar (TODO).</p>
+          )}
         </div>
-        <div className="pt-4 border-t border-border">
-          <Label className="mb-2 block">Einparkhilfe</Label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {PARKING_ASSIST_OPTIONS.map((p) => {
-              const checked = form.parkingAssistants.includes(p.key);
-              return (
-                <div key={p.key} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`pa-${p.key}`}
-                    checked={checked}
-                    onCheckedChange={(c) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        parkingAssistants:
-                          c === true
-                            ? [...prev.parkingAssistants, p.key]
-                            : prev.parkingAssistants.filter((x) => x !== p.key),
-                      }))
-                    }
-                  />
-                  <Label htmlFor={`pa-${p.key}`} className="cursor-pointer text-sm">
-                    {p.label}
-                  </Label>
-                </div>
-              );
-            })}
+      </Card>
+
+      {/* ── Sicherheit ── */}
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Sicherheit</h2>
+        {featureGrid(SAFETY_FEATURES)}
+        <div className="pt-4 border-t border-border space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">
+            Folgende Auswahlfelder folgen, sobald die zugehörigen Refdata-Enums geklärt sind:
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {TODO_ENUM_FIELDS.map((t) => (
+              <div key={t.key} className="space-y-1 opacity-60">
+                <Label className="text-xs">{t.label}</Label>
+                <Input disabled placeholder="TODO – Refdata" />
+              </div>
+            ))}
           </div>
         </div>
       </Card>
 
+      {/* ── Fahrzeugnummern ── */}
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Fahrzeugnummern</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Interne Nummer</Label>
+            <Input
+              value={form.internalNumber}
+              onChange={(e) => update("internalNumber", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>FIN / VIN</Label>
+            <Input
+              value={form.vin}
+              onChange={(e) => update("vin", e.target.value.toUpperCase())}
+              maxLength={17}
+              className="font-mono"
+            />
+          </div>
+        </div>
+      </Card>
 
+      {/* ── Beschreibung ── */}
       <Card className="p-6 space-y-4">
         <h2 className="text-lg font-semibold">Beschreibung</h2>
         <Textarea
           rows={6}
           value={form.description}
           onChange={(e) => update("description", e.target.value)}
+          placeholder="Eigene Fahrzeugbeschreibung"
         />
       </Card>
 
+      {/* ── Preis ── */}
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Preis</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Verbraucherpreis brutto (EUR) *</Label>
+            <Input
+              type="number"
+              value={form.consumerPriceGross}
+              onChange={(e) => update("consumerPriceGross", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>MwSt.-Auswahl *</Label>
+            <Select value={form.vatRate} onValueChange={(v) => update("vatRate", v)}>
+              <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+              <SelectContent>
+                {vatRates.map((v) => (
+                  <SelectItem key={v.key} value={v.key}>{v.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2 text-xs text-muted-foreground">
+            Typ: FIXED · Währung: EUR · Differenzbesteuerung folgt später.
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Bilder ── */}
       <Card className="p-6 space-y-4">
         <h2 className="text-lg font-semibold">Bilder</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
