@@ -239,6 +239,9 @@ export default function MobileAdEditLive() {
     return out;
   }, [payload, mobileAd]);
 
+  const [lastError, setLastError] = useState<{ msg: string; details?: string } | null>(null);
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
+
   const submit = async () => {
     if (!draftId) return;
     if (missing.length) {
@@ -246,17 +249,31 @@ export default function MobileAdEditLive() {
       return;
     }
     setSaving(true);
+    setLastError(null);
     try {
       const { data, error } = await supabase.functions.invoke("update-mobile-ad", {
         body: { draftId, mobileAdId, formPayload: payload },
       });
-      if (error || !(data as { success?: boolean })?.success) {
-        const msg = (data as { error?: string } | null)?.error || error?.message || "Update fehlgeschlagen";
+      const d = (data ?? null) as { success?: boolean; error?: string; details?: unknown } | null;
+      if (error || !d?.success) {
+        const raw = d?.error || error?.message || "Update fehlgeschlagen";
+        const isPriceErr = /price|consumer-?price|consumerValue|consumer-price-not-in-range/i.test(
+          raw + " " + JSON.stringify(d?.details ?? "")
+        );
+        const msg = isPriceErr
+          ? "Mobile.de hat das Update abgelehnt: Preis prüfen."
+          : `Mobile.de hat das Update abgelehnt: ${raw}`;
+        const details = typeof d?.details === "string" ? d.details : JSON.stringify(d?.details ?? raw, null, 2);
+        setLastError({ msg, details });
         toast.error(msg);
       } else {
         toast.success("Inserat wurde live bei Mobile.de aktualisiert.");
         navigate("/admin/mobile-ad");
       }
+    } catch (e) {
+      const msg = (e as Error)?.message || "Unbekannter Fehler beim Update";
+      setLastError({ msg });
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
