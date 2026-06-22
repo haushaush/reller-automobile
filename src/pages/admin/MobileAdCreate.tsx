@@ -209,6 +209,30 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
     regMonth = firstReg.slice(4, 6);
   }
   const asStr = (v: unknown) => (v === undefined || v === null ? "" : String(v));
+  const insp = get(payload, ["vehicle", "generalInspection"]) as string | undefined;
+  let hsnYear = "";
+  let hsnMonth = "";
+  if (insp && /^\d{6}$/.test(insp)) {
+    hsnYear = insp.slice(0, 4);
+    hsnMonth = insp.slice(4, 6);
+  }
+  const features: Record<string, boolean> = {};
+  for (const f of FEATURE_FIELDS) {
+    if (get(payload, ["vehicle", f.key]) === true) features[f.key] = true;
+  }
+  const pa = get(payload, ["vehicle", "parkingAssistants"]);
+  const parkingAssistants: string[] = Array.isArray(pa)
+    ? (pa as unknown[])
+        .map((x) =>
+          x && typeof x === "object" && "key" in (x as Record<string, unknown>)
+            ? String((x as { key: unknown }).key)
+            : typeof x === "string"
+              ? x
+              : "",
+        )
+        .filter(Boolean)
+    : [];
+  const accidentRaw = get(payload, ["vehicle", "accidentDamaged"]);
   return {
     make: asStr(get(payload, ["vehicle", "make", "key"])),
     model: asStr(get(payload, ["vehicle", "model", "key"])),
@@ -229,6 +253,20 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
     vatRate: asStr(get(payload, ["price", "vatRate"]) ?? get(payload, ["price", "vat-rate"])),
     description: asStr(get(payload, ["description"])),
     vin: asStr(get(payload, ["vehicle", "vin"])),
+    exteriorColor: asStr(get(payload, ["vehicle", "exteriorColor", "key"])),
+    metallic: get(payload, ["vehicle", "metallic"]) === true,
+    manufacturerColorName: asStr(get(payload, ["vehicle", "manufacturerColorName"])),
+    doors: asStr(get(payload, ["vehicle", "doors", "key"])),
+    seats: asStr(get(payload, ["vehicle", "seats"])),
+    accidentDamaged: accidentRaw === true ? "true" : accidentRaw === false ? "false" : "",
+    fullServiceHistory: get(payload, ["vehicle", "fullServiceHistory"]) === true,
+    nonSmokerVehicle: get(payload, ["vehicle", "nonSmokerVehicle"]) === true,
+    numberOfPreviousOwners: asStr(get(payload, ["vehicle", "numberOfPreviousOwners"])),
+    hsnYear,
+    hsnMonth,
+    climatisation: asStr(get(payload, ["vehicle", "climatisation", "key"])),
+    parkingAssistants,
+    features,
   };
 }
 
