@@ -28,25 +28,35 @@ interface RecentVehicle {
   brand: string | null;
   price: number | null;
   synced_at: string;
+  created_at: string;
   modification_date: string | null;
   is_sold: boolean;
 }
 
 export default function SyncStatus() {
   const [logs, setLogs] = useState<SyncLog[]>([]);
-  const [recentVehicles, setRecentVehicles] = useState<RecentVehicle[]>([]);
+  const [recentlyUpdated, setRecentlyUpdated] = useState<RecentVehicle[]>([]);
+  const [newVehicles, setNewVehicles] = useState<RecentVehicle[]>([]);
   const [stats, setStats] = useState({ added24h: 0, sold24h: 0, lastSync: null as string | null });
   const [isLoading, setIsLoading] = useState(true);
   const [isTriggering, setIsTriggering] = useState(false);
 
   const loadData = useCallback(async () => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [logsRes, vehiclesRes, addedRes, soldRes] = await Promise.all([
+    const [logsRes, updatedRes, newRes, addedRes, soldRes] = await Promise.all([
       supabase.from("sync_logs").select("*").order("started_at", { ascending: false }).limit(20),
       supabase
         .from("vehicles")
-        .select("id, title, brand, price, synced_at, modification_date, is_sold")
+        .select("id, title, brand, price, synced_at, created_at, modification_date, is_sold")
         .order("synced_at", { ascending: false })
+        .limit(15),
+      supabase
+        .from("vehicles")
+        .select("id, title, brand, price, synced_at, created_at, modification_date, is_sold")
+        .gte("created_at", since)
+        .eq("is_sold", false)
+        .or("source.eq.mobile_de,source.is.null")
+        .order("created_at", { ascending: false })
         .limit(15),
       supabase.from("vehicles").select("*", { count: "exact", head: true }).gte("created_at", since),
       supabase
@@ -57,7 +67,8 @@ export default function SyncStatus() {
     ]);
 
     setLogs((logsRes.data as SyncLog[]) || []);
-    setRecentVehicles((vehiclesRes.data as RecentVehicle[]) || []);
+    setRecentlyUpdated((updatedRes.data as RecentVehicle[]) || []);
+    setNewVehicles((newRes.data as RecentVehicle[]) || []);
     setStats({
       added24h: addedRes.count || 0,
       sold24h: soldRes.count || 0,
@@ -115,6 +126,28 @@ export default function SyncStatus() {
     }
   };
 
+  const renderVehicle = (v: RecentVehicle, timestamp: string) => (
+    <div key={v.id} className="flex items-start justify-between gap-3 pb-3 border-b border-border last:border-0">
+      <div className="min-w-0 flex-1">
+        <div className="text-xs uppercase text-muted-foreground">{v.brand}</div>
+        <div className="text-sm font-medium truncate">{v.title}</div>
+        <div className="text-xs text-muted-foreground mt-1">
+          {formatDistanceToNow(new Date(timestamp), { addSuffix: true, locale: de })}
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <div className="text-sm font-medium">
+          {v.price ? `${v.price.toLocaleString("de-DE")} €` : "—"}
+        </div>
+        {v.is_sold && (
+          <Badge variant="destructive" className="mt-1 text-xs">
+            Verkauft
+          </Badge>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -138,12 +171,14 @@ export default function SyncStatus() {
           </div>
         </Card>
         <Card className="p-5">
-          <div className="text-sm text-muted-foreground">Neu (24h)</div>
+          <div className="text-sm text-muted-foreground">Neu in DB (24h)</div>
           <div className="text-2xl font-semibold mt-2 text-green-600">+{stats.added24h}</div>
+          <div className="text-xs text-muted-foreground mt-1">nach created_at</div>
         </Card>
         <Card className="p-5">
-          <div className="text-sm text-muted-foreground">Verkauft (24h)</div>
+          <div className="text-sm text-muted-foreground">Verkauft markiert (24h)</div>
           <div className="text-2xl font-semibold mt-2">{stats.sold24h}</div>
+          <div className="text-xs text-muted-foreground mt-1">nach sold_at</div>
         </Card>
       </div>
 
@@ -156,64 +191,77 @@ export default function SyncStatus() {
             <p className="text-sm text-muted-foreground">Noch keine Sync-Läufe</p>
           ) : (
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
-              {logs.map((log) => (
-                <div key={log.id} className="flex items-start gap-3 pb-3 border-b border-border last:border-0">
-                  <div className="mt-0.5">{getStatusIcon(log.status)}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">{log.sync_name}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {log.status ?? "—"}
-                      </Badge>
+              {logs.map((log) => {
+                const hasCounts =
+                  log.vehicles_total != null ||
+                  log.vehicles_added != null ||
+                  log.vehicles_updated != null ||
+                  log.vehicles_marked_sold != null;
+                return (
+                  <div key={log.id} className="flex items-start gap-3 pb-3 border-b border-border last:border-0">
+                    <div className="mt-0.5">{getStatusIcon(log.status)}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{log.sync_name}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {log.status ?? "—"}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {formatDistanceToNow(new Date(log.started_at), { addSuffix: true, locale: de })}
+                        {log.duration_ms ? ` · ${formatDuration(log.duration_ms)}` : ""}
+                      </div>
+                      {hasCounts && (
+                        <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                          <span>{log.vehicles_total ?? 0} gelesen</span>
+                          <span>·</span>
+                          <span className="text-green-600">{log.vehicles_added ?? 0} neu</span>
+                          <span>·</span>
+                          <span>{log.vehicles_updated ?? 0} aktualisiert</span>
+                          <span>·</span>
+                          <span className="text-destructive">{log.vehicles_marked_sold ?? 0} verkauft</span>
+                        </div>
+                      )}
+                      {log.error_message && (
+                        <p className="text-xs text-destructive mt-1 break-words">{log.error_message}</p>
+                      )}
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {formatDistanceToNow(new Date(log.started_at), { addSuffix: true, locale: de })}
-                      {log.duration_ms ? ` · ${formatDuration(log.duration_ms)}` : ""}
-                      {log.vehicles_total != null ? ` · ${log.vehicles_total} Fahrzeuge` : ""}
-                      {log.vehicles_added ? ` · +${log.vehicles_added} neu` : ""}
-                      {log.vehicles_updated ? ` · ${log.vehicles_updated} upd.` : ""}
-                      {log.vehicles_marked_sold ? ` · ${log.vehicles_marked_sold} verkauft` : ""}
-                    </div>
-                    {log.error_message && (
-                      <p className="text-xs text-destructive mt-1 break-words">{log.error_message}</p>
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>
 
-        <Card className="p-5">
-          <h2 className="text-lg font-semibold mb-4">Zuletzt synchronisierte Fahrzeuge</h2>
-          {recentVehicles.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Keine Fahrzeuge</p>
-          ) : (
-            <div className="space-y-3 max-h-[500px] overflow-y-auto">
-              {recentVehicles.map((v) => (
-                <div key={v.id} className="flex items-start justify-between gap-3 pb-3 border-b border-border last:border-0">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs uppercase text-muted-foreground">{v.brand}</div>
-                    <div className="text-sm font-medium truncate">{v.title}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {formatDistanceToNow(new Date(v.synced_at), { addSuffix: true, locale: de })}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-medium">
-                      {v.price ? `${v.price.toLocaleString("de-DE")} €` : "—"}
-                    </div>
-                    {v.is_sold && (
-                      <Badge variant="destructive" className="mt-1 text-xs">
-                        Verkauft
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        <div className="space-y-6">
+          <Card className="p-5">
+            <h2 className="text-lg font-semibold">Neue Fahrzeuge (24h)</h2>
+            <p className="text-xs text-muted-foreground mt-1 mb-4">
+              Fahrzeuge, die in den letzten 24 Stunden neu in die Datenbank aufgenommen wurden (nach created_at).
+            </p>
+            {newVehicles.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Keine neuen Fahrzeuge in den letzten 24 Stunden.</p>
+            ) : (
+              <div className="space-y-3 max-h-[240px] overflow-y-auto">
+                {newVehicles.map((v) => renderVehicle(v, v.created_at))}
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="text-lg font-semibold">Zuletzt aktualisierte Fahrzeuge</h2>
+            <p className="text-xs text-muted-foreground mt-1 mb-4">
+              Diese Liste zeigt Fahrzeuge, die beim letzten Sync aktualisiert wurden – nicht zwingend neu hinzugefügt.
+            </p>
+            {recentlyUpdated.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Keine Fahrzeuge</p>
+            ) : (
+              <div className="space-y-3 max-h-[240px] overflow-y-auto">
+                {recentlyUpdated.map((v) => renderVehicle(v, v.synced_at))}
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -440,6 +440,10 @@ Deno.serve(async (req) => {
   let logStatus: "success" | "failed" | "skipped" = "failed";
   let logError: string | null = null;
   let logTotal = 0;
+  let logAdded = 0;
+  let logUpdated = 0;
+  let logSold = 0;
+  let logSkippedManual = 0;
 
   try {
     const hasSearchUser = !!Deno.env.get("MOBILE_DE_SEARCH_USERNAME");
@@ -551,6 +555,8 @@ Deno.serve(async (req) => {
     }
     console.log(`Upserted ${vehicleRows.length} vehicles`);
     logTotal = vehicleRows.length;
+    logAdded = vehicleRows.filter((v) => !existingMap.has(v.mobile_de_id)).length;
+    logUpdated = vehicleRows.length - logAdded;
 
     const { count: activeCount } = await supabase
       .from("vehicles")
@@ -596,8 +602,16 @@ Deno.serve(async (req) => {
       for (const v of toMarkAvailable) {
         await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
       }
+      logSold = toMarkSold.length;
       console.log(`Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
     }
+
+    const { count: manualCount } = await supabase
+      .from("vehicles")
+      .select("*", { count: "exact", head: true })
+      .eq("source", "manual");
+    logSkippedManual = manualCount ?? 0;
+    console.log(`Skipped ${logSkippedManual} manual vehicles (protected from soft-delete)`);
 
     try {
       const alertsUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/check-alerts`;
@@ -657,11 +671,17 @@ Deno.serve(async (req) => {
           completed_at: new Date().toISOString(),
           duration_ms: Date.now() - startTime,
           vehicles_total: logTotal,
+          vehicles_added: logAdded,
+          vehicles_updated: logUpdated,
+          vehicles_marked_sold: logSold,
           status: logStatus,
           error_message: logError,
         })
         .eq("id", logEntry.id);
     }
-    console.log(`Sync lock released (status=${logStatus}, duration=${Date.now() - startTime}ms)`);
+    console.log(
+      `Sync lock released (status=${logStatus}, duration=${Date.now() - startTime}ms, ` +
+      `total=${logTotal}, added=${logAdded}, updated=${logUpdated}, sold=${logSold}, manual=${logSkippedManual})`
+    );
   }
 });
