@@ -99,6 +99,208 @@ async function uploadOneImage(jpeg: Uint8Array, filename: string): Promise<strin
   return String(ref);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Mapping: bequemer Draft (flach ODER verschachtelt) → flacher Seller-API Body.
+// Sendet NIE die interne `vehicle`-Property oder deutsche Labels an Mobile.de.
+// Unsichere Enum-Werte werden weggelassen und in `warnings` protokolliert.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type AdPayload = Record<string, unknown>;
+type BuildResult = { adBody: AdPayload; missing: string[]; warnings: string[] };
+
+const SAFE_CLIMATISATION = new Set([
+  "MANUAL_CLIMATISATION",
+  "AUTOMATIC_CLIMATISATION",
+  "2_ZONE_AUTOMATIC_AIR_CONDITIONING",
+  "3_ZONE_AUTOMATIC_AIR_CONDITIONING",
+  "4_ZONE_AUTOMATIC_AIR_CONDITIONING",
+]);
+
+const SAFE_PARKING_ASSISTANTS = new Set(["FRONT_SENSORS", "REAR_SENSORS"]);
+const PARKING_ASSISTANT_ALIAS: Record<string, string> = {
+  FRONT: "FRONT_SENSORS",
+  REAR: "REAR_SENSORS",
+};
+const UNSAFE_PARKING_ASSISTANTS = new Set(["CAMERA", "AUTOMATIC_PARKING", "REAR_CAMERA"]);
+
+const FEATURE_KEYS = [
+  "alloyWheels", "navigationSystem", "electricHeatedSeats", "bluetooth",
+  "carplay", "androidAuto", "electricWindows", "centralLocking", "isofix",
+  "sunroof", "panoramicGlassRoof", "usb", "touchscreen", "soundSystem",
+  "summerTires", "winterTires", "allSeasonTires",
+  "tintedWindows", "ambientLighting", "electricExteriorMirrors",
+  "electricAdjustableSeats", "powerSteering", "hillStartAssist",
+  "onBoardComputer", "handsFreePhoneSystem", "roofRack", "winterPackage",
+  "multifunctionalSteeringWheel",
+  "abs", "esp", "immobilizer", "fatigueWarningSystem",
+  "emergencyBrakeAssistant", "rainSensor",
+  "tirePressureMonitoring", "laneDepartureWarning", "startStopSystem",
+  "trafficSignRecognition",
+];
+
+const UNSAFE_FIELDS = new Set([
+  "speedControl", "headlightType", "trailerCouplingType", "airbag",
+  "breakdownService", "corneringLight", "daytimeRunningLamps",
+  "highBeamAssistant", "emergencyCallSystem", "matt",
+]);
+
+export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildResult {
+  const warnings: string[] = [];
+  const vehicle = (payload.vehicle ?? {}) as AdPayload;
+
+  const getKey = (v: unknown): string | undefined => {
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (v && typeof v === "object" && typeof (v as { key?: unknown }).key === "string") {
+      return (v as { key: string }).key;
+    }
+    return undefined;
+  };
+  const pick = (...candidates: unknown[]): unknown => {
+    for (const c of candidates) if (c !== undefined && c !== null && c !== "") return c;
+    return undefined;
+  };
+  const num = (v: unknown): number | undefined => {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v);
+    return undefined;
+  };
+
+  const priceObj = (payload.price ?? {}) as AdPayload;
+  const rawAmount = pick(
+    priceObj.consumerPriceGross,
+    priceObj["consumer-price-gross"],
+    payload.consumerPriceGross,
+  );
+  const cleanAmount = String(rawAmount ?? "").replace(/[^0-9]/g, "");
+  const rawVat = pick(priceObj.vatRate, priceObj["vat-rate"], payload.vatRate) ?? "19.00";
+
+  const adBody: AdPayload = {
+    vehicleClass: "Car",
+    make: getKey(pick(payload.make, vehicle.make)),
+    model: getKey(pick(payload.model, vehicle.model)),
+    modelDescription: pick(payload.modelDescription, vehicle["model-description"], vehicle.modelDescription),
+    category: getKey(pick(payload.category, vehicle.category)),
+    mileage: num(pick(payload.mileage, vehicle.mileage)),
+    firstRegistration: pick(payload.firstRegistration, vehicle["first-registration"], vehicle.firstRegistration),
+    fuel: getKey(pick(payload.fuel, vehicle.fuel)),
+    gearbox: getKey(pick(payload.gearbox, vehicle.gearbox)),
+    power: num(pick(payload.power, vehicle.power)),
+    cubicCapacity: num(pick(payload.cubicCapacity, vehicle["cubic-capacity"], vehicle.cubicCapacity)),
+    condition: (pick(payload.condition, vehicle.condition) as string) || "USED",
+    damageUnrepaired:
+      pick(payload.damageUnrepaired, vehicle["damage-unrepaired"], vehicle.damageUnrepaired) === true,
+    price: {
+      consumerPriceGross: cleanAmount,
+      currency: "EUR",
+      vatRate: String(rawVat),
+      type: "FIXED",
+    },
+  };
+
+  const desc = pick(payload.description, vehicle.description);
+  if (typeof desc === "string" && desc.trim()) adBody.description = desc.trim();
+
+  // Flacher Quell-Lookup: payload.<key> oder vehicle.<key>
+  const src: AdPayload = { ...vehicle, ...payload };
+  const addStr = (k: string, alts: string[] = []) => {
+    const v = pick(src[k], ...alts.map((a) => src[a]));
+    if (typeof v === "string" && v.trim()) adBody[k] = v.trim();
+  };
+  const addNum = (k: string, alts: string[] = []) => {
+    const v = num(pick(src[k], ...alts.map((a) => src[a])));
+    if (v !== undefined) adBody[k] = v;
+  };
+  const addBoolTrue = (k: string) => { if (src[k] === true) adBody[k] = true; };
+  const addBoolEither = (k: string) => {
+    if (src[k] === true || src[k] === false) adBody[k] = src[k];
+  };
+  const addKey = (k: string) => {
+    const key = getKey(src[k]);
+    if (key) adBody[k] = key;
+  };
+
+  addStr("trimLine"); addStr("modelRange");
+  addKey("doors"); addNum("seats");
+  addStr("vin"); addStr("internalNumber");
+  addNum("cylinders"); addNum("fuelCapacity"); addKey("driveType");
+  addKey("exteriorColor"); addKey("interiorColor"); addKey("interiorType");
+  addStr("manufacturerColorName"); addBoolTrue("metallic");
+  addBoolEither("accidentDamaged"); addBoolEither("roadworthy");
+  addBoolTrue("warranty"); addBoolTrue("nonSmokerVehicle"); addBoolTrue("fullServiceHistory");
+  addBoolTrue("newHuAu"); addBoolTrue("newService");
+  addNum("numberOfPreviousOwners");
+  addStr("generalInspection");
+  addBoolTrue("huNew"); addBoolTrue("inspectionNew");
+  addBoolTrue("particulateFilterDiesel"); addBoolTrue("particulateFilter");
+  addKey("emissionClass"); addKey("emissionSticker");
+  addNum("co2", ["co2EmissionsCombined"]);
+  addNum("consumptionCombined");
+  addNum("consumptionInner"); addNum("consumptionOuter");
+  addNum("consumptionUrban"); addNum("consumptionExtraUrban");
+
+  const cli = getKey(src.climatisation);
+  if (cli) {
+    if (SAFE_CLIMATISATION.has(cli)) adBody.climatisation = cli;
+    else warnings.push(`climatisation="${cli}" nicht in Whitelist – nicht gesendet`);
+  }
+
+  if (Array.isArray(src.parkingAssistants)) {
+    const safe: string[] = [];
+    for (const x of src.parkingAssistants as unknown[]) {
+      const raw = getKey(x);
+      if (!raw) continue;
+      const mapped = PARKING_ASSISTANT_ALIAS[raw] ?? raw;
+      if (SAFE_PARKING_ASSISTANTS.has(mapped)) safe.push(mapped);
+      else if (UNSAFE_PARKING_ASSISTANTS.has(raw))
+        warnings.push(`parkingAssistant "${raw}" unsicher – nicht gesendet`);
+      else warnings.push(`parkingAssistant "${raw}" unbekannt – nicht gesendet`);
+    }
+    if (safe.length) adBody.parkingAssistants = [...new Set(safe)].map((k) => ({ key: k }));
+  }
+
+  const featSrc = (src.features && typeof src.features === "object")
+    ? (src.features as AdPayload) : {};
+  for (const f of FEATURE_KEYS) {
+    if (featSrc[f] === true || src[f] === true) adBody[f] = true;
+  }
+
+  // Unsichere Felder ggf. wieder entfernen
+  for (const k of Array.from(Object.keys(adBody))) {
+    if (UNSAFE_FIELDS.has(k)) {
+      warnings.push(`Feld "${k}" entfernt (Enum unsicher)`);
+      delete adBody[k];
+    }
+  }
+  for (const k of UNSAFE_FIELDS) {
+    const v = src[k];
+    if (v !== undefined && v !== "" && v !== false && v !== null) {
+      warnings.push(`Feld "${k}" im Draft ignoriert (Enum unsicher)`);
+    }
+  }
+
+  if (refs.length) adBody.images = refs.map((ref) => ({ ref }));
+
+  const missing: string[] = [];
+  const m = adBody;
+  if (!m.make) missing.push("make");
+  if (!m.model) missing.push("model");
+  if (!m.modelDescription) missing.push("modelDescription");
+  if (!m.category) missing.push("category");
+  if (m.mileage === undefined || m.mileage === null) missing.push("mileage");
+  if (!m.firstRegistration || !/^\d{6}$/.test(String(m.firstRegistration)))
+    missing.push("firstRegistration (YYYYMM)");
+  if (!m.fuel) missing.push("fuel");
+  if (!m.gearbox) missing.push("gearbox");
+  if (m.power === undefined || m.power === null) missing.push("power");
+  if (m.cubicCapacity === undefined || m.cubicCapacity === null) missing.push("cubicCapacity");
+  if (!m.condition) missing.push("condition");
+  if (typeof m.damageUnrepaired !== "boolean") missing.push("damageUnrepaired");
+  if (!cleanAmount || cleanAmount === "0") missing.push("price.consumerPriceGross");
+  if (!rawVat) missing.push("price.vatRate");
+
+  return { adBody, missing, warnings };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -146,155 +348,10 @@ Deno.serve(async (req) => {
     const imagePaths = (draft.image_paths ?? []) as string[];
     console.log(`Publishing draft ${draftId}, ${imagePaths.length} image(s)`);
 
-    // ── Build flat Mobile.de payload from nested draft structure ──
-    const vehicle = (payload.vehicle ?? {}) as Record<string, unknown>;
-    const price = (payload.price ?? {}) as Record<string, unknown>;
-    const getKey = (v: unknown): string | undefined => {
-      if (v && typeof v === "object" && typeof (v as { key?: unknown }).key === "string") {
-        return (v as { key: string }).key;
-      }
-      return undefined;
-    };
-    const rawAmount = price.consumerPriceGross ?? price["consumer-price-gross"] ?? "";
-    const cleanAmount = String(rawAmount).replace(/[^0-9]/g, "");
-    const rawVat = price.vatRate ?? price["vat-rate"] ?? "19.00";
-
-    const mobilePayload: Record<string, unknown> = {
-      vehicleClass: "Car",
-      make: getKey(vehicle.make),
-      model: getKey(vehicle.model),
-      modelDescription: vehicle["model-description"],
-      category: getKey(vehicle.category),
-      mileage: vehicle.mileage,
-      firstRegistration: vehicle["first-registration"],
-      fuel: getKey(vehicle.fuel),
-      gearbox: getKey(vehicle.gearbox),
-      power: vehicle.power,
-      cubicCapacity: vehicle["cubic-capacity"],
-      condition: (vehicle.condition as string) || "USED",
-      damageUnrepaired: vehicle["damage-unrepaired"] === true,
-      price: {
-        consumerPriceGross: cleanAmount,
-        currency: "EUR",
-        vatRate: String(rawVat),
-        type: "FIXED",
-      },
-    };
-    if (payload.description) mobilePayload.description = payload.description;
-
-    // ── Pass-through optional fields (only when present) ──
-    const optional: Record<string, unknown> = {};
-    const addStr = (k: string, v: unknown) => {
-      if (typeof v === "string" && v.trim()) optional[k] = v.trim();
-    };
-    const addNum = (k: string, v: unknown) => {
-      if (typeof v === "number" && Number.isFinite(v)) optional[k] = v;
-      else if (typeof v === "string" && v.trim() && !Number.isNaN(Number(v))) optional[k] = Number(v);
-    };
-    const addBoolTrue = (k: string, v: unknown) => {
-      if (v === true) optional[k] = true;
-    };
-    const addBoolEither = (k: string, v: unknown) => {
-      if (v === true || v === false) optional[k] = v;
-    };
-    const addKey = (k: string, v: unknown) => {
-      const key = getKey(v) ?? (typeof v === "string" ? v : undefined);
-      if (key) optional[k] = key;
-    };
-
-    // Basis & Karosserie
-    addStr("trimLine", vehicle.trimLine);
-    addNum("seats", vehicle.seats);
-    addKey("doors", vehicle.doors);
-    addStr("vin", vehicle.vin);
-    addStr("internalNumber", vehicle.internalNumber);
-
-    // Motor / Technik
-    addNum("cylinders", vehicle.cylinders);
-    addNum("fuelCapacity", vehicle.fuelCapacity);
-    addKey("driveType", vehicle.driveType);
-
-    // Farbe
-    addKey("exteriorColor", vehicle.exteriorColor);
-    addStr("manufacturerColorName", vehicle.manufacturerColorName);
-    addBoolTrue("metallic", vehicle.metallic);
-    addBoolTrue("matt", vehicle.matt);
-
-    // Historie / Zustand
-    addBoolEither("accidentDamaged", vehicle.accidentDamaged);
-    addBoolTrue("fullServiceHistory", vehicle.fullServiceHistory);
-    addBoolTrue("nonSmokerVehicle", vehicle.nonSmokerVehicle);
-    addBoolTrue("warranty", vehicle.warranty);
-    addBoolEither("roadworthy", vehicle.roadworthy);
-    addNum("numberOfPreviousOwners", vehicle.numberOfPreviousOwners);
-
-    // Umwelt / Untersuchungen
-    addStr("generalInspection", vehicle.generalInspection); // YYYYMM
-    addBoolTrue("huNew", vehicle.huNew);
-    addBoolTrue("inspectionNew", vehicle.inspectionNew);
-    addBoolTrue("particulateFilter", vehicle.particulateFilter);
-    addKey("emissionClass", vehicle.emissionClass);
-    addKey("emissionSticker", vehicle.emissionSticker);
-    addNum("co2EmissionsCombined", vehicle.co2EmissionsCombined);
-    addNum("consumptionCombined", vehicle.consumptionCombined);
-    addNum("consumptionInner", vehicle.consumptionInner);
-    addNum("consumptionOuter", vehicle.consumptionOuter);
-    addNum("consumptionUrban", vehicle.consumptionUrban);
-    addNum("consumptionExtraUrban", vehicle.consumptionExtraUrban);
-
-    // Klimatisierung / Komfort enums
-    addKey("climatisation", vehicle.climatisation);
-
-    // parkingAssistants array
-    if (Array.isArray(vehicle.parkingAssistants)) {
-      const pa = (vehicle.parkingAssistants as unknown[])
-        .map((x) => getKey(x) ?? (typeof x === "string" ? x : undefined))
-        .filter((x): x is string => Boolean(x));
-      if (pa.length) optional.parkingAssistants = pa.map((k) => ({ key: k }));
-    }
-
-    // Boolean equipment / safety feature flags — whitelist of known Mobile.de keys
-    const FEATURE_KEYS = [
-      // Comfort / Equipment
-      "alloyWheels", "navigationSystem", "electricHeatedSeats", "bluetooth",
-      "carplay", "androidAuto", "electricWindows", "centralLocking", "isofix",
-      "sunroof", "panoramicGlassRoof", "usb", "touchscreen", "soundSystem",
-      "summerTires", "winterTires", "allSeasonTires",
-      "tintedWindows", "ambientLighting", "electricExteriorMirrors",
-      "electricAdjustableSeats", "powerSteering", "hillStartAssist",
-      "onBoardComputer", "handsFreePhoneSystem", "roofRack", "winterPackage",
-      "multifunctionalSteeringWheel", "daytimeRunningLamps",
-      // Safety
-      "abs", "esp", "immobilizer", "highBeamAssistant", "fatigueWarningSystem",
-      "emergencyBrakeAssistant", "emergencyCallSystem", "rainSensor",
-      "tirePressureMonitoring", "laneDepartureWarning", "startStopSystem",
-      "trafficSignRecognition",
-    ];
-    for (const f of FEATURE_KEYS) {
-      if (vehicle[f] === true) optional[f] = true;
-    }
-
-    Object.assign(mobilePayload, optional);
-    console.log(`Optional fields forwarded (${Object.keys(optional).length}):`, Object.keys(optional).join(","));
-
-    // ── Validate required fields BEFORE posting ──
-    const missing: string[] = [];
-    if (!mobilePayload.make) missing.push("make");
-    if (!mobilePayload.model) missing.push("model");
-    if (!mobilePayload.modelDescription) missing.push("modelDescription");
-    if (!mobilePayload.category) missing.push("category");
-    if (mobilePayload.mileage === undefined || mobilePayload.mileage === null) missing.push("mileage");
-    if (!mobilePayload.firstRegistration || !/^\d{6}$/.test(String(mobilePayload.firstRegistration)))
-      missing.push("firstRegistration (YYYYMM)");
-    if (!mobilePayload.fuel) missing.push("fuel");
-    if (!mobilePayload.gearbox) missing.push("gearbox");
-    if (mobilePayload.power === undefined || mobilePayload.power === null) missing.push("power");
-    if (mobilePayload.cubicCapacity === undefined || mobilePayload.cubicCapacity === null)
-      missing.push("cubicCapacity");
-    if (!mobilePayload.condition) missing.push("condition");
-    if (typeof mobilePayload.damageUnrepaired !== "boolean") missing.push("damageUnrepaired");
-    if (!cleanAmount || cleanAmount === "0") missing.push("price.consumerPriceGross (Preis fehlt/ungültig)");
-    if (!rawVat) missing.push("price.vatRate");
+    // ── Build flat Mobile.de payload — tolerate flat or nested drafts ──
+    const { adBody: mobilePayload, missing, warnings } = buildMobileAdPayload(payload, []);
+    console.log(`buildMobileAdPayload: keys=${Object.keys(mobilePayload).join(",")}`);
+    if (warnings.length) console.warn(`buildMobileAdPayload warnings:`, warnings);
 
     if (missing.length) {
       const msg = `Pflichtfelder fehlen oder ungültig: ${missing.join(", ")}`;
@@ -303,8 +360,9 @@ Deno.serve(async (req) => {
         .from("mobile_ad_drafts")
         .update({ status: "error", error_message: msg })
         .eq("id", draftId);
-      return json(400, { error: msg, missing });
+      return json(400, { error: msg, missing, warnings });
     }
+
 
 
     // ── Step 1: upload images one by one (skip individual failures) ──
@@ -350,27 +408,26 @@ Deno.serve(async (req) => {
 
 
     // ── Step 2: create ad with image refs ─────────────────────
-    const adBody: Record<string, unknown> = mobilePayload;
+    const adBody: Record<string, unknown> = { ...mobilePayload };
     if (refs.length) {
       adBody.images = refs.map((ref) => ({ ref }));
     }
 
-    console.log("Mobile.de POST adBody keys:", Object.keys(adBody).join(","));
+    console.log("Mobile.de POST adBody root-keys:", Object.keys(adBody).join(","));
     console.log("Mobile.de required fields:", JSON.stringify({
-      vehicleClass: mobilePayload.vehicleClass,
-      make: mobilePayload.make,
-      model: mobilePayload.model,
-      modelDescription: mobilePayload.modelDescription,
-      category: mobilePayload.category,
-      mileage: mobilePayload.mileage,
-      firstRegistration: mobilePayload.firstRegistration,
-      fuel: mobilePayload.fuel,
-      gearbox: mobilePayload.gearbox,
-      power: mobilePayload.power,
-      cubicCapacity: mobilePayload.cubicCapacity,
-      condition: mobilePayload.condition,
-      damageUnrepaired: mobilePayload.damageUnrepaired,
-      priceAmount: cleanAmount,
+      vehicleClass: adBody.vehicleClass,
+      make: adBody.make,
+      model: adBody.model,
+      modelDescription: adBody.modelDescription,
+      category: adBody.category,
+      mileage: adBody.mileage,
+      firstRegistration: adBody.firstRegistration,
+      fuel: adBody.fuel,
+      gearbox: adBody.gearbox,
+      power: adBody.power,
+      cubicCapacity: adBody.cubicCapacity,
+      condition: adBody.condition,
+      damageUnrepaired: adBody.damageUnrepaired,
       imageCount: refs.length,
     }));
 
@@ -417,6 +474,35 @@ Deno.serve(async (req) => {
     } catch {
       mobileAdId = createRes.headers.get("Location")?.split("/").pop() ?? undefined;
     }
+
+    // ── Verify: GET /sellers/{SELLER_ID}/ads/{mobileAdId} (best-effort) ──
+    if (mobileAdId) {
+      try {
+        const verifyRes = await fetch(`${API_BASE}/sellers/${SELLER_ID}/ads/${mobileAdId}`, {
+          headers: { Authorization: basicAuth(), Accept: MOBILE_MIME },
+        });
+        const verifyText = await verifyRes.text();
+        if (verifyRes.ok) {
+          try {
+            const vj = JSON.parse(verifyText);
+            const optionalEchoed = Object.keys(vj).filter(
+              (k) => !["vehicleClass","make","model","modelDescription","category","mileage","firstRegistration","fuel","gearbox","power","cubicCapacity","condition","damageUnrepaired","price","images","creationDate","modificationDate","mobileAdId","detailPageUrl"].includes(k),
+            );
+            const imgCount = Array.isArray(vj.images) ? vj.images.length : 0;
+            console.log(`Verify GET ${mobileAdId}: rootKeys=${Object.keys(vj).join(",")}`);
+            console.log(`Verify optional fields returned: ${optionalEchoed.join(",")}`);
+            console.log(`Verify image count: ${imgCount}`);
+          } catch {
+            console.log(`Verify GET ${mobileAdId}: non-JSON response, status=${verifyRes.status}`);
+          }
+        } else {
+          console.warn(`Verify GET failed (${verifyRes.status}): ${verifyText.slice(0, 200)}`);
+        }
+      } catch (e) {
+        console.warn(`Verify GET error: ${(e as Error).message}`);
+      }
+    }
+
 
     const skippedNote = skipped.length
       ? `Hinweis: ${skipped.length} Bild(er) übersprungen: ${skipped.map((s) => `#${s.index} (${s.reason})`).join("; ")}`

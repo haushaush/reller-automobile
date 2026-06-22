@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, ChangeEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Upload, X, Save } from "lucide-react";
+import { Loader2, Upload, X, Save, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -1267,6 +1267,10 @@ export default function MobileAdCreate() {
         </div>
       </Card>
 
+      {/* ── Mobile.de Payload Vorschau (Debug) ── */}
+      <PayloadPreview form={form} imageCount={imagePaths.length} />
+
+
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => navigate("/admin/mobile-ad")} disabled={saving}>
           Abbrechen
@@ -1277,5 +1281,152 @@ export default function MobileAdCreate() {
         </Button>
       </div>
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Debug-Vorschau: spiegelt grob das Mapping in publish-mobile-ad
+// (keine Secrets, keine Live-Werte an Mobile.de).
+// ──────────────────────────────────────────────────────────────────────────
+const SAFE_CLIMATISATION_UI = new Set([
+  "MANUAL_CLIMATISATION",
+  "AUTOMATIC_CLIMATISATION",
+  "2_ZONE_AUTOMATIC_AIR_CONDITIONING",
+  "3_ZONE_AUTOMATIC_AIR_CONDITIONING",
+  "4_ZONE_AUTOMATIC_AIR_CONDITIONING",
+]);
+const SAFE_PARKING_UI = new Set(["FRONT_SENSORS", "REAR_SENSORS"]);
+const PARKING_ALIAS_UI: Record<string, string> = { FRONT: "FRONT_SENSORS", REAR: "REAR_SENSORS" };
+
+function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: number }) {
+  const { rootKeys, presentRequired, missing, warnings } = useMemo(() => {
+    const root: string[] = ["vehicleClass", "price"];
+    const req: Record<string, unknown> = {
+      make: form.make,
+      model: form.model,
+      modelDescription: form.modelDescription,
+      category: form.category,
+      mileage: form.mileage,
+      firstRegistration:
+        form.regYear && form.regMonth ? `${form.regYear}${form.regMonth.padStart(2, "0")}` : "",
+      fuel: form.fuel,
+      gearbox: form.gearbox,
+      power: form.power,
+      cubicCapacity: form.cubicCapacity,
+      condition: form.condition,
+      damageUnrepaired: form.damageUnrepaired,
+      "price.consumerPriceGross": String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""),
+      "price.vatRate": form.vatRate,
+    };
+    const missing: string[] = [];
+    const present: string[] = [];
+    for (const [k, v] of Object.entries(req)) {
+      const ok = v !== undefined && v !== null && String(v).trim() !== "" && v !== "0";
+      if (ok) present.push(k);
+      else missing.push(k);
+      if (!k.startsWith("price.") && !root.includes(k)) root.push(k);
+    }
+
+    // Optional roots
+    const addIf = (k: string, v: unknown) => {
+      if (v !== undefined && v !== null && v !== "" && v !== false && !root.includes(k)) root.push(k);
+    };
+    addIf("description", form.description);
+    addIf("trimLine", form.trimLine);
+    addIf("doors", form.doors); addIf("seats", form.seats);
+    addIf("vin", form.vin); addIf("internalNumber", form.internalNumber);
+    addIf("cylinders", form.cylinders); addIf("fuelCapacity", form.fuelCapacity);
+    addIf("driveType", form.driveType);
+    addIf("exteriorColor", form.exteriorColor);
+    addIf("manufacturerColorName", form.manufacturerColorName);
+    if (form.metallic) addIf("metallic", true);
+    if (form.accidentDamaged) addIf("accidentDamaged", true);
+    if (form.roadworthy) addIf("roadworthy", true);
+    if (form.warranty) addIf("warranty", true);
+    if (form.nonSmokerVehicle) addIf("nonSmokerVehicle", true);
+    if (form.fullServiceHistory) addIf("fullServiceHistory", true);
+    addIf("numberOfPreviousOwners", form.numberOfPreviousOwners);
+    if (form.hsnYear && form.hsnMonth) addIf("generalInspection", true);
+    if (form.huNew) addIf("huNew", true);
+    if (form.inspectionNew) addIf("inspectionNew", true);
+    if (form.particulateFilter) addIf("particulateFilter", true);
+    addIf("emissionClass", form.emissionClass);
+    addIf("emissionSticker", form.emissionSticker);
+    addIf("co2EmissionsCombined", form.co2EmissionsCombined);
+    addIf("consumptionCombined", form.consumptionCombined);
+
+    const warnings: string[] = [];
+    if (form.climatisation) {
+      if (SAFE_CLIMATISATION_UI.has(form.climatisation)) addIf("climatisation", true);
+      else warnings.push(`climatisation="${form.climatisation}" nicht in Whitelist – wird nicht gesendet`);
+    }
+    if (form.parkingAssistants.length) {
+      const safe = form.parkingAssistants
+        .map((k) => PARKING_ALIAS_UI[k] ?? k)
+        .filter((k) => SAFE_PARKING_UI.has(k));
+      const unsafe = form.parkingAssistants.filter(
+        (k) => !SAFE_PARKING_UI.has(PARKING_ALIAS_UI[k] ?? k),
+      );
+      if (safe.length) addIf("parkingAssistants", true);
+      if (unsafe.length) warnings.push(`parkingAssistants ${unsafe.join(", ")} unsicher – nicht gesendet`);
+    }
+    if (form.matt) warnings.push(`matt – Feldname unsicher, wird nicht gesendet`);
+
+    const feats = Object.entries(form.features).filter(([, v]) => v).map(([k]) => k);
+    if (feats.length) root.push(...feats);
+
+    if (imageCount > 0) root.push("images");
+
+    return { rootKeys: [...new Set(root)], presentRequired: present, missing, warnings };
+  }, [form, imageCount]);
+
+  return (
+    <details className="rounded-md border border-border bg-muted/30 p-4 group">
+      <summary className="cursor-pointer flex items-center justify-between text-sm font-medium">
+        <span>Mobile.de Payload Vorschau (Debug)</span>
+        <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="mt-4 space-y-4 text-xs">
+        <div>
+          <div className="font-semibold mb-1">Root-Keys ({rootKeys.length})</div>
+          <div className="font-mono break-all text-muted-foreground">{rootKeys.join(", ")}</div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div className="font-semibold mb-1 text-emerald-600">
+              Pflichtfelder gesetzt ({presentRequired.length})
+            </div>
+            <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
+              {presentRequired.map((k) => <li key={k}>{k}</li>)}
+            </ul>
+          </div>
+          <div>
+            <div className="font-semibold mb-1 text-destructive">
+              Pflichtfelder fehlend ({missing.length})
+            </div>
+            {missing.length === 0 ? (
+              <div className="text-muted-foreground">Keine.</div>
+            ) : (
+              <ul className="list-disc list-inside text-destructive/90 space-y-0.5">
+                {missing.map((k) => <li key={k}>{k}</li>)}
+              </ul>
+            )}
+          </div>
+        </div>
+        <div>
+          <div className="font-semibold mb-1">Bilder: {imageCount}</div>
+        </div>
+        {warnings.length > 0 && (
+          <div>
+            <div className="font-semibold mb-1 text-amber-600">
+              Warnungen ({warnings.length})
+            </div>
+            <ul className="list-disc list-inside text-amber-700 space-y-0.5">
+              {warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
