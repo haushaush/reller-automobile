@@ -10,8 +10,10 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MOBILE_USER = Deno.env.get("MOBILE_DE_USERNAME")!;
-const MOBILE_PASS = Deno.env.get("MOBILE_DE_PASSWORD")!;
+const MOBILE_USER =
+  Deno.env.get("MOBILE_DE_SELLER_USERNAME") || Deno.env.get("MOBILE_DE_USERNAME") || "";
+const MOBILE_PASS =
+  Deno.env.get("MOBILE_DE_SELLER_PASSWORD") || Deno.env.get("MOBILE_DE_PASSWORD") || "";
 
 const SELLER_ID = "451040";
 const API_BASE = "https://services.mobile.de/seller-api";
