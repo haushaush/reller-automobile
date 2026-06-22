@@ -73,6 +73,32 @@ function asNum(v: unknown): string {
   if (typeof v === "string") return v;
   return "";
 }
+// Normalisiert Preis-Eingaben aus Mobile.de (Zahl, "10000", "10000.00", "10.000,00 €", verschachteltes Objekt)
+// in einen Euro-Ganzzahl-String wie "10000" (oder mit Nachkommastellen "10000.00").
+function normalizePriceInput(v: unknown): string {
+  if (v === undefined || v === null || v === "") return "";
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return normalizePriceInput(o.consumerPriceGross ?? o.amount ?? o.value ?? o.gross ?? o.consumerValue ?? o.net);
+  }
+  if (typeof v !== "string") return "";
+  let s = v.trim().replace(/[€$\s]/g, "");
+  if (s.includes(",") && s.includes(".")) {
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
+    else s = s.replace(/,/g, "");
+  } else if (s.includes(",")) {
+    const parts = s.split(",");
+    if (parts.length === 2 && parts[1].length <= 2) s = parts[0] + "." + parts[1];
+    else s = s.replace(/,/g, "");
+  }
+  s = s.replace(/[^0-9.]/g, "");
+  if (!s) return "";
+  const n = Number(s);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  // Ganzzahl wenn keine Nachkommastellen, sonst max 2
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
 
 interface FormState {
   make: string; model: string; modelDescription: string; category: string;
@@ -129,7 +155,7 @@ function mobileAdToForm(mobileAd: AnyObj | null, draftPayload: AnyObj | null): F
     condition: String(pick(m.condition, d.condition, veh.condition) ?? "USED"),
     damageUnrepaired: pick(m.damageUnrepaired, d.damageUnrepaired, veh["damage-unrepaired"]) === true,
     accidentDamaged: pick(m.accidentDamaged, d.accidentDamaged) === true,
-    consumerPriceGross: String(pick(priceM.consumerPriceGross, priceD.consumerPriceGross, priceD["consumer-price-gross"]) ?? "").replace(/[^0-9]/g, ""),
+    consumerPriceGross: normalizePriceInput(pick(priceM.consumerPriceGross, priceD.consumerPriceGross, priceD["consumer-price-gross"], (priceM as AnyObj).consumerValue)),
     vatRate: String(pick(priceM.vatRate, priceD.vatRate, priceD["vat-rate"]) ?? "19.00"),
     description: String(pick(m.description, d.description, veh.description) ?? ""),
     exteriorColor: getKey(pick(m.exteriorColor, d.exteriorColor)),
@@ -173,7 +199,7 @@ function formToPayload(f: FormState): AnyObj {
     warranty: f.warranty || undefined,
     huNew: f.huNew || undefined,
     price: {
-      consumerPriceGross: String(f.consumerPriceGross || "").replace(/[^0-9]/g, ""),
+      consumerPriceGross: normalizePriceInput(f.consumerPriceGross),
       currency: "EUR",
       vatRate: f.vatRate || "19.00",
       type: "FIXED",
@@ -357,7 +383,7 @@ export default function MobileAdEditLive() {
       <Card className="p-4 space-y-4">
         <h2 className="font-semibold">Preis</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Preis brutto (nur Ziffern)" v={form.consumerPriceGross} on={(v) => upd("consumerPriceGross", v.replace(/[^0-9]/g, ""))} />
+          <Field label="Preis brutto (€)" v={form.consumerPriceGross} on={(v) => upd("consumerPriceGross", v.replace(/[^0-9.,]/g, ""))} placeholder="z.B. 10000 oder 10000.00" />
           <Field label="MwSt-Satz" v={form.vatRate} on={(v) => upd("vatRate", v)} placeholder="19.00 / OTHER" />
         </div>
       </Card>
