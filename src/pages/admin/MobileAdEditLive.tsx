@@ -288,10 +288,11 @@ export default function MobileAdEditLive() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">Live-Bearbeitung</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Mobile.de ID: <span className="font-mono">{mobileAdId}</span>
-            {" · "}<Badge variant="default">published</Badge>
-          </p>
+          <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+            <span>Mobile.de ID: <span className="font-mono">{mobileAdId}</span></span>
+            <span>·</span>
+            <Badge variant="default">published</Badge>
+          </div>
         </div>
         <Button variant="ghost" onClick={() => navigate("/admin/mobile-ad")}>
           <ArrowLeft className="h-4 w-4" /> Zurück
