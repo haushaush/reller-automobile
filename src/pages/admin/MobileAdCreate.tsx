@@ -891,6 +891,20 @@ export default function MobileAdCreate() {
     );
   }
 
+  // Inject an "Unknown" fallback item when the current live value is not part
+  // of the loaded refdata, so live keys (e.g. legacy ones) are never silently lost.
+  const withUnknown = (items: RefItem[], current: string): RefItem[] => {
+    if (!current || items.some((i) => i.key === current)) return items;
+    return [{ key: current, name: `Unbekannter Wert: ${current}` }, ...items];
+  };
+  const withUnknownDoors = (
+    items: { key: string; label: string }[],
+    current: string,
+  ): { key: string; label: string }[] => {
+    if (!current || items.some((i) => i.key === current)) return items;
+    return [{ key: current, label: `Unbekannter Wert: ${current}` }, ...items];
+  };
+
   const featureGrid = (items: { key: string; label: string }[]) => (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
       {items.map((f) => (
