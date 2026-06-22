@@ -424,46 +424,55 @@ export default function MobileAdDrafts() {
       ) : (
         <div className="space-y-3">
           {rows.map((r) => {
-            const make = readPath(r.payload, ["vehicle", "make", "key"]) as string | undefined;
-            const model = readPath(r.payload, ["vehicle", "model", "key"]) as string | undefined;
-            const desc = readPath(r.payload, ["vehicle", "model-description"]) as string | undefined;
-            const price = readPath(r.payload, ["price", "consumer-price-gross"]);
+            const title = getDraftDisplayTitle(r);
+            const desc = getDraftSubDescription(r);
+            const price = readFirst(r.payload, [
+              ["price", "consumerPriceGross"],
+              ["price", "consumer-price-gross"],
+              ["consumerPriceGross"],
+            ]);
+            const priceNum = typeof price === "number"
+              ? price
+              : typeof price === "string"
+                ? Number(price.replace(/[^0-9.]/g, ""))
+                : NaN;
             const copiedFromId = readPath(r.payload, ["_copiedFromDraftId"]) as string | undefined;
             const copiedFromAd = readPath(r.payload, ["_copiedFromMobileAdId"]) as string | undefined;
             const isPublished = r.status === "published" || r.status === "published_with_warning";
             const canCopy = isPublished || r.status === "error";
             const needsLink = isPublished && !r.mobile_ad_id;
+            const thumb = thumbs[r.id];
             return (
               <Card key={r.id} className="p-4 flex items-center justify-between gap-3 flex-wrap">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold truncate">
-                      {[make, model].filter(Boolean).join(" ") || "Unbenannt"}
-                    </span>
-                    {desc && <span className="text-sm text-muted-foreground truncate">{desc}</span>}
-                    <Badge
-                      variant={
-                        r.status === "published"
-                          ? "default"
-                          : r.status === "published_with_warning"
-                          ? "secondary"
-                          : r.status === "error"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                    >
-                      {r.status}
-                    </Badge>
-                    {copiedFromId && (
-                      <Badge variant="outline" className="text-xs">
-                        Kopie von {desc || copiedFromAd || copiedFromId.slice(0, 8)}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <DraftThumb url={thumb} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold truncate">{title}</span>
+                      {desc && <span className="text-sm text-muted-foreground truncate">{desc}</span>}
+                      <Badge
+                        variant={
+                          r.status === "published"
+                            ? "default"
+                            : r.status === "published_with_warning"
+                            ? "secondary"
+                            : r.status === "error"
+                            ? "destructive"
+                            : "secondary"
+                        }
+                      >
+                        {r.status}
                       </Badge>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {fmtPrice(price)} · erstellt {fmtDate(r.created_at)}
-                    {r.mobile_ad_id ? ` · Mobile.de ID ${r.mobile_ad_id}` : ""}
-                  </div>
+                      {copiedFromId && (
+                        <Badge variant="outline" className="text-xs">
+                          Kopie{copiedFromAd ? ` von ${copiedFromAd}` : ""}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {fmtPrice(Number.isFinite(priceNum) ? priceNum : undefined)} · erstellt {fmtDate(r.created_at)}
+                      {r.mobile_ad_id ? ` · Mobile.de ID ${r.mobile_ad_id}` : ""}
+                    </div>
                   {(r.status === "error" || r.status === "published_with_warning") && r.error_message && (
                     <div className={`text-xs mt-1 break-all ${r.status === "error" ? "text-destructive" : "text-amber-600"}`}>
                       {r.error_message}
