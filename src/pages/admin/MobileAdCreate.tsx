@@ -1474,61 +1474,115 @@ export default function MobileAdCreate() {
       </Card>
 
       {/* ── Bilder ── */}
-      <Card className="p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Bilder</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {imagePaths.map((path) => (
-            <div key={path} className="relative aspect-[4/3] rounded-md overflow-hidden border border-border bg-muted">
-              {imagePreviews[path] ? (
-                <img src={imagePreviews[path]} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
-                  {path.split("/").pop()}
-                </div>
-              )}
+      {isLive ? (
+        <Card className="p-6 space-y-2 bg-muted/30">
+          <h2 className="text-lg font-semibold">Bilder</h2>
+          <p className="text-sm text-muted-foreground">
+            Bilder bleiben bei dieser Live-Bearbeitung unverändert.
+            {liveImageCount > 0 && <> Aktuell {liveImageCount} Bild(er) bei Mobile.de.</>}
+          </p>
+        </Card>
+      ) : (
+        <Card className="p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Bilder</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {imagePaths.map((path) => (
+              <div key={path} className="relative aspect-[4/3] rounded-md overflow-hidden border border-border bg-muted">
+                {imagePreviews[path] ? (
+                  <img src={imagePreviews[path]} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
+                    {path.split("/").pop()}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeImage(path)}
+                  aria-label="Bild entfernen"
+                  className="absolute top-1 right-1 bg-background/90 rounded-full p-1 hover:bg-background"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div>
+            <Label
+              htmlFor="ad-images"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground px-4 h-10 text-sm font-medium"
+            >
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Bilder hochladen
+            </Label>
+            <input
+              id="ad-images"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleUpload}
+              className="hidden"
+              disabled={uploading}
+            />
+          </div>
+        </Card>
+      )}
+
+      {/* ── Technische Mobile.de-Payload-Vorschau (Debug) ── */}
+      <PayloadPreview form={form} imageCount={isLive ? liveImageCount : imagePaths.length} />
+
+      {isLive && lastUpdateError && (
+        <Card className="p-4 border-destructive/50 bg-destructive/5 space-y-2">
+          <div className="text-destructive font-medium text-sm">{lastUpdateError.msg}</div>
+          {lastUpdateError.details && (
+            <>
               <button
                 type="button"
-                onClick={() => removeImage(path)}
-                aria-label="Bild entfernen"
-                className="absolute top-1 right-1 bg-background/90 rounded-full p-1 hover:bg-background"
+                onClick={() => setShowErrorDetails((s) => !s)}
+                className="text-xs underline text-muted-foreground"
               >
-                <X className="h-3.5 w-3.5" />
+                {showErrorDetails ? "Details ausblenden" : "Details anzeigen"}
               </button>
-            </div>
-          ))}
-        </div>
-        <div>
-          <Label
-            htmlFor="ad-images"
-            className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground px-4 h-10 text-sm font-medium"
-          >
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Bilder hochladen
-          </Label>
-          <input
-            id="ad-images"
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleUpload}
-            className="hidden"
-            disabled={uploading}
-          />
-        </div>
-      </Card>
-
-      {/* ── Mobile.de Payload Vorschau (Debug) ── */}
-      <PayloadPreview form={form} imageCount={imagePaths.length} />
-
+              {showErrorDetails && (
+                <pre className="bg-muted/40 p-2 rounded overflow-x-auto max-h-60 text-xs">
+                  {lastUpdateError.details}
+                </pre>
+              )}
+            </>
+          )}
+        </Card>
+      )}
 
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => navigate("/admin/mobile-ad")} disabled={saving}>
           Abbrechen
         </Button>
-        <Button onClick={saveDraft} disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {isEdit ? "Änderungen speichern" : "Als Entwurf speichern"}
-        </Button>
+        {isLive ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Änderungen live speichern
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Änderungen live bei Mobile.de speichern?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Diese Änderung wird direkt im veröffentlichten Mobile.de-Inserat sichtbar. Bitte vorher prüfen.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction onClick={saveLive}>Ja, live aktualisieren</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button onClick={saveDraft} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {isEdit ? "Änderungen speichern" : "Als Entwurf speichern"}
+          </Button>
+        )}
       </div>
     </div>
   );
