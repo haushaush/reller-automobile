@@ -99,8 +99,50 @@ async function loadRef(kind: string, make?: string): Promise<RefItem[]> {
   return (data as { items: RefItem[] })?.items ?? [];
 }
 
+function payloadToForm(payload: Record<string, unknown> | null | undefined): FormState {
+  if (!payload) return EMPTY;
+  const get = (obj: unknown, path: string[]): unknown => {
+    let cur: unknown = obj;
+    for (const k of path) {
+      if (cur && typeof cur === "object" && k in (cur as Record<string, unknown>)) {
+        cur = (cur as Record<string, unknown>)[k];
+      } else return undefined;
+    }
+    return cur;
+  };
+  const firstReg = get(payload, ["vehicle", "first-registration"]) as string | undefined;
+  let regYear = "";
+  let regMonth = "";
+  if (firstReg && /^\d{6}$/.test(firstReg)) {
+    regYear = firstReg.slice(0, 4);
+    regMonth = firstReg.slice(4, 6);
+  }
+  const asStr = (v: unknown) => (v === undefined || v === null ? "" : String(v));
+  return {
+    make: asStr(get(payload, ["vehicle", "make", "key"])),
+    model: asStr(get(payload, ["vehicle", "model", "key"])),
+    modelDescription: asStr(get(payload, ["vehicle", "model-description"])),
+    category: asStr(get(payload, ["vehicle", "category", "key"])),
+    mileage: asStr(get(payload, ["vehicle", "mileage"])),
+    regYear,
+    regMonth,
+    fuel: asStr(get(payload, ["vehicle", "fuel", "key"])),
+    gearbox: asStr(get(payload, ["vehicle", "gearbox", "key"])),
+    power: asStr(get(payload, ["vehicle", "power"])),
+    cubicCapacity: asStr(get(payload, ["vehicle", "cubic-capacity"])),
+    condition: asStr(get(payload, ["vehicle", "condition"])) || "USED",
+    damageUnrepaired: get(payload, ["vehicle", "damage-unrepaired"]) === true ? "true" : "false",
+    consumerPriceGross: asStr(get(payload, ["price", "consumer-price-gross"])),
+    vatRate: asStr(get(payload, ["price", "vat-rate"])),
+    description: asStr(get(payload, ["description"])),
+    vin: asStr(get(payload, ["vehicle", "vin"])),
+  };
+}
+
 export default function MobileAdCreate() {
   const navigate = useNavigate();
+  const { draftId } = useParams<{ draftId?: string }>();
+  const isEdit = Boolean(draftId);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [makes, setMakes] = useState<RefItem[]>([]);
   const [models, setModels] = useState<RefItem[]>([]);
@@ -110,6 +152,8 @@ export default function MobileAdCreate() {
   const [vatRates, setVatRates] = useState<RefItem[]>([]);
   const [loadingMakes, setLoadingMakes] = useState(true);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(isEdit);
+  const [draftStatus, setDraftStatus] = useState<string>("draft");
   const [imagePaths, setImagePaths] = useState<string[]>([]);
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
