@@ -124,18 +124,23 @@ Deno.serve(async (req) => {
         path = `/classes/Car/makes/${encodeURIComponent(makeKey)}/models`;
         break;
       case "categories":
+        // TODO: confirm exact refdata path for Car categories under https://services.mobile.de/refdata/...
         path = "/classes/Car/categories";
         break;
       case "fuels":
+        // TODO: confirm exact refdata path for Car fuels
         path = "/classes/Car/fuels";
         break;
       case "gearboxes":
+        // TODO: confirm exact refdata path for Car gearboxes
         path = "/classes/Car/gearboxes";
         break;
       case "vatrates":
-        path = "/vat-rates";
+        // TODO: confirm exact refdata path for vat rates
+        path = "/classes/Car/vat-rates";
         break;
       case "conditions":
+        // TODO: confirm exact refdata path for conditions
         path = "/classes/Car/conditions";
         break;
       default:
