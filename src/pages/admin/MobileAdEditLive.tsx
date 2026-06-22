@@ -239,6 +239,9 @@ export default function MobileAdEditLive() {
     return out;
   }, [payload, mobileAd]);
 
+  const [lastError, setLastError] = useState<{ msg: string; details?: string } | null>(null);
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
+
   const submit = async () => {
     if (!draftId) return;
     if (missing.length) {
@@ -246,17 +249,31 @@ export default function MobileAdEditLive() {
       return;
     }
     setSaving(true);
+    setLastError(null);
     try {
       const { data, error } = await supabase.functions.invoke("update-mobile-ad", {
         body: { draftId, mobileAdId, formPayload: payload },
       });
-      if (error || !(data as { success?: boolean })?.success) {
-        const msg = (data as { error?: string } | null)?.error || error?.message || "Update fehlgeschlagen";
+      const d = (data ?? null) as { success?: boolean; error?: string; details?: unknown } | null;
+      if (error || !d?.success) {
+        const raw = d?.error || error?.message || "Update fehlgeschlagen";
+        const isPriceErr = /price|consumer-?price|consumerValue|consumer-price-not-in-range/i.test(
+          raw + " " + JSON.stringify(d?.details ?? "")
+        );
+        const msg = isPriceErr
+          ? "Mobile.de hat das Update abgelehnt: Preis prüfen."
+          : `Mobile.de hat das Update abgelehnt: ${raw}`;
+        const details = typeof d?.details === "string" ? d.details : JSON.stringify(d?.details ?? raw, null, 2);
+        setLastError({ msg, details });
         toast.error(msg);
       } else {
         toast.success("Inserat wurde live bei Mobile.de aktualisiert.");
         navigate("/admin/mobile-ad");
       }
+    } catch (e) {
+      const msg = (e as Error)?.message || "Unbekannter Fehler beim Update";
+      setLastError({ msg });
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -288,10 +305,11 @@ export default function MobileAdEditLive() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">Live-Bearbeitung</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Mobile.de ID: <span className="font-mono">{mobileAdId}</span>
-            {" · "}<Badge variant="default">published</Badge>
-          </p>
+          <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+            <span>Mobile.de ID: <span className="font-mono">{mobileAdId}</span></span>
+            <span>·</span>
+            <Badge variant="default">published</Badge>
+          </div>
         </div>
         <Button variant="ghost" onClick={() => navigate("/admin/mobile-ad")}>
           <ArrowLeft className="h-4 w-4" /> Zurück
@@ -399,6 +417,28 @@ export default function MobileAdEditLive() {
           </div>
         )}
       </Card>
+
+      {lastError && (
+        <Card className="p-4 border-destructive/50 bg-destructive/5 space-y-2">
+          <div className="text-destructive font-medium text-sm">{lastError.msg}</div>
+          {lastError.details && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowErrorDetails((s) => !s)}
+                className="text-xs underline text-muted-foreground"
+              >
+                {showErrorDetails ? "Details ausblenden" : "Details anzeigen"}
+              </button>
+              {showErrorDetails && (
+                <pre className="bg-muted/40 p-2 rounded overflow-x-auto max-h-60 text-xs">
+                  {lastError.details}
+                </pre>
+              )}
+            </>
+          )}
+        </Card>
+      )}
 
       <div className="flex justify-end">
         <AlertDialog>

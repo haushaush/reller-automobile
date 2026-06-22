@@ -21,6 +21,76 @@ const MOBILE_MIME = "application/vnd.de.mobile.api+json";
 
 const basicAuth = () => `Basic ${btoa(`${MOBILE_USER}:${MOBILE_PASS}`)}`;
 
+// ── Preis-Normalisierung (Seller-API) ────────────────────────────────────
+const ALLOWED_PRICE_KEYS = new Set([
+  "consumerPriceGross", "consumerPriceNet",
+  "dealerPriceGross", "dealerPriceNet",
+  "vatRate", "type", "currency",
+]);
+
+function extractPriceAmount(v: unknown): string | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (typeof v === "number") return Number.isFinite(v) && v > 0 ? v.toFixed(2) : undefined;
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return extractPriceAmount(
+      o.consumerPriceGross ?? o.amount ?? o.value ?? o.gross ?? o.consumerValue ?? o.net
+    );
+  }
+  if (typeof v === "string") {
+    let s = v.trim().replace(/[€$\s]/g, "");
+    if (s.includes(",") && s.includes(".")) {
+      if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
+      else s = s.replace(/,/g, "");
+    } else if (s.includes(",")) {
+      const parts = s.split(",");
+      if (parts.length === 2 && parts[1].length <= 2) s = parts[0] + "." + parts[1];
+      else s = s.replace(/,/g, "");
+    }
+    s = s.replace(/[^0-9.]/g, "");
+    if (!s) return undefined;
+    const n = Number(s);
+    if (!Number.isFinite(n) || n <= 0) return undefined;
+    return n.toFixed(2);
+  }
+  return undefined;
+}
+
+function normalizeSellerApiPrice(
+  currentPrice: Record<string, unknown> | undefined | null,
+  formPayload: Record<string, unknown> | undefined | null
+): Record<string, unknown> | null {
+  const cur = (currentPrice ?? {}) as Record<string, unknown>;
+  const fp = (formPayload ?? {}) as Record<string, unknown>;
+  const fpPrice = (fp.price && typeof fp.price === "object" ? fp.price : {}) as Record<string, unknown>;
+
+  const amount =
+    extractPriceAmount(fpPrice.consumerPriceGross) ??
+    extractPriceAmount(fpPrice["consumer-price-gross"]) ??
+    extractPriceAmount(fp.consumerPriceGross) ??
+    extractPriceAmount(typeof fp.price === "number" || typeof fp.price === "string" ? fp.price : undefined) ??
+    extractPriceAmount(cur.consumerPriceGross) ??
+    extractPriceAmount(cur.consumerValue);
+
+  if (!amount) return null;
+
+  const rawVat = fpPrice.vatRate ?? fpPrice["vat-rate"] ?? fp.vatRate ?? cur.vatRate ?? "19.00";
+  const vatStr = typeof rawVat === "number" ? rawVat.toFixed(2) : String(rawVat || "19.00");
+
+  return {
+    consumerPriceGross: amount,
+    currency: "EUR",
+    vatRate: vatStr,
+    type: "FIXED",
+  };
+}
+
+function stripInvalidPriceFields(price: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(price)) if (ALLOWED_PRICE_KEYS.has(k)) out[k] = v;
+  return out;
+}
+
 // ── Mapping (kopiert aus publish-mobile-ad, sicher gehalten) ─────────────
 type AdPayload = Record<string, unknown>;
 type BuildResult = { adBody: AdPayload; missing: string[]; warnings: string[] };
@@ -239,12 +309,30 @@ Deno.serve(async (req) => {
     // undefined-Werte entfernen
     for (const k of Object.keys(finalBody)) if (finalBody[k] === undefined) delete finalBody[k];
 
+    // Preis IMMER neu normalisieren – egal was currentMobileAd/mapped enthielten
+    const normalizedPrice = normalizeSellerApiPrice(
+      currentMobileAd.price as Record<string, unknown> | undefined,
+      formPayload as Record<string, unknown>
+    );
+    if (!normalizedPrice || !normalizedPrice.consumerPriceGross) {
+      const msg = "Preis fehlt: consumerPriceGross konnte nicht ermittelt werden.";
+      await admin.from("mobile_ad_drafts").update({ error_message: msg }).eq("id", draftId);
+      return json(400, { error: msg });
+    }
+    const hadConsumerValue =
+      !!(currentMobileAd.price && typeof currentMobileAd.price === "object" &&
+        ("consumerValue" in (currentMobileAd.price as Record<string, unknown>)));
+    finalBody.price = stripInvalidPriceFields(normalizedPrice);
+    delete (finalBody.price as Record<string, unknown>).consumerValue;
+
     // Geänderte Felder ermitteln (Top-Level)
     const changedKeys: string[] = [];
     for (const k of Object.keys(mapped)) {
       if (JSON.stringify((currentMobileAd as AdPayload)[k]) !== JSON.stringify(mapped[k])) changedKeys.push(k);
     }
     console.log(`finalBody root-keys=${Object.keys(finalBody).join(",")}`);
+    console.log("Mobile.de PUT price:", JSON.stringify(finalBody.price));
+    console.log(`consumerValue removed from price: ${hadConsumerValue}`);
     console.log("Mobile.de PUT field debug:", JSON.stringify({
       cylinder: finalBody.cylinder,
       seats: finalBody.seats,
