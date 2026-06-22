@@ -917,14 +917,40 @@ export default function MobileAdCreate() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">
-          {isEdit ? "Mobile.de Inserat bearbeiten" : "Mobile.de Inserat anlegen"}
+          {isLive
+            ? "Live-Bearbeitung"
+            : isEdit
+            ? "Mobile.de Inserat bearbeiten"
+            : "Mobile.de Inserat anlegen"}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {isEdit
-            ? "Änderungen werden im bestehenden Entwurf gespeichert."
-            : "Pflichtfelder ausfüllen und als Entwurf speichern."}
-        </p>
+        <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+          {isLive ? (
+            <>
+              <span>Änderungen werden direkt im veröffentlichten Mobile.de-Inserat gespeichert.</span>
+              {liveMobileAdId && (
+                <>
+                  <span>·</span>
+                  <span>Mobile.de ID: <span className="font-mono">{liveMobileAdId}</span></span>
+                </>
+              )}
+              <Badge variant="default">published</Badge>
+            </>
+          ) : (
+            <span>
+              {isEdit
+                ? "Änderungen werden im bestehenden Entwurf gespeichert."
+                : "Pflichtfelder ausfüllen und als Entwurf speichern."}
+            </span>
+          )}
+        </div>
       </div>
+
+      {isLive && (
+        <Card className="p-4 bg-muted/30 text-sm">
+          Bilder bleiben bei dieser Live-Bearbeitung unverändert.
+          {liveImageCount > 0 && <> Aktuell {liveImageCount} Bild(er) bei Mobile.de.</>}
+        </Card>
+      )}
 
       {/* ── Fahrzeuggrunddaten ── */}
       <Card className="p-6 space-y-4">
