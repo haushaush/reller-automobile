@@ -473,7 +473,13 @@ Deno.serve(async (req) => {
     const authHeader = "Basic " + btoa(`${username}:${password}`);
     console.log(`=== [accident] Sync Start === ${new Date().toISOString()}`);
 
-    const allXmlPages = await fetchAllAdsPages(authHeader, 100);
+    const paginationResult = await fetchAllAdsPages(authHeader, 100);
+    const allXmlPages = paginationResult.pages;
+    logPagesFetched = allXmlPages.length;
+    logPageSize = paginationResult.pageSize;
+    logMobileTotal = paginationResult.totalCount;
+    logStopReason = paginationResult.stopReason;
+    paginationConfident = paginationResult.paginationConfident;
 
     const rawVehicleRows: VehicleRow[] = [];
     for (const xmlText of allXmlPages) {
