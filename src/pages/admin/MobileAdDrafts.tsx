@@ -186,6 +186,9 @@ export default function MobileAdDrafts() {
   const [publishing, setPublishing] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [confirmCopyId, setConfirmCopyId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DraftRow | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
 
   // Linking dialog state
