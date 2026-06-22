@@ -442,15 +442,25 @@ Deno.serve(async (req) => {
   let logTotal = 0;
 
   try {
-    const hasSearchSpecific = !!Deno.env.get("MOBILE_DE_SEARCH_USERNAME") && !!Deno.env.get("MOBILE_DE_SEARCH_PASSWORD");
+    const hasSearchUser = !!Deno.env.get("MOBILE_DE_SEARCH_USERNAME");
+    const hasSearchPass = !!Deno.env.get("MOBILE_DE_SEARCH_PASSWORD");
+    const hasFallbackUser = !!Deno.env.get("MOBILE_DE_USERNAME");
+    const hasFallbackPass = !!Deno.env.get("MOBILE_DE_PASSWORD");
     const username =
       Deno.env.get("MOBILE_DE_SEARCH_USERNAME") ||
       Deno.env.get("MOBILE_DE_USERNAME");
     const password =
       Deno.env.get("MOBILE_DE_SEARCH_PASSWORD") ||
       Deno.env.get("MOBILE_DE_PASSWORD");
+    const fallbackUsed = (!hasSearchUser || !hasSearchPass) && !!username && !!password;
 
-    console.log(`Search-API secrets: search-specific=${hasSearchSpecific ? "yes" : "no"}, fallback-used=${hasSearchSpecific ? "no" : "yes"}`);
+    console.log(
+      `Search-API secrets: MOBILE_DE_SEARCH_USERNAME=${hasSearchUser ? "yes" : "no"}, ` +
+      `MOBILE_DE_SEARCH_PASSWORD=${hasSearchPass ? "yes" : "no"}, ` +
+      `fallback MOBILE_DE_USERNAME=${hasFallbackUser ? "yes" : "no"}, ` +
+      `fallback MOBILE_DE_PASSWORD=${hasFallbackPass ? "yes" : "no"}, ` +
+      `fallback-used=${fallbackUsed ? "yes" : "no"}`
+    );
 
     if (!username || !password) {
       logError = "Mobile.de Search-API Zugangsdaten fehlen";
