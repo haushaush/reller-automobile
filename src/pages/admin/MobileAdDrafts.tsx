@@ -625,7 +625,9 @@ export default function MobileAdDrafts() {
             );
           })}
         </div>
-      )}
+        );
+      })()}
+
 
       <AlertDialog open={!!confirmCopyId} onOpenChange={(o) => !o && setConfirmCopyId(null)}>
         <AlertDialogContent>
