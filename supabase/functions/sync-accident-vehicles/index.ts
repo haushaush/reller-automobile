@@ -658,6 +658,10 @@ Deno.serve(async (req) => {
           vehicles_added: logAdded,
           vehicles_updated: logUpdated,
           vehicles_marked_sold: logSold,
+          pages_fetched: logPagesFetched,
+          page_size: logPageSize,
+          mobile_total_results: logMobileTotal,
+          stop_reason: logStopReason,
           status: logStatus,
           error_message: logError,
         })
@@ -665,7 +669,8 @@ Deno.serve(async (req) => {
     }
     console.log(
       `[accident] Sync lock released (status=${logStatus}, duration=${Date.now() - startTime}ms, ` +
-      `total=${logTotal}, added=${logAdded}, updated=${logUpdated}, sold=${logSold})`
+      `pages=${logPagesFetched}, total=${logTotal}, added=${logAdded}, updated=${logUpdated}, ` +
+      `sold=${logSold}, mobile-total=${logMobileTotal ?? "n/a"}, stop=${logStopReason ?? "n/a"})`
     );
   }
 });
