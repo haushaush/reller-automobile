@@ -315,6 +315,141 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
   };
 }
 
+// Map a live Mobile.de ad (flat seller-api shape) plus an optional persisted
+// draft payload into the same FormState the create/draft-edit UI uses.
+// Live keys (e.g. make="VW", category="SmallCar") are kept as-is; the rich
+// dropdowns display them with their German labels.
+function mobileAdToFormFlat(
+  mobileAd: Record<string, unknown> | null | undefined,
+  draftPayload: Record<string, unknown> | null | undefined,
+): FormState {
+  const m = (mobileAd ?? {}) as Record<string, unknown>;
+  const d = (draftPayload ?? {}) as Record<string, unknown>;
+  const veh = (d.vehicle && typeof d.vehicle === "object" ? d.vehicle : {}) as Record<string, unknown>;
+  const priceM = (m.price && typeof m.price === "object" ? m.price : {}) as Record<string, unknown>;
+  const priceD = (d.price && typeof d.price === "object" ? d.price : {}) as Record<string, unknown>;
+
+  const pick = (...c: unknown[]): unknown => {
+    for (const x of c) if (x !== undefined && x !== null && x !== "") return x;
+    return undefined;
+  };
+  const asKey = (v: unknown): string => {
+    if (typeof v === "string") return v;
+    if (v && typeof v === "object" && typeof (v as { key?: unknown }).key === "string") {
+      return (v as { key: string }).key;
+    }
+    return "";
+  };
+  const asStr = (v: unknown) => (v === undefined || v === null ? "" : String(v));
+  const splitYM = (v: unknown): [string, string] => {
+    const s = asStr(v);
+    return /^\d{6}$/.test(s) ? [s.slice(0, 4), s.slice(4, 6)] : ["", ""];
+  };
+  const [regYear, regMonth] = splitYM(
+    pick(m.firstRegistration, veh["first-registration"], veh.firstRegistration),
+  );
+  const [hsnYear, hsnMonth] = splitYM(
+    pick(m.generalInspection, veh.generalInspection),
+  );
+
+  const featObj = (m.features && typeof m.features === "object") ? (m.features as Record<string, unknown>) : {};
+  const features: Record<string, boolean> = {};
+  for (const f of ALL_FEATURES) {
+    if (m[f.key] === true || featObj[f.key] === true || veh[f.key] === true) features[f.key] = true;
+  }
+  // Server-seitige Alias-Felder zurück mappen, damit Checkboxen aktiv erscheinen.
+  const aliasBack: Record<string, string> = {
+    powerAssistedSteering: "powerSteering",
+    roofRails: "roofRack",
+    multifunctionalWheel: "multifunctionalSteeringWheel",
+    collisionAvoidance: "emergencyBrakeAssistant",
+    automaticRainSensor: "rainSensor",
+    highBeamAssist: "highBeamAssistant",
+  };
+  for (const [apiKey, uiKey] of Object.entries(aliasBack)) {
+    if (m[apiKey] === true || featObj[apiKey] === true) features[uiKey] = true;
+  }
+
+  const pa = pick(m.parkingAssistants, veh.parkingAssistants);
+  const parkingAssistants: string[] = Array.isArray(pa)
+    ? (pa as unknown[])
+        .map((x) => asKey(x))
+        .filter(Boolean)
+    : [];
+
+  const triBool = (v: unknown): "" | "true" | "false" =>
+    v === true ? "true" : v === false ? "false" : "";
+
+  // Preis: Zahl, String oder verschachtelt – auf Ganzzahl-EUR-String reduzieren.
+  const priceRaw = pick(
+    priceM.consumerPriceGross,
+    (priceM as Record<string, unknown>).consumerValue,
+    priceD.consumerPriceGross,
+    priceD["consumer-price-gross"],
+  );
+  const priceStr = (() => {
+    if (priceRaw === undefined || priceRaw === null) return "";
+    if (typeof priceRaw === "number") return Number.isFinite(priceRaw) ? String(Math.round(priceRaw)) : "";
+    if (typeof priceRaw === "object") {
+      const o = priceRaw as Record<string, unknown>;
+      const v = o.amount ?? o.value ?? o.gross ?? o.consumerValue ?? o.net;
+      return typeof v === "number" ? String(Math.round(v)) : typeof v === "string" ? v.replace(/[^0-9]/g, "") : "";
+    }
+    return String(priceRaw).replace(/[^0-9]/g, "");
+  })();
+
+  return {
+    make: asKey(pick(m.make, veh.make)),
+    model: asKey(pick(m.model, veh.model)),
+    modelDescription: asStr(pick(m.modelDescription, veh["model-description"], veh.modelDescription)),
+    trimLine: asStr(pick(m.trimLine, veh.trimLine)),
+    category: asKey(pick(m.category, veh.category)),
+    mileage: asStr(pick(m.mileage, veh.mileage)),
+    regYear, regMonth,
+    doors: asKey(pick(m.doors, veh.doors)),
+    seats: asStr(pick(m.seats, veh.seats)),
+    fuel: asKey(pick(m.fuel, veh.fuel)),
+    gearbox: asKey(pick(m.gearbox, veh.gearbox)),
+    power: asStr(pick(m.power, veh.power)),
+    cubicCapacity: asStr(pick(m.cubicCapacity, veh["cubic-capacity"], veh.cubicCapacity)),
+    cylinders: asStr(pick(m.cylinder, m.cylinders, veh.cylinder, veh.cylinders)),
+    fuelCapacity: asStr(pick(m.fuelCapacity, veh.fuelCapacity)),
+    driveType: asKey(pick(m.driveType, veh.driveType)),
+    exteriorColor: asKey(pick(m.exteriorColor, veh.exteriorColor)),
+    manufacturerColorName: asStr(pick(m.manufacturerColorName, veh.manufacturerColorName)),
+    metallic: pick(m.metallic, veh.metallic) === true,
+    matt: pick(m.matteColor, veh.matteColor, veh.matt) === true,
+    condition: asStr(pick(m.condition, veh.condition)) || "USED",
+    accidentDamaged: triBool(pick(m.accidentDamaged, veh.accidentDamaged)),
+    damageUnrepaired: pick(m.damageUnrepaired, veh["damage-unrepaired"]) === true ? "true" : "false",
+    roadworthy: triBool(pick(m.roadworthy, veh.roadworthy)),
+    numberOfPreviousOwners: asStr(pick(m.numberOfPreviousOwners, veh.numberOfPreviousOwners)),
+    warranty: pick(m.warranty, veh.warranty) === true,
+    nonSmokerVehicle: pick(m.nonSmokerVehicle, veh.nonSmokerVehicle) === true,
+    fullServiceHistory: pick(m.fullServiceHistory, veh.fullServiceHistory) === true,
+    particulateFilter: pick(m.particulateFilter, m.particulateFilterDiesel, veh.particulateFilter) === true,
+    emissionClass: asKey(pick(m.emissionClass, veh.emissionClass)),
+    emissionSticker: asKey(pick(m.emissionSticker, veh.emissionSticker)),
+    hsnYear, hsnMonth,
+    huNew: pick(m.huNew, m.newHuAu, veh.huNew) === true,
+    inspectionNew: pick(m.inspectionNew, m.newService, veh.inspectionNew) === true,
+    co2EmissionsCombined: asStr(pick(m.co2EmissionsCombined, veh.co2EmissionsCombined)),
+    consumptionCombined: asStr(pick(m.consumptionCombined, veh.consumptionCombined)),
+    consumptionInner: asStr(pick(m.consumptionInner, veh.consumptionInner)),
+    consumptionOuter: asStr(pick(m.consumptionOuter, veh.consumptionOuter)),
+    consumptionUrban: asStr(pick(m.consumptionUrban, veh.consumptionUrban)),
+    consumptionExtraUrban: asStr(pick(m.consumptionExtraUrban, veh.consumptionExtraUrban)),
+    climatisation: asKey(pick(m.climatisation, veh.climatisation)),
+    parkingAssistants,
+    features,
+    internalNumber: asStr(pick(m.internalNumber, veh.internalNumber)),
+    vin: asStr(pick(m.vin, veh.vin)),
+    description: asStr(pick(m.description, d.description, veh.description)),
+    consumerPriceGross: priceStr,
+    vatRate: asStr(pick(priceM.vatRate, priceD.vatRate, priceD["vat-rate"])) || "19.00",
+  };
+}
+
 export default function MobileAdCreate() {
   const navigate = useNavigate();
   const { draftId } = useParams<{ draftId?: string }>();
