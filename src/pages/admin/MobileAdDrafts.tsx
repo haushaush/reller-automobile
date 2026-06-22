@@ -174,16 +174,27 @@ export default function MobileAdDrafts() {
                       <Pencil className="h-4 w-4" />
                       Bearbeiten
                     </Button>
-                  ) : (
+                  ) : r.mobile_ad_id ? (
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled
-                      title="Bearbeiten veröffentlichter Inserate folgt"
+                      onClick={() => navigate(`/admin/mobile-ad/${r.id}/live-edit`)}
                     >
-                      <Pencil className="h-4 w-4" />
-                      Bearbeiten
+                      <Radio className="h-4 w-4" />
+                      Live bearbeiten
                     </Button>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button size="sm" variant="outline" disabled>
+                            <Radio className="h-4 w-4" />
+                            Live bearbeiten
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>Keine Mobile.de-ID vorhanden.</TooltipContent>
+                    </Tooltip>
                   )}
                   {r.status !== "published" && (
                     <Button
