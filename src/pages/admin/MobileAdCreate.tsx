@@ -203,6 +203,50 @@ export default function MobileAdCreate() {
       .finally(() => setLoadingModels(false));
   }, [form.make]);
 
+  // Load existing draft for edit mode
+  useEffect(() => {
+    if (!draftId) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("mobile_ad_drafts")
+          .select("status, payload, image_paths")
+          .eq("id", draftId)
+          .maybeSingle();
+        if (error || !data) {
+          toast.error("Entwurf nicht gefunden");
+          navigate("/admin/mobile-ad");
+          return;
+        }
+        if (data.status === "published") {
+          toast.error("Bereits veröffentlichte Inserate können hier nicht bearbeitet werden");
+          navigate("/admin/mobile-ad");
+          return;
+        }
+        setDraftStatus(data.status);
+        setForm(payloadToForm(data.payload as Record<string, unknown> | null));
+        const paths = (data.image_paths ?? []) as string[];
+        setImagePaths(paths);
+        // signed URLs for previews
+        const previews: Record<string, string> = {};
+        await Promise.all(
+          paths.map(async (p) => {
+            const { data: s } = await supabase.storage
+              .from("mobile-ad-images")
+              .createSignedUrl(p, 60 * 60);
+            if (s?.signedUrl) previews[p] = s.signedUrl;
+          }),
+        );
+        setImagePreviews(previews);
+      } catch (e) {
+        console.error(e);
+        toast.error("Entwurf konnte nicht geladen werden");
+      } finally {
+        setLoadingDraft(false);
+      }
+    })();
+  }, [draftId, navigate]);
+
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
