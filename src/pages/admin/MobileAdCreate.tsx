@@ -406,7 +406,7 @@ export default function MobileAdCreate() {
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent className="max-h-72">
                 {fuels.map((f) => (
-                  <SelectItem key={f.key} value={f.key}>{f.name}</SelectItem>
+                  <SelectItem key={f.key} value={f.key}>{labelFor(FUEL_LABELS, f.key, f.name)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
