@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, ChangeEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Upload, X, Save } from "lucide-react";
+import { Loader2, Upload, X, Save, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
