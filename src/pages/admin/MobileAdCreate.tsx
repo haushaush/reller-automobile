@@ -540,6 +540,37 @@ export default function MobileAdCreate() {
 
   useEffect(() => {
     if (!draftId) return;
+    if (isLive) {
+      (async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke("get-mobile-ad", {
+            body: { draftId },
+          });
+          const d = data as { success?: boolean; error?: string; draft?: Record<string, unknown>; mobileAd?: Record<string, unknown> | null } | null;
+          if (error || !d?.success) {
+            const msg = d?.error || error?.message || "Live-Daten konnten nicht geladen werden";
+            setLiveLoadError(msg);
+            toast.error(msg);
+            return;
+          }
+          const ad = d.mobileAd ?? null;
+          const draft = d.draft ?? {};
+          const mobileAdId = String((draft as { mobile_ad_id?: string }).mobile_ad_id ?? "");
+          setLiveMobileAdId(mobileAdId);
+          const imgs = ad && Array.isArray((ad as Record<string, unknown>).images)
+            ? ((ad as { images: unknown[] }).images).length : 0;
+          setLiveImageCount(imgs);
+          setForm(mobileAdToFormFlat(ad, (draft as { payload?: Record<string, unknown> }).payload ?? null));
+          setDraftStatus("published");
+        } catch (e) {
+          console.error(e);
+          setLiveLoadError("Live-Daten konnten nicht geladen werden");
+        } finally {
+          setLoadingDraft(false);
+        }
+      })();
+      return;
+    }
     (async () => {
       try {
         const { data, error } = await supabase
@@ -578,7 +609,8 @@ export default function MobileAdCreate() {
         setLoadingDraft(false);
       }
     })();
-  }, [draftId, navigate]);
+  }, [draftId, isLive, navigate]);
+
 
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
