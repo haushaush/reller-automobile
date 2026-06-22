@@ -363,7 +363,11 @@ async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Pro
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Mobile.de API error on page ${pageNumber}:`, response.status, errorText);
+      const truncated = (errorText || "").slice(0, 300);
+      console.error(`Mobile.de Search-API HTTP ${response.status} on page ${pageNumber}: ${truncated}`);
+      if (response.status === 401) {
+        throw new Error(`AUTH_401: Mobile.de Search-API Auth fehlgeschlagen: Zugangsdaten prüfen`);
+      }
       throw new Error(`Mobile.de API returned ${response.status} on page ${pageNumber}`);
     }
 
