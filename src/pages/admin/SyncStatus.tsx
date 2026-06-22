@@ -203,6 +203,15 @@ export default function SyncStatus() {
                   log.vehicles_added != null ||
                   log.vehicles_updated != null ||
                   log.vehicles_marked_sold != null;
+                const pages = log.pages_fetched;
+                const pageSize = log.page_size;
+                const mobileTotal = log.mobile_total_results;
+                const paginationCapWarning =
+                  pages != null &&
+                  pages === 1 &&
+                  pageSize != null &&
+                  log.vehicles_total != null &&
+                  log.vehicles_total === pageSize;
                 return (
                   <div key={log.id} className="flex items-start gap-3 pb-3 border-b border-border last:border-0">
                     <div className="mt-0.5">{getStatusIcon(log.status)}</div>
@@ -216,6 +225,8 @@ export default function SyncStatus() {
                       <div className="text-xs text-muted-foreground mt-1">
                         {formatDistanceToNow(new Date(log.started_at), { addSuffix: true, locale: de })}
                         {log.duration_ms ? ` · ${formatDuration(log.duration_ms)}` : ""}
+                        {pages != null ? ` · ${pages} Seite${pages === 1 ? "" : "n"}` : ""}
+                        {mobileTotal != null ? ` · Mobile.de total: ${mobileTotal}` : ""}
                       </div>
                       {hasCounts && (
                         <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
@@ -227,6 +238,21 @@ export default function SyncStatus() {
                           <span>·</span>
                           <span className="text-destructive">{log.vehicles_marked_sold ?? 0} verkauft</span>
                         </div>
+                      )}
+                      {log.stop_reason && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Stop: {log.stop_reason}
+                        </div>
+                      )}
+                      {paginationCapWarning && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          Hinweis: Es wurden genau {pageSize} Fahrzeuge geladen. Bitte Pagination prüfen, falls mehr Fahrzeuge erwartet werden.
+                        </p>
+                      )}
+                      {log.status === "success_with_warning" && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          Hinweis: Soft-Delete übersprungen, weil die Pagination nicht eindeutig abgeschlossen wurde.
+                        </p>
                       )}
                       {log.error_message && (
                         <p className="text-xs text-destructive mt-1 break-words">{log.error_message}</p>
