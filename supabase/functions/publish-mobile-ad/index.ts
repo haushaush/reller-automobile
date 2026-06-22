@@ -148,8 +148,9 @@ Deno.serve(async (req) => {
     const imagePaths = (draft.image_paths ?? []) as string[];
     console.log(`Publishing draft ${draftId}, ${imagePaths.length} image(s)`);
 
-    // ── Step 1: upload images one by one ──────────────────────
+    // ── Step 1: upload images one by one (skip individual failures) ──
     const refs: string[] = [];
+    const skipped: { index: number; path: string; reason: string }[] = [];
     for (let i = 0; i < imagePaths.length; i++) {
       const p = imagePaths[i];
       try {
@@ -158,20 +159,25 @@ Deno.serve(async (req) => {
           .download(p);
         if (dlErr || !file) throw new Error(`Storage download failed: ${dlErr?.message}`);
         const bytes = new Uint8Array(await file.arrayBuffer());
-        const jpeg = await ensureJpegUnder2MB(bytes, file.type || "application/octet-stream");
+        const origFormat = detectFormat(bytes);
+        const origSize = bytes.byteLength;
+        const jpeg = await ensureJpegUnder2MB(bytes);
+        console.log(
+          `Image ${i + 1}/${imagePaths.length} ${p}: original=${origFormat} ${origSize}B -> jpeg ${jpeg.byteLength}B`,
+        );
         const filename = (p.split("/").pop() ?? `image_${i}.jpg`).replace(/\.[^.]+$/, ".jpg");
         const ref = await uploadOneImage(jpeg, filename);
         refs.push(ref);
       } catch (e) {
         const msg = (e as Error).message || String(e);
-        console.error(`Image ${i} (${p}) failed: ${msg}`);
-        await admin
-          .from("mobile_ad_drafts")
-          .update({ status: "error", error_message: `Bild ${i + 1}: ${msg}` })
-          .eq("id", draftId);
-        return json(502, { error: `Bild ${i + 1}: ${msg}` });
+        console.error(`Image ${i + 1} (${p}) skipped: ${msg}`);
+        skipped.push({ index: i + 1, path: p, reason: msg });
       }
     }
+    if (skipped.length) {
+      console.warn(`Skipped ${skipped.length}/${imagePaths.length} image(s):`, skipped);
+    }
+
 
     // ── Step 2: create ad with image refs ─────────────────────
     const adBody: Record<string, unknown> = { ...payload };
