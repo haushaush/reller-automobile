@@ -99,6 +99,208 @@ async function uploadOneImage(jpeg: Uint8Array, filename: string): Promise<strin
   return String(ref);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Mapping: bequemer Draft (flach ODER verschachtelt) → flacher Seller-API Body.
+// Sendet NIE die interne `vehicle`-Property oder deutsche Labels an Mobile.de.
+// Unsichere Enum-Werte werden weggelassen und in `warnings` protokolliert.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type AdPayload = Record<string, unknown>;
+type BuildResult = { adBody: AdPayload; missing: string[]; warnings: string[] };
+
+const SAFE_CLIMATISATION = new Set([
+  "MANUAL_CLIMATISATION",
+  "AUTOMATIC_CLIMATISATION",
+  "2_ZONE_AUTOMATIC_AIR_CONDITIONING",
+  "3_ZONE_AUTOMATIC_AIR_CONDITIONING",
+  "4_ZONE_AUTOMATIC_AIR_CONDITIONING",
+]);
+
+const SAFE_PARKING_ASSISTANTS = new Set(["FRONT_SENSORS", "REAR_SENSORS"]);
+const PARKING_ASSISTANT_ALIAS: Record<string, string> = {
+  FRONT: "FRONT_SENSORS",
+  REAR: "REAR_SENSORS",
+};
+const UNSAFE_PARKING_ASSISTANTS = new Set(["CAMERA", "AUTOMATIC_PARKING", "REAR_CAMERA"]);
+
+const FEATURE_KEYS = [
+  "alloyWheels", "navigationSystem", "electricHeatedSeats", "bluetooth",
+  "carplay", "androidAuto", "electricWindows", "centralLocking", "isofix",
+  "sunroof", "panoramicGlassRoof", "usb", "touchscreen", "soundSystem",
+  "summerTires", "winterTires", "allSeasonTires",
+  "tintedWindows", "ambientLighting", "electricExteriorMirrors",
+  "electricAdjustableSeats", "powerSteering", "hillStartAssist",
+  "onBoardComputer", "handsFreePhoneSystem", "roofRack", "winterPackage",
+  "multifunctionalSteeringWheel",
+  "abs", "esp", "immobilizer", "fatigueWarningSystem",
+  "emergencyBrakeAssistant", "rainSensor",
+  "tirePressureMonitoring", "laneDepartureWarning", "startStopSystem",
+  "trafficSignRecognition",
+];
+
+const UNSAFE_FIELDS = new Set([
+  "speedControl", "headlightType", "trailerCouplingType", "airbag",
+  "breakdownService", "corneringLight", "daytimeRunningLamps",
+  "highBeamAssistant", "emergencyCallSystem", "matt",
+]);
+
+export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildResult {
+  const warnings: string[] = [];
+  const vehicle = (payload.vehicle ?? {}) as AdPayload;
+
+  const getKey = (v: unknown): string | undefined => {
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (v && typeof v === "object" && typeof (v as { key?: unknown }).key === "string") {
+      return (v as { key: string }).key;
+    }
+    return undefined;
+  };
+  const pick = (...candidates: unknown[]): unknown => {
+    for (const c of candidates) if (c !== undefined && c !== null && c !== "") return c;
+    return undefined;
+  };
+  const num = (v: unknown): number | undefined => {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v);
+    return undefined;
+  };
+
+  const priceObj = (payload.price ?? {}) as AdPayload;
+  const rawAmount = pick(
+    priceObj.consumerPriceGross,
+    priceObj["consumer-price-gross"],
+    payload.consumerPriceGross,
+  );
+  const cleanAmount = String(rawAmount ?? "").replace(/[^0-9]/g, "");
+  const rawVat = pick(priceObj.vatRate, priceObj["vat-rate"], payload.vatRate) ?? "19.00";
+
+  const adBody: AdPayload = {
+    vehicleClass: "Car",
+    make: getKey(pick(payload.make, vehicle.make)),
+    model: getKey(pick(payload.model, vehicle.model)),
+    modelDescription: pick(payload.modelDescription, vehicle["model-description"], vehicle.modelDescription),
+    category: getKey(pick(payload.category, vehicle.category)),
+    mileage: num(pick(payload.mileage, vehicle.mileage)),
+    firstRegistration: pick(payload.firstRegistration, vehicle["first-registration"], vehicle.firstRegistration),
+    fuel: getKey(pick(payload.fuel, vehicle.fuel)),
+    gearbox: getKey(pick(payload.gearbox, vehicle.gearbox)),
+    power: num(pick(payload.power, vehicle.power)),
+    cubicCapacity: num(pick(payload.cubicCapacity, vehicle["cubic-capacity"], vehicle.cubicCapacity)),
+    condition: (pick(payload.condition, vehicle.condition) as string) || "USED",
+    damageUnrepaired:
+      pick(payload.damageUnrepaired, vehicle["damage-unrepaired"], vehicle.damageUnrepaired) === true,
+    price: {
+      consumerPriceGross: cleanAmount,
+      currency: "EUR",
+      vatRate: String(rawVat),
+      type: "FIXED",
+    },
+  };
+
+  const desc = pick(payload.description, vehicle.description);
+  if (typeof desc === "string" && desc.trim()) adBody.description = desc.trim();
+
+  // Flacher Quell-Lookup: payload.<key> oder vehicle.<key>
+  const src: AdPayload = { ...vehicle, ...payload };
+  const addStr = (k: string, alts: string[] = []) => {
+    const v = pick(src[k], ...alts.map((a) => src[a]));
+    if (typeof v === "string" && v.trim()) adBody[k] = v.trim();
+  };
+  const addNum = (k: string, alts: string[] = []) => {
+    const v = num(pick(src[k], ...alts.map((a) => src[a])));
+    if (v !== undefined) adBody[k] = v;
+  };
+  const addBoolTrue = (k: string) => { if (src[k] === true) adBody[k] = true; };
+  const addBoolEither = (k: string) => {
+    if (src[k] === true || src[k] === false) adBody[k] = src[k];
+  };
+  const addKey = (k: string) => {
+    const key = getKey(src[k]);
+    if (key) adBody[k] = key;
+  };
+
+  addStr("trimLine"); addStr("modelRange");
+  addKey("doors"); addNum("seats");
+  addStr("vin"); addStr("internalNumber");
+  addNum("cylinders"); addNum("fuelCapacity"); addKey("driveType");
+  addKey("exteriorColor"); addKey("interiorColor"); addKey("interiorType");
+  addStr("manufacturerColorName"); addBoolTrue("metallic");
+  addBoolEither("accidentDamaged"); addBoolEither("roadworthy");
+  addBoolTrue("warranty"); addBoolTrue("nonSmokerVehicle"); addBoolTrue("fullServiceHistory");
+  addBoolTrue("newHuAu"); addBoolTrue("newService");
+  addNum("numberOfPreviousOwners");
+  addStr("generalInspection");
+  addBoolTrue("huNew"); addBoolTrue("inspectionNew");
+  addBoolTrue("particulateFilterDiesel"); addBoolTrue("particulateFilter");
+  addKey("emissionClass"); addKey("emissionSticker");
+  addNum("co2", ["co2EmissionsCombined"]);
+  addNum("consumptionCombined");
+  addNum("consumptionInner"); addNum("consumptionOuter");
+  addNum("consumptionUrban"); addNum("consumptionExtraUrban");
+
+  const cli = getKey(src.climatisation);
+  if (cli) {
+    if (SAFE_CLIMATISATION.has(cli)) adBody.climatisation = cli;
+    else warnings.push(`climatisation="${cli}" nicht in Whitelist – nicht gesendet`);
+  }
+
+  if (Array.isArray(src.parkingAssistants)) {
+    const safe: string[] = [];
+    for (const x of src.parkingAssistants as unknown[]) {
+      const raw = getKey(x);
+      if (!raw) continue;
+      const mapped = PARKING_ASSISTANT_ALIAS[raw] ?? raw;
+      if (SAFE_PARKING_ASSISTANTS.has(mapped)) safe.push(mapped);
+      else if (UNSAFE_PARKING_ASSISTANTS.has(raw))
+        warnings.push(`parkingAssistant "${raw}" unsicher – nicht gesendet`);
+      else warnings.push(`parkingAssistant "${raw}" unbekannt – nicht gesendet`);
+    }
+    if (safe.length) adBody.parkingAssistants = [...new Set(safe)].map((k) => ({ key: k }));
+  }
+
+  const featSrc = (src.features && typeof src.features === "object")
+    ? (src.features as AdPayload) : {};
+  for (const f of FEATURE_KEYS) {
+    if (featSrc[f] === true || src[f] === true) adBody[f] = true;
+  }
+
+  // Unsichere Felder ggf. wieder entfernen
+  for (const k of Array.from(Object.keys(adBody))) {
+    if (UNSAFE_FIELDS.has(k)) {
+      warnings.push(`Feld "${k}" entfernt (Enum unsicher)`);
+      delete adBody[k];
+    }
+  }
+  for (const k of UNSAFE_FIELDS) {
+    const v = src[k];
+    if (v !== undefined && v !== "" && v !== false && v !== null) {
+      warnings.push(`Feld "${k}" im Draft ignoriert (Enum unsicher)`);
+    }
+  }
+
+  if (refs.length) adBody.images = refs.map((ref) => ({ ref }));
+
+  const missing: string[] = [];
+  const m = adBody;
+  if (!m.make) missing.push("make");
+  if (!m.model) missing.push("model");
+  if (!m.modelDescription) missing.push("modelDescription");
+  if (!m.category) missing.push("category");
+  if (m.mileage === undefined || m.mileage === null) missing.push("mileage");
+  if (!m.firstRegistration || !/^\d{6}$/.test(String(m.firstRegistration)))
+    missing.push("firstRegistration (YYYYMM)");
+  if (!m.fuel) missing.push("fuel");
+  if (!m.gearbox) missing.push("gearbox");
+  if (m.power === undefined || m.power === null) missing.push("power");
+  if (m.cubicCapacity === undefined || m.cubicCapacity === null) missing.push("cubicCapacity");
+  if (!m.condition) missing.push("condition");
+  if (typeof m.damageUnrepaired !== "boolean") missing.push("damageUnrepaired");
+  if (!cleanAmount || cleanAmount === "0") missing.push("price.consumerPriceGross");
+  if (!rawVat) missing.push("price.vatRate");
+
+  return { adBody, missing, warnings };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
