@@ -784,6 +784,197 @@ export default function MobileAdCreate() {
       </Card>
 
       <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Außenfarbe</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Farbe</Label>
+            <Select
+              value={form.exteriorColor}
+              onValueChange={(v) => update("exteriorColor", v)}
+            >
+              <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                {EXTERIOR_COLOR_OPTIONS.map((c) => (
+                  <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Herstellerfarbe</Label>
+            <Input
+              value={form.manufacturerColorName}
+              onChange={(e) => update("manufacturerColorName", e.target.value)}
+              placeholder="z. B. MYTHOS BLACK"
+            />
+          </div>
+          <div className="flex items-center gap-2 md:col-span-2">
+            <Checkbox
+              id="metallic"
+              checked={form.metallic}
+              onCheckedChange={(c) => update("metallic", c === true)}
+            />
+            <Label htmlFor="metallic" className="cursor-pointer">Metallic</Label>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Karosserie</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Türen</Label>
+            <Select value={form.doors} onValueChange={(v) => update("doors", v)}>
+              <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+              <SelectContent>
+                {DOORS_OPTIONS.map((d) => (
+                  <SelectItem key={d.key} value={d.key}>{d.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Sitze</Label>
+            <Input
+              type="number"
+              value={form.seats}
+              onChange={(e) => update("seats", e.target.value)}
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Zustand &amp; Historie</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Unfallfahrzeug</Label>
+            <Select
+              value={form.accidentDamaged}
+              onValueChange={(v) => update("accidentDamaged", v as "" | "true" | "false")}
+            >
+              <SelectTrigger><SelectValue placeholder="Keine Angabe" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="false">Nein</SelectItem>
+                <SelectItem value="true">Ja</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Anzahl Fahrzeughalter</Label>
+            <Input
+              type="number"
+              value={form.numberOfPreviousOwners}
+              onChange={(e) => update("numberOfPreviousOwners", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Nächste HU</Label>
+            <div className="flex gap-2">
+              <Select value={form.hsnMonth} onValueChange={(v) => update("hsnMonth", v)}>
+                <SelectTrigger className="w-24"><SelectValue placeholder="MM" /></SelectTrigger>
+                <SelectContent>
+                  {months.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={form.hsnYear} onValueChange={(v) => update("hsnYear", v)}>
+                <SelectTrigger className="flex-1"><SelectValue placeholder="YYYY" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() + i)).map(
+                    (y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="fsh"
+              checked={form.fullServiceHistory}
+              onCheckedChange={(c) => update("fullServiceHistory", c === true)}
+            />
+            <Label htmlFor="fsh" className="cursor-pointer">Scheckheftgepflegt</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="nonsmoker"
+              checked={form.nonSmokerVehicle}
+              onCheckedChange={(c) => update("nonSmokerVehicle", c === true)}
+            />
+            <Label htmlFor="nonsmoker" className="cursor-pointer">Nichtraucherfahrzeug</Label>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Klimatisierung</h2>
+        <Select value={form.climatisation} onValueChange={(v) => update("climatisation", v)}>
+          <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
+          <SelectContent>
+            {CLIMATISATION_OPTIONS.map((o) => (
+              <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Ausstattung</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {FEATURE_FIELDS.map((f) => (
+            <div key={f.key} className="flex items-center gap-2">
+              <Checkbox
+                id={`f-${f.key}`}
+                checked={!!form.features[f.key]}
+                onCheckedChange={(c) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    features: { ...prev.features, [f.key]: c === true },
+                  }))
+                }
+              />
+              <Label htmlFor={`f-${f.key}`} className="cursor-pointer text-sm">
+                {f.label}
+              </Label>
+            </div>
+          ))}
+        </div>
+        <div className="pt-4 border-t border-border">
+          <Label className="mb-2 block">Einparkhilfe</Label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {PARKING_ASSIST_OPTIONS.map((p) => {
+              const checked = form.parkingAssistants.includes(p.key);
+              return (
+                <div key={p.key} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`pa-${p.key}`}
+                    checked={checked}
+                    onCheckedChange={(c) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        parkingAssistants:
+                          c === true
+                            ? [...prev.parkingAssistants, p.key]
+                            : prev.parkingAssistants.filter((x) => x !== p.key),
+                      }))
+                    }
+                  />
+                  <Label htmlFor={`pa-${p.key}`} className="cursor-pointer text-sm">
+                    {p.label}
+                  </Label>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
+
+
+      <Card className="p-6 space-y-4">
         <h2 className="text-lg font-semibold">Beschreibung</h2>
         <Textarea
           rows={6}
