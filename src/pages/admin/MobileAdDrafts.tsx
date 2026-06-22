@@ -172,6 +172,9 @@ export default function MobileAdDrafts() {
             const model = readPath(r.payload, ["vehicle", "model", "key"]) as string | undefined;
             const desc = readPath(r.payload, ["vehicle", "model-description"]) as string | undefined;
             const price = readPath(r.payload, ["price", "consumer-price-gross"]);
+            const copiedFromId = readPath(r.payload, ["_copiedFromDraftId"]) as string | undefined;
+            const copiedFromAd = readPath(r.payload, ["_copiedFromMobileAdId"]) as string | undefined;
+            const canCopy = r.status === "published" || r.status === "error";
             return (
               <Card key={r.id} className="p-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
@@ -191,6 +194,11 @@ export default function MobileAdDrafts() {
                     >
                       {r.status}
                     </Badge>
+                    {copiedFromId && (
+                      <Badge variant="outline" className="text-xs">
+                        Kopie von {desc || copiedFromAd || copiedFromId.slice(0, 8)}
+                      </Badge>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     {fmtPrice(price)} · erstellt {fmtDate(r.created_at)}
