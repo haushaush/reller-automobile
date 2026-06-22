@@ -660,27 +660,36 @@ Deno.serve(async (req) => {
       );
     }
 
-    const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
-    // Exclude manually-added vehicles entirely from soft-delete/re-activate logic.
-    const { data: allDbVehicles } = await supabase
-      .from("vehicles")
-      .select("id, mobile_de_id, is_sold, vehicle_category")
-      .neq("vehicle_category", "accident")
-      .eq("source", "mobile_de");
+    if (!paginationResult.paginationConfident) {
+      console.warn(
+        `Skipping soft-delete: pagination not confident (stop=${paginationResult.stopReason}). ` +
+        `Fetched ${logPagesFetched} page(s), ${vehicleRows.length} vehicle(s).`
+      );
+      logStatus = "success_with_warning";
+      logError = `Soft-delete skipped: pagination unsicher (${paginationResult.stopReason})`;
+    } else {
+      const mobileDeIds = vehicleRows.map((v) => v.mobile_de_id);
+      // Exclude manually-added vehicles entirely from soft-delete/re-activate logic.
+      const { data: allDbVehicles } = await supabase
+        .from("vehicles")
+        .select("id, mobile_de_id, is_sold, vehicle_category")
+        .neq("vehicle_category", "accident")
+        .eq("source", "mobile_de");
 
-    if (allDbVehicles) {
-      const syncedSet = new Set(mobileDeIds);
-      const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
-      const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
+      if (allDbVehicles) {
+        const syncedSet = new Set(mobileDeIds);
+        const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
+        const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
 
-      for (const v of toMarkSold) {
-        await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
+        for (const v of toMarkSold) {
+          await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
+        }
+        for (const v of toMarkAvailable) {
+          await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
+        }
+        logSold = toMarkSold.length;
+        console.log(`Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
       }
-      for (const v of toMarkAvailable) {
-        await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
-      }
-      logSold = toMarkSold.length;
-      console.log(`Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
     }
 
     const { count: manualCount } = await supabase
