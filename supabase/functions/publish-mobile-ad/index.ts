@@ -238,8 +238,19 @@ Deno.serve(async (req) => {
         skipped.push({ index: i + 1, path: p, reason: msg });
       }
     }
+    console.log(`Image upload summary: imagePaths=${imagePaths.length}, refs=${refs.length}, skipped=${skipped.length}`);
     if (skipped.length) {
       console.warn(`Skipped ${skipped.length}/${imagePaths.length} image(s):`, skipped);
+    }
+
+    if (imagePaths.length > 0 && refs.length === 0) {
+      const msg = `Kein Bild konnte zu Mobile.de hochgeladen werden. ${skipped.map((s) => `#${s.index}: ${s.reason}`).join("; ")}`;
+      console.error(msg);
+      await admin
+        .from("mobile_ad_drafts")
+        .update({ status: "error", error_message: msg.slice(0, 2000) })
+        .eq("id", draftId);
+      return json(400, { error: "Kein Bild konnte zu Mobile.de hochgeladen werden", skipped });
     }
 
 
