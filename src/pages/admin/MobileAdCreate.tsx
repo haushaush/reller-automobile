@@ -269,7 +269,7 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
     gearbox: asStr(get(payload, ["vehicle", "gearbox", "key"])),
     power: asStr(get(payload, ["vehicle", "power"])),
     cubicCapacity: asStr(get(payload, ["vehicle", "cubic-capacity"])),
-    cylinders: asStr(get(payload, ["vehicle", "cylinders"])),
+    cylinders: asStr(get(payload, ["vehicle", "cylinder"]) ?? get(payload, ["vehicle", "cylinders"])),
     fuelCapacity: asStr(get(payload, ["vehicle", "fuelCapacity"])),
     driveType: asStr(get(payload, ["vehicle", "driveType", "key"])),
     exteriorColor: asStr(get(payload, ["vehicle", "exteriorColor", "key"])),
