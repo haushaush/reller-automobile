@@ -555,6 +555,8 @@ Deno.serve(async (req) => {
     }
     console.log(`Upserted ${vehicleRows.length} vehicles`);
     logTotal = vehicleRows.length;
+    logAdded = vehicleRows.filter((v) => !existingMap.has(v.mobile_de_id)).length;
+    logUpdated = vehicleRows.length - logAdded;
 
     const { count: activeCount } = await supabase
       .from("vehicles")
