@@ -875,8 +875,19 @@ export default function MobileAdCreate() {
   if (loadingDraft) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade Entwurf…
+        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+        {isLive ? "Lade Live-Daten von Mobile.de…" : "Lade Entwurf…"}
       </div>
+    );
+  }
+  if (isLive && liveLoadError) {
+    return (
+      <Card className="p-6 space-y-3 max-w-2xl">
+        <div className="text-destructive font-medium">{liveLoadError}</div>
+        <Button variant="outline" onClick={() => navigate("/admin/mobile-ad")}>
+          <ArrowLeft className="h-4 w-4" /> Zurück
+        </Button>
+      </Card>
     );
   }
 
