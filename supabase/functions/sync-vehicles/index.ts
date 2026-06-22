@@ -625,10 +625,14 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error("Sync error:", error);
-    logError = String(error);
+    const msg = String(error);
+    const isAuth = msg.includes("AUTH_401");
+    logError = isAuth
+      ? "Mobile.de Search-API Auth fehlgeschlagen: Zugangsdaten prüfen"
+      : msg;
     return new Response(
-      JSON.stringify({ error: "Internal error", details: String(error) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: isAuth ? logError : "Internal error", details: msg, authError: isAuth }),
+      { status: isAuth ? 401 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } finally {
     await supabaseLock
