@@ -382,6 +382,9 @@ Deno.serve(async (req) => {
   let logStatus: "success" | "failed" | "skipped" = "failed";
   let logError: string | null = null;
   let logTotal = 0;
+  let logAdded = 0;
+  let logUpdated = 0;
+  let logSold = 0;
 
   try {
     const username = Deno.env.get("MOBILE_DE_ACCIDENT_USERNAME");
