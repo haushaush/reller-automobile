@@ -378,9 +378,20 @@ Deno.serve(async (req) => {
       console.warn("verify error:", (e as Error).message);
     }
 
+    // Interne Felder (Underscore-prefixed) aus altem Draft-Payload bewahren
+    const prevPayload = (draft.payload && typeof draft.payload === "object") ? draft.payload as Record<string, unknown> : {};
+    const internalFields: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(prevPayload)) {
+      if (k.startsWith("_")) internalFields[k] = v;
+    }
+    const persistedPayload: Record<string, unknown> = {
+      ...(verifiedAd ?? finalBody),
+      ...internalFields,
+    };
+
     await admin.from("mobile_ad_drafts").update({
       status: "published",
-      payload: verifiedAd ?? finalBody,
+      payload: persistedPayload,
       error_message: null,
     }).eq("id", draftId);
 
