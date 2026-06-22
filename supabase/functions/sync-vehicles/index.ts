@@ -363,7 +363,11 @@ async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Pro
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Mobile.de API error on page ${pageNumber}:`, response.status, errorText);
+      const truncated = (errorText || "").slice(0, 300);
+      console.error(`Mobile.de Search-API HTTP ${response.status} on page ${pageNumber}: ${truncated}`);
+      if (response.status === 401) {
+        throw new Error(`AUTH_401: Mobile.de Search-API Auth fehlgeschlagen: Zugangsdaten prüfen`);
+      }
       throw new Error(`Mobile.de API returned ${response.status} on page ${pageNumber}`);
     }
 
@@ -438,12 +442,21 @@ Deno.serve(async (req) => {
   let logTotal = 0;
 
   try {
-    const username = Deno.env.get("MOBILE_DE_USERNAME");
-    const password = Deno.env.get("MOBILE_DE_PASSWORD");
+    const hasSearchSpecific = !!Deno.env.get("MOBILE_DE_SEARCH_USERNAME") && !!Deno.env.get("MOBILE_DE_SEARCH_PASSWORD");
+    const username =
+      Deno.env.get("MOBILE_DE_SEARCH_USERNAME") ||
+      Deno.env.get("MOBILE_DE_USERNAME");
+    const password =
+      Deno.env.get("MOBILE_DE_SEARCH_PASSWORD") ||
+      Deno.env.get("MOBILE_DE_PASSWORD");
+
+    console.log(`Search-API secrets: search-specific=${hasSearchSpecific ? "yes" : "no"}, fallback-used=${hasSearchSpecific ? "no" : "yes"}`);
 
     if (!username || !password) {
+      logError = "Mobile.de Search-API Zugangsdaten fehlen";
+      console.error(logError);
       return new Response(
-        JSON.stringify({ error: "Missing Mobile.de API credentials" }),
+        JSON.stringify({ error: logError }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -612,10 +625,14 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error("Sync error:", error);
-    logError = String(error);
+    const msg = String(error);
+    const isAuth = msg.includes("AUTH_401");
+    logError = isAuth
+      ? "Mobile.de Search-API Auth fehlgeschlagen: Zugangsdaten prüfen"
+      : msg;
     return new Response(
-      JSON.stringify({ error: "Internal error", details: String(error) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: isAuth ? logError : "Internal error", details: msg, authError: isAuth }),
+      { status: isAuth ? 401 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } finally {
     await supabaseLock

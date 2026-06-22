@@ -13,8 +13,16 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MOBILE_USER = Deno.env.get("MOBILE_DE_USERNAME")!;
-const MOBILE_PASS = Deno.env.get("MOBILE_DE_PASSWORD")!;
+const HAS_SELLER_SPECIFIC =
+  !!Deno.env.get("MOBILE_DE_SELLER_USERNAME") && !!Deno.env.get("MOBILE_DE_SELLER_PASSWORD");
+const MOBILE_USER =
+  Deno.env.get("MOBILE_DE_SELLER_USERNAME") || Deno.env.get("MOBILE_DE_USERNAME") || "";
+const MOBILE_PASS =
+  Deno.env.get("MOBILE_DE_SELLER_PASSWORD") || Deno.env.get("MOBILE_DE_PASSWORD") || "";
+
+console.log(
+  `Seller-API secrets: seller-specific=${HAS_SELLER_SPECIFIC ? "yes" : "no"}, fallback-used=${HAS_SELLER_SPECIFIC ? "no" : "yes"}`
+);
 
 const SELLER_ID = "451040";
 const API_BASE = "https://services.mobile.de/seller-api";
@@ -319,6 +327,10 @@ Deno.serve(async (req) => {
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
     if (claimsError || !claimsData?.claims?.sub) return json(401, { error: "Unauthorized" });
+
+    if (!MOBILE_USER || !MOBILE_PASS) {
+      return json(500, { error: "Mobile.de Seller-API Zugangsdaten fehlen" });
+    }
     const userId = claimsData.claims.sub as string;
     const { data: roleRow } = await admin
       .from("user_roles")
