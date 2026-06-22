@@ -540,12 +540,27 @@ Deno.serve(async (req) => {
     }
 
     console.log("Mobile.de POST adBody root-keys:", Object.keys(adBody).join(","));
-    console.log("Mobile.de field debug:", JSON.stringify({
+    console.log("Mobile.de optional fields:", JSON.stringify({
       cylinder: adBody.cylinder,
       seats: adBody.seats,
       matteColor: adBody.matteColor,
       metallic: adBody.metallic,
+      fuelTankVolume: adBody.fuelTankVolume,
+      powerAssistedSteering: adBody.powerAssistedSteering,
+      roofRails: adBody.roofRails,
+      multifunctionalWheel: adBody.multifunctionalWheel,
+      automaticRainSensor: adBody.automaticRainSensor,
+      highBeamAssist: adBody.highBeamAssist,
+      collisionAvoidance: adBody.collisionAvoidance,
+      newHuAu: adBody.newHuAu,
+      newService: adBody.newService,
+      particulateFilterDiesel: adBody.particulateFilterDiesel,
+      emissions: adBody.emissions,
+      consumptions: adBody.consumptions,
+      parkingAssistants: adBody.parkingAssistants,
+      countryVersion: adBody.countryVersion,
     }));
+    console.log("Mobile.de warnings:", JSON.stringify(warnings));
     console.log("Mobile.de required fields:", JSON.stringify({
       vehicleClass: adBody.vehicleClass,
       make: adBody.make,
