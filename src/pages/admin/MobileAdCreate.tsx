@@ -275,7 +275,7 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
     exteriorColor: asStr(get(payload, ["vehicle", "exteriorColor", "key"])),
     manufacturerColorName: asStr(get(payload, ["vehicle", "manufacturerColorName"])),
     metallic: get(payload, ["vehicle", "metallic"]) === true,
-    matt: get(payload, ["vehicle", "matt"]) === true,
+    matt: get(payload, ["vehicle", "matteColor"]) === true || get(payload, ["vehicle", "matt"]) === true,
     condition: asStr(get(payload, ["vehicle", "condition"])) || "USED",
     accidentDamaged: triBool(get(payload, ["vehicle", "accidentDamaged"])),
     damageUnrepaired: get(payload, ["vehicle", "damage-unrepaired"]) === true ? "true" : "false",
