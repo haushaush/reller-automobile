@@ -19,6 +19,7 @@ interface DraftRow {
   mobile_ad_id: string | null;
   error_message: string | null;
   created_at: string;
+  image_paths: string[] | null;
 }
 
 function readPath(obj: unknown, path: string[]): unknown {
