@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Trash2, Upload, Loader2, Pencil } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2, Pencil, Radio } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface DraftRow {
   id: string;
@@ -173,16 +174,27 @@ export default function MobileAdDrafts() {
                       <Pencil className="h-4 w-4" />
                       Bearbeiten
                     </Button>
-                  ) : (
+                  ) : r.mobile_ad_id ? (
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled
-                      title="Bearbeiten veröffentlichter Inserate folgt"
+                      onClick={() => navigate(`/admin/mobile-ad/${r.id}/live-edit`)}
                     >
-                      <Pencil className="h-4 w-4" />
-                      Bearbeiten
+                      <Radio className="h-4 w-4" />
+                      Live bearbeiten
                     </Button>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button size="sm" variant="outline" disabled>
+                            <Radio className="h-4 w-4" />
+                            Live bearbeiten
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>Keine Mobile.de-ID vorhanden.</TooltipContent>
+                    </Tooltip>
                   )}
                   {r.status !== "published" && (
                     <Button
