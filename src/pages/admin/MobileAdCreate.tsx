@@ -1371,7 +1371,7 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
       if (safe.length) addIf("parkingAssistants", true);
       if (unsafe.length) warnings.push(`parkingAssistants ${unsafe.join(", ")} unsicher – nicht gesendet`);
     }
-    if (form.matt) warnings.push(`matt – Feldname unsicher, wird nicht gesendet`);
+    
 
     const feats = Object.entries(form.features).filter(([, v]) => v).map(([k]) => k);
     if (feats.length) root.push(...feats);
