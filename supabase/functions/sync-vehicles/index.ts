@@ -776,9 +776,5 @@ Deno.serve(async (req) => {
       `pages=${logPagesFetched}, total=${logTotal}, added=${logAdded}, updated=${logUpdated}, ` +
       `sold=${logSold}, manual=${logSkippedManual}, mobile-total=${logMobileTotal ?? "n/a"}, stop=${logStopReason ?? "n/a"})`
     );
-    console.log(
-      `Sync lock released (status=${logStatus}, duration=${Date.now() - startTime}ms, ` +
-      `total=${logTotal}, added=${logAdded}, updated=${logUpdated}, sold=${logSold}, manual=${logSkippedManual})`
-    );
   }
 });
