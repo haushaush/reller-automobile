@@ -408,27 +408,26 @@ Deno.serve(async (req) => {
 
 
     // ── Step 2: create ad with image refs ─────────────────────
-    const adBody: Record<string, unknown> = mobilePayload;
+    const adBody: Record<string, unknown> = { ...mobilePayload };
     if (refs.length) {
       adBody.images = refs.map((ref) => ({ ref }));
     }
 
-    console.log("Mobile.de POST adBody keys:", Object.keys(adBody).join(","));
+    console.log("Mobile.de POST adBody root-keys:", Object.keys(adBody).join(","));
     console.log("Mobile.de required fields:", JSON.stringify({
-      vehicleClass: mobilePayload.vehicleClass,
-      make: mobilePayload.make,
-      model: mobilePayload.model,
-      modelDescription: mobilePayload.modelDescription,
-      category: mobilePayload.category,
-      mileage: mobilePayload.mileage,
-      firstRegistration: mobilePayload.firstRegistration,
-      fuel: mobilePayload.fuel,
-      gearbox: mobilePayload.gearbox,
-      power: mobilePayload.power,
-      cubicCapacity: mobilePayload.cubicCapacity,
-      condition: mobilePayload.condition,
-      damageUnrepaired: mobilePayload.damageUnrepaired,
-      priceAmount: cleanAmount,
+      vehicleClass: adBody.vehicleClass,
+      make: adBody.make,
+      model: adBody.model,
+      modelDescription: adBody.modelDescription,
+      category: adBody.category,
+      mileage: adBody.mileage,
+      firstRegistration: adBody.firstRegistration,
+      fuel: adBody.fuel,
+      gearbox: adBody.gearbox,
+      power: adBody.power,
+      cubicCapacity: adBody.cubicCapacity,
+      condition: adBody.condition,
+      damageUnrepaired: adBody.damageUnrepaired,
       imageCount: refs.length,
     }));
 
