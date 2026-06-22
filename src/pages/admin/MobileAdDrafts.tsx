@@ -38,12 +38,13 @@ export default function MobileAdDrafts() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [publishing, setPublishing] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("mobile_ad_drafts")
-      .select("id, status, payload, mobile_ad_id, created_at")
+      .select("id, status, payload, mobile_ad_id, error_message, created_at")
       .order("created_at", { ascending: false });
     if (error) {
       toast.error("Laden fehlgeschlagen");
