@@ -12,6 +12,7 @@ interface DraftRow {
   status: string;
   payload: Record<string, unknown> | null;
   mobile_ad_id: string | null;
+  error_message: string | null;
   created_at: string;
 }
 
