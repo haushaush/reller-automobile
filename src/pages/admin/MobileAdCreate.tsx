@@ -1160,7 +1160,7 @@ export default function MobileAdCreate() {
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label>Antriebsart</Label>
-            <Select value={form.driveType} onValueChange={(v) => update("driveType", v)} disabled={!driveTypes.length}>
+            <Select value={form.driveType} onValueChange={(v) => update("driveType", v)} disabled={!driveTypes.length && !form.driveType}>
               <SelectTrigger>
                 <SelectValue placeholder={driveTypes.length ? "Wählen" : "Refdata nicht verfügbar"} />
               </SelectTrigger>
@@ -1290,7 +1290,7 @@ export default function MobileAdCreate() {
           </div>
           <div className="space-y-2">
             <Label>Schadstoffklasse</Label>
-            <Select value={form.emissionClass} onValueChange={(v) => update("emissionClass", v)} disabled={!emissionClasses.length}>
+            <Select value={form.emissionClass} onValueChange={(v) => update("emissionClass", v)} disabled={!emissionClasses.length && !form.emissionClass}>
               <SelectTrigger><SelectValue placeholder={emissionClasses.length ? "Wählen" : "Refdata nicht verfügbar"} /></SelectTrigger>
               <SelectContent className="max-h-72">
                 {withUnknown(emissionClasses, form.emissionClass).map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
@@ -1299,7 +1299,7 @@ export default function MobileAdCreate() {
           </div>
           <div className="space-y-2">
             <Label>Umweltplakette</Label>
-            <Select value={form.emissionSticker} onValueChange={(v) => update("emissionSticker", v)} disabled={!emissionStickers.length}>
+            <Select value={form.emissionSticker} onValueChange={(v) => update("emissionSticker", v)} disabled={!emissionStickers.length && !form.emissionSticker}>
               <SelectTrigger><SelectValue placeholder={emissionStickers.length ? "Wählen" : "Refdata nicht verfügbar"} /></SelectTrigger>
               <SelectContent>
                 {withUnknown(emissionStickers, form.emissionSticker).map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
@@ -1359,7 +1359,7 @@ export default function MobileAdCreate() {
       {/* ── Klimatisierung ── */}
       <Card className="p-6 space-y-4">
         <h2 className="text-lg font-semibold">Klimatisierung</h2>
-        <Select value={form.climatisation} onValueChange={(v) => update("climatisation", v)} disabled={!climatisations.length}>
+        <Select value={form.climatisation} onValueChange={(v) => update("climatisation", v)} disabled={!climatisations.length && !form.climatisation}>
           <SelectTrigger>
             <SelectValue placeholder={climatisations.length ? "Wählen" : "Refdata nicht verfügbar (TODO)"} />
           </SelectTrigger>
