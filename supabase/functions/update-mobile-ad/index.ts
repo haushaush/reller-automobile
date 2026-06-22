@@ -49,7 +49,7 @@ const FEATURE_KEYS = [
 const UNSAFE_FIELDS = new Set([
   "speedControl", "headlightType", "trailerCouplingType", "airbag",
   "breakdownService", "corneringLight", "daytimeRunningLamps",
-  "highBeamAssistant", "emergencyCallSystem", "matt",
+  "highBeamAssistant", "emergencyCallSystem",
 ]);
 
 function buildMobileAdPayload(payload: AdPayload): BuildResult {
@@ -103,11 +103,23 @@ function buildMobileAdPayload(payload: AdPayload): BuildResult {
   const addKey = (k: string) => { const x = getKey(src[k]); if (x) adBody[k] = x; };
 
   addStr("trimLine"); addStr("modelRange");
-  addKey("doors"); addNum("seats");
+  addKey("doors");
   addStr("vin"); addStr("internalNumber");
-  addNum("cylinders"); addNum("fuelCapacity"); addKey("driveType");
+  addNum("fuelCapacity"); addKey("driveType");
   addKey("exteriorColor"); addKey("interiorColor"); addKey("interiorType");
   addStr("manufacturerColorName"); addBoolTrue("metallic");
+
+  // Cylinder: Root-Feld "cylinder" (Integer)
+  const cylinder = num(pick(src.cylinder, src.cylinders, src.zylinder));
+  if (cylinder !== undefined) adBody.cylinder = cylinder;
+
+  // Seats: Root-Feld "seats" (Integer)
+  const seats = num(pick(src.seats, src.numberOfSeats, src["number-of-seats"]));
+  if (seats !== undefined) adBody.seats = seats;
+
+  // Matt-Lackierung: Root-Feld "matteColor" (Boolean)
+  const matteColor = pick(src.matteColor, src.matt, src.matte);
+  if (matteColor === true) adBody.matteColor = true;
   addBoolEither("accidentDamaged"); addBoolEither("roadworthy");
   addBoolTrue("warranty"); addBoolTrue("nonSmokerVehicle"); addBoolTrue("fullServiceHistory");
   addBoolTrue("huNew"); addBoolTrue("inspectionNew");
@@ -233,6 +245,12 @@ Deno.serve(async (req) => {
       if (JSON.stringify((currentMobileAd as AdPayload)[k]) !== JSON.stringify(mapped[k])) changedKeys.push(k);
     }
     console.log(`finalBody root-keys=${Object.keys(finalBody).join(",")}`);
+    console.log("Mobile.de PUT field debug:", JSON.stringify({
+      cylinder: finalBody.cylinder,
+      seats: finalBody.seats,
+      matteColor: finalBody.matteColor,
+      metallic: finalBody.metallic,
+    }));
     console.log(`changed keys=${changedKeys.join(",")}`);
 
     // 4) PUT

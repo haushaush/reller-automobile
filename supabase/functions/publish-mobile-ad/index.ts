@@ -149,7 +149,7 @@ const FEATURE_KEYS = [
 const UNSAFE_FIELDS = new Set([
   "speedControl", "headlightType", "trailerCouplingType", "airbag",
   "breakdownService", "corneringLight", "daytimeRunningLamps",
-  "highBeamAssistant", "emergencyCallSystem", "matt",
+  "highBeamAssistant", "emergencyCallSystem",
 ]);
 
 export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildResult {
@@ -228,11 +228,23 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
   };
 
   addStr("trimLine"); addStr("modelRange");
-  addKey("doors"); addNum("seats");
+  addKey("doors");
   addStr("vin"); addStr("internalNumber");
-  addNum("cylinders"); addNum("fuelCapacity"); addKey("driveType");
+  addNum("fuelCapacity"); addKey("driveType");
   addKey("exteriorColor"); addKey("interiorColor"); addKey("interiorType");
   addStr("manufacturerColorName"); addBoolTrue("metallic");
+
+  // Cylinder: Mobile.de erwartet Root-Feld "cylinder" (Integer)
+  const cylinder = num(pick(src.cylinder, src.cylinders, src.zylinder));
+  if (cylinder !== undefined) adBody.cylinder = cylinder;
+
+  // Seats: Mobile.de erwartet Root-Feld "seats" (Integer)
+  const seats = num(pick(src.seats, src.numberOfSeats, src["number-of-seats"]));
+  if (seats !== undefined) adBody.seats = seats;
+
+  // Matt-Lackierung: Mobile.de erwartet Root-Feld "matteColor" (Boolean)
+  const matteColor = pick(src.matteColor, src.matt, src.matte);
+  if (matteColor === true) adBody.matteColor = true;
   addBoolEither("accidentDamaged"); addBoolEither("roadworthy");
   addBoolTrue("warranty"); addBoolTrue("nonSmokerVehicle"); addBoolTrue("fullServiceHistory");
   addBoolTrue("newHuAu"); addBoolTrue("newService");
@@ -426,6 +438,12 @@ Deno.serve(async (req) => {
     }
 
     console.log("Mobile.de POST adBody root-keys:", Object.keys(adBody).join(","));
+    console.log("Mobile.de field debug:", JSON.stringify({
+      cylinder: adBody.cylinder,
+      seats: adBody.seats,
+      matteColor: adBody.matteColor,
+      metallic: adBody.metallic,
+    }));
     console.log("Mobile.de required fields:", JSON.stringify({
       vehicleClass: adBody.vehicleClass,
       make: adBody.make,

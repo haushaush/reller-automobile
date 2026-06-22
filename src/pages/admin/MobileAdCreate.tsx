@@ -269,13 +269,13 @@ function payloadToForm(payload: Record<string, unknown> | null | undefined): For
     gearbox: asStr(get(payload, ["vehicle", "gearbox", "key"])),
     power: asStr(get(payload, ["vehicle", "power"])),
     cubicCapacity: asStr(get(payload, ["vehicle", "cubic-capacity"])),
-    cylinders: asStr(get(payload, ["vehicle", "cylinders"])),
+    cylinders: asStr(get(payload, ["vehicle", "cylinder"]) ?? get(payload, ["vehicle", "cylinders"])),
     fuelCapacity: asStr(get(payload, ["vehicle", "fuelCapacity"])),
     driveType: asStr(get(payload, ["vehicle", "driveType", "key"])),
     exteriorColor: asStr(get(payload, ["vehicle", "exteriorColor", "key"])),
     manufacturerColorName: asStr(get(payload, ["vehicle", "manufacturerColorName"])),
     metallic: get(payload, ["vehicle", "metallic"]) === true,
-    matt: get(payload, ["vehicle", "matt"]) === true,
+    matt: get(payload, ["vehicle", "matteColor"]) === true || get(payload, ["vehicle", "matt"]) === true,
     condition: asStr(get(payload, ["vehicle", "condition"])) || "USED",
     accidentDamaged: triBool(get(payload, ["vehicle", "accidentDamaged"])),
     damageUnrepaired: get(payload, ["vehicle", "damage-unrepaired"]) === true ? "true" : "false",
@@ -511,7 +511,7 @@ export default function MobileAdCreate() {
       return Number.isFinite(n) ? n : undefined;
     };
     const seats = intIf(form.seats); if (seats !== undefined) vehicle.seats = seats;
-    const cyl = intIf(form.cylinders); if (cyl !== undefined) vehicle.cylinders = cyl;
+    const cyl = intIf(form.cylinders); if (cyl !== undefined) vehicle.cylinder = cyl;
     const fc = intIf(form.fuelCapacity); if (fc !== undefined) vehicle.fuelCapacity = fc;
     if (form.driveType) vehicle.driveType = { key: form.driveType };
 
@@ -519,7 +519,7 @@ export default function MobileAdCreate() {
     if (form.exteriorColor) vehicle.exteriorColor = { key: form.exteriorColor };
     if (form.manufacturerColorName) vehicle.manufacturerColorName = form.manufacturerColorName;
     if (form.metallic) vehicle.metallic = true;
-    if (form.matt) vehicle.matt = true;
+    if (form.matt) vehicle.matteColor = true;
 
     // Historie
     if (form.accidentDamaged === "true") vehicle.accidentDamaged = true;
@@ -1335,11 +1335,12 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
     addIf("trimLine", form.trimLine);
     addIf("doors", form.doors); addIf("seats", form.seats);
     addIf("vin", form.vin); addIf("internalNumber", form.internalNumber);
-    addIf("cylinders", form.cylinders); addIf("fuelCapacity", form.fuelCapacity);
+    addIf("cylinder", form.cylinders); addIf("fuelCapacity", form.fuelCapacity);
     addIf("driveType", form.driveType);
     addIf("exteriorColor", form.exteriorColor);
     addIf("manufacturerColorName", form.manufacturerColorName);
     if (form.metallic) addIf("metallic", true);
+    if (form.matt) addIf("matteColor", true);
     if (form.accidentDamaged) addIf("accidentDamaged", true);
     if (form.roadworthy) addIf("roadworthy", true);
     if (form.warranty) addIf("warranty", true);
@@ -1370,7 +1371,7 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
       if (safe.length) addIf("parkingAssistants", true);
       if (unsafe.length) warnings.push(`parkingAssistants ${unsafe.join(", ")} unsicher – nicht gesendet`);
     }
-    if (form.matt) warnings.push(`matt – Feldname unsicher, wird nicht gesendet`);
+    
 
     const feats = Object.entries(form.features).filter(([, v]) => v).map(([k]) => k);
     if (feats.length) root.push(...feats);
