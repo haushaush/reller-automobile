@@ -35,6 +35,8 @@ const VehicleCreate = lazy(() => import("./pages/admin/VehicleCreate"));
 const Accounts = lazy(() => import("./pages/admin/Accounts"));
 const ExposeArchive = lazy(() => import("./pages/admin/ExposeArchive"));
 const Collage = lazy(() => import("./pages/admin/Collage"));
+const MobileAdCreate = lazy(() => import("./pages/admin/MobileAdCreate"));
+const MobileAdDrafts = lazy(() => import("./pages/admin/MobileAdDrafts"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,6 +89,8 @@ const App = () => (
                       <Route path="story-archive" element={<StoryArchive />} />
                       <Route path="expose-archive" element={<ExposeArchive />} />
                       <Route path="collage" element={<Collage />} />
+                      <Route path="mobile-ad" element={<MobileAdDrafts />} />
+                      <Route path="mobile-ad/new" element={<MobileAdCreate />} />
                       <Route path="settings" element={<Settings />} />
                       <Route path="vehicles/new" element={<VehicleCreate />} />
                       <Route path="accounts" element={<Accounts />} />

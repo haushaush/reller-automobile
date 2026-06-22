@@ -209,6 +209,45 @@ export type Database = {
           },
         ]
       }
+      mobile_ad_drafts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          image_paths: string[] | null
+          mobile_ad_id: string | null
+          payload: Json
+          status: string
+          updated_at: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          image_paths?: string[] | null
+          mobile_ad_id?: string | null
+          payload?: Json
+          status?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          image_paths?: string[] | null
+          mobile_ad_id?: string | null
+          payload?: Json
+          status?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Relationships: []
+      }
       price_history: {
         Row: {
           id: string
