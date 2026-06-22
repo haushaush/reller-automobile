@@ -677,7 +677,7 @@ export default function MobileAdCreate() {
         </Button>
         <Button onClick={saveDraft} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Als Entwurf speichern
+          {isEdit ? "Änderungen speichern" : "Als Entwurf speichern"}
         </Button>
       </div>
     </div>
