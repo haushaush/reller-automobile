@@ -627,8 +627,10 @@ Deno.serve(async (req) => {
       console.error("[accident] Failed to trigger check-alerts:", e);
     }
 
-    logStatus = "success";
-    console.log(`=== [accident] Sync Complete ===`);
+    if (logStatus !== "success_with_warning") {
+      logStatus = "success";
+    }
+    console.log(`=== [accident] Sync Complete (status=${logStatus}) ===`);
     return new Response(
       JSON.stringify({ success: true, scope: "accident", synced: vehicleRows.length, totalImages }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
