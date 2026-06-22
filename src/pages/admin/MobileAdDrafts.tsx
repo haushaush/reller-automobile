@@ -35,7 +35,7 @@ interface VehicleMatch {
   price: number | null;
   mileage: number | null;
   vin: string | null;
-  year: number | null;
+  year: number | string | null;
 }
 
 function readPath(obj: unknown, path: string[]): unknown {
