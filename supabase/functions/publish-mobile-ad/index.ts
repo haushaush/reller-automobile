@@ -179,11 +179,24 @@ Deno.serve(async (req) => {
       missing.push("cubicCapacity");
     if (!vehicle.condition) missing.push("condition");
     if (typeof vehicle["damage-unrepaired"] !== "boolean") missing.push("damageUnrepaired");
-    if (price["consumer-price-gross"] === undefined || price["consumer-price-gross"] === null)
-      missing.push("price.consumerPriceGross");
-    if (price.currency !== "EUR") missing.push('price.currency ("EUR")');
-    if (!price["vat-rate"]) missing.push("price.vatRate");
-    if (price.type !== "FIXED") missing.push('price.type ("FIXED")');
+    // Normalize price into the exact shape Mobile.de expects (camelCase, string amount)
+    const rawAmount =
+      price.consumerPriceGross ??
+      price["consumer-price-gross"] ??
+      "";
+    const cleanAmount = String(rawAmount).replace(/[^0-9]/g, "");
+    const rawVat = price.vatRate ?? price["vat-rate"] ?? "19.00";
+    const normalizedPrice = {
+      consumerPriceGross: cleanAmount,
+      currency: "EUR",
+      vatRate: String(rawVat),
+      type: "FIXED",
+    };
+    payload.price = normalizedPrice;
+
+    if (!cleanAmount || cleanAmount === "0") missing.push("price.consumerPriceGross (Preis fehlt/ungültig)");
+    if (!normalizedPrice.vatRate) missing.push("price.vatRate");
+
 
     if (missing.length) {
       const msg = `Pflichtfelder fehlen oder ungültig: ${missing.join(", ")}`;
