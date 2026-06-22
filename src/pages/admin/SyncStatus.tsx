@@ -74,10 +74,19 @@ export default function SyncStatus() {
 
   const triggerSync = async () => {
     setIsTriggering(true);
-    const { error } = await supabase.functions.invoke("sync-vehicles");
+    const { data, error } = await supabase.functions.invoke("sync-vehicles");
     setIsTriggering(false);
-    if (error) {
-      toast.error("Sync fehlgeschlagen", { description: error.message });
+    const payload = (data ?? {}) as { error?: string; authError?: boolean };
+    const isAuth =
+      payload.authError === true ||
+      /401|Auth fehlgeschlagen|Zugangsdaten/i.test(payload.error ?? "") ||
+      /401|non-2xx/i.test(error?.message ?? "");
+    if (error || payload.error) {
+      const description = isAuth
+        ? "Mobile.de Sync fehlgeschlagen: Zugangsdaten der Search-API prüfen."
+        : payload.error || error?.message || "Unbekannter Fehler";
+      toast.error("Sync fehlgeschlagen", { description });
+      setTimeout(loadData, 1500);
       return;
     }
     toast.success("Sync gestartet");
