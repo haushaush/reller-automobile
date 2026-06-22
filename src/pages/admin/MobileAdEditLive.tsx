@@ -73,6 +73,32 @@ function asNum(v: unknown): string {
   if (typeof v === "string") return v;
   return "";
 }
+// Normalisiert Preis-Eingaben aus Mobile.de (Zahl, "10000", "10000.00", "10.000,00 €", verschachteltes Objekt)
+// in einen Euro-Ganzzahl-String wie "10000" (oder mit Nachkommastellen "10000.00").
+function normalizePriceInput(v: unknown): string {
+  if (v === undefined || v === null || v === "") return "";
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return normalizePriceInput(o.consumerPriceGross ?? o.amount ?? o.value ?? o.gross ?? o.consumerValue ?? o.net);
+  }
+  if (typeof v !== "string") return "";
+  let s = v.trim().replace(/[€$\s]/g, "");
+  if (s.includes(",") && s.includes(".")) {
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
+    else s = s.replace(/,/g, "");
+  } else if (s.includes(",")) {
+    const parts = s.split(",");
+    if (parts.length === 2 && parts[1].length <= 2) s = parts[0] + "." + parts[1];
+    else s = s.replace(/,/g, "");
+  }
+  s = s.replace(/[^0-9.]/g, "");
+  if (!s) return "";
+  const n = Number(s);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  // Ganzzahl wenn keine Nachkommastellen, sonst max 2
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
 
 interface FormState {
   make: string; model: string; modelDescription: string; category: string;
