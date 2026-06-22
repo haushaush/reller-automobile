@@ -186,12 +186,33 @@ export default function MobileAdDrafts() {
   const [publishing, setPublishing] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [confirmCopyId, setConfirmCopyId] = useState<string | null>(null);
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
 
   // Linking dialog state
   const [linkDraft, setLinkDraft] = useState<DraftRow | null>(null);
   const [linkSearching, setLinkSearching] = useState(false);
   const [linkMatches, setLinkMatches] = useState<Array<VehicleMatch & { _score: number }>>([]);
   const [linking, setLinking] = useState<string | null>(null);
+
+  const loadThumbs = async (drafts: DraftRow[]) => {
+    const next: Record<string, string> = {};
+    await Promise.all(drafts.map(async (d) => {
+      // Bevorzugt Storage signed URL für erstes Bild
+      const firstPath = Array.isArray(d.image_paths) && d.image_paths[0];
+      if (firstPath) {
+        try {
+          const { data } = await supabase.storage
+            .from("mobile-ad-images")
+            .createSignedUrl(firstPath, 60 * 60);
+          if (data?.signedUrl) { next[d.id] = data.signedUrl; return; }
+        } catch { /* ignore */ }
+      }
+      // Fallback: URLs aus Payload
+      const url = getDraftPayloadImageUrl(d.payload);
+      if (url) next[d.id] = url;
+    }));
+    setThumbs(next);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -202,7 +223,9 @@ export default function MobileAdDrafts() {
     if (error) {
       toast.error("Laden fehlgeschlagen");
     } else {
-      setRows((data ?? []) as DraftRow[]);
+      const list = (data ?? []) as DraftRow[];
+      setRows(list);
+      loadThumbs(list);
     }
     setLoading(false);
   };
