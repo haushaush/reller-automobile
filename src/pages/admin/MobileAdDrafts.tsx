@@ -655,3 +655,23 @@ export default function MobileAdDrafts() {
     </div>
   );
 }
+
+function DraftThumb({ url }: { url?: string | null }) {
+  const [errored, setErrored] = useState(false);
+  const show = url && !errored;
+  return (
+    <div className="w-[88px] h-[66px] flex-shrink-0 rounded-md overflow-hidden border border-border bg-muted/40 flex items-center justify-center">
+      {show ? (
+        <img
+          src={url}
+          alt=""
+          loading="lazy"
+          className="w-full h-full object-cover"
+          onError={() => setErrored(true)}
+        />
+      ) : (
+        <Car className="h-6 w-6 text-muted-foreground/60" aria-hidden="true" />
+      )}
+    </div>
+  );
+}
