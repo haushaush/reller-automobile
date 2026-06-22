@@ -18,6 +18,10 @@ interface SyncLog {
   vehicles_added: number | null;
   vehicles_updated: number | null;
   vehicles_marked_sold: number | null;
+  pages_fetched: number | null;
+  page_size: number | null;
+  mobile_total_results: number | null;
+  stop_reason: string | null;
   status: string | null;
   error_message: string | null;
 }
