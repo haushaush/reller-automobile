@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Trash2, Upload, Loader2, Pencil, Radio, Copy, Search, Link2 } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2, Pencil, Radio, Copy, Search, Link2, Car } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -64,6 +64,69 @@ const fmtPrice = (v: unknown) =>
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+// Liest String-Wert aus möglicherweise {key,label}-Objekten oder direkten Strings
+function strOrKey(v: unknown): string | undefined {
+  if (typeof v === "string" && v.trim()) return v.trim();
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    if (typeof o.label === "string" && o.label.trim()) return o.label.trim();
+    if (typeof o.key === "string" && o.key.trim()) return o.key.trim();
+  }
+  return undefined;
+}
+
+function getDraftDisplayTitle(draft: DraftRow): string {
+  const p = (draft.payload ?? {}) as Record<string, unknown>;
+  const v = (p.vehicle ?? {}) as Record<string, unknown>;
+
+  // 1) modelDescription in diversen Schreibweisen
+  const desc =
+    (typeof p.modelDescription === "string" && p.modelDescription) ||
+    (typeof p["model-description"] === "string" && p["model-description"]) ||
+    (typeof v["model-description"] === "string" && v["model-description"]) ||
+    (typeof v.modelDescription === "string" && v.modelDescription);
+  if (desc && String(desc).trim()) return String(desc).trim();
+
+  // 2) make + model (Root)
+  const rootMake = strOrKey(p.make);
+  const rootModel = strOrKey(p.model);
+  if (rootMake || rootModel) {
+    const combined = [rootMake, rootModel].filter(Boolean).join(" ").trim();
+    if (combined) return combined;
+  }
+
+  // 3) vehicle.make/model labels & keys
+  const vMake = strOrKey(v.make);
+  const vModel = strOrKey(v.model);
+  if (vMake || vModel) {
+    const combined = [vMake, vModel].filter(Boolean).join(" ").trim();
+    if (combined) return combined;
+  }
+
+  // 4) generische Titel-Felder
+  if (typeof p.title === "string" && p.title.trim()) return p.title.trim();
+  if (typeof p.name === "string" && p.name.trim()) return p.name.trim();
+
+  // 5) Fallback Mobile.de-ID
+  if (draft.mobile_ad_id) return `Mobile.de Inserat ${draft.mobile_ad_id}`;
+
+  return "Unbenannt";
+}
+
+function getDraftSubDescription(draft: DraftRow): string | null {
+  const p = (draft.payload ?? {}) as Record<string, unknown>;
+  const v = (p.vehicle ?? {}) as Record<string, unknown>;
+  const desc =
+    (typeof p.modelDescription === "string" && p.modelDescription) ||
+    (typeof p["model-description"] === "string" && p["model-description"]) ||
+    (typeof v["model-description"] === "string" && v["model-description"]) ||
+    (typeof v.modelDescription === "string" && v.modelDescription);
+  // Nur zeigen, wenn nicht bereits als Titel verwendet
+  const title = getDraftDisplayTitle(draft);
+  if (desc && String(desc).trim() && String(desc).trim() !== title) return String(desc).trim();
+  return null;
+}
+
 function getDraftIdentity(payload: unknown) {
   const make = (readFirst(payload, [["vehicle","make","key"], ["make","key"], ["make"]]) ?? null) as string | null;
   const model = (readFirst(payload, [["vehicle","model","key"], ["model","key"], ["model"]]) ?? null) as string | null;
@@ -75,6 +138,30 @@ function getDraftIdentity(payload: unknown) {
   const mileage = typeof mileageRaw === "number" ? mileageRaw : (typeof mileageRaw === "string" ? Number(mileageRaw) : null);
   const vin = (readFirst(payload, [["vehicle","vin"], ["vin"]]) ?? null) as string | null;
   return { make, model, desc, price, mileage: Number.isFinite(mileage as number) ? (mileage as number) : null, vin };
+}
+
+function getDraftPayloadImageUrl(payload: unknown): string | null {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const imgUrls = p.image_urls;
+  if (Array.isArray(imgUrls) && typeof imgUrls[0] === "string") return imgUrls[0];
+  const imgs = p.images;
+  if (Array.isArray(imgs) && imgs[0]) {
+    const first = imgs[0] as Record<string, unknown>;
+    if (typeof first.url === "string") return first.url;
+    if (typeof first.ref === "string") return first.ref;
+    // Mobile.de-Format: { representations: [{ url }] } oder { xxl: { url } }
+    const repr = first.representations;
+    if (Array.isArray(repr) && repr[0] && typeof (repr[0] as Record<string, unknown>).url === "string") {
+      return (repr[0] as Record<string, unknown>).url as string;
+    }
+    for (const key of ["xxl", "xl", "l", "m", "s"]) {
+      const v = first[key];
+      if (v && typeof v === "object" && typeof (v as Record<string, unknown>).url === "string") {
+        return (v as Record<string, unknown>).url as string;
+      }
+    }
+  }
+  return null;
 }
 
 function scoreMatch(d: ReturnType<typeof getDraftIdentity>, v: VehicleMatch): number {
@@ -99,12 +186,33 @@ export default function MobileAdDrafts() {
   const [publishing, setPublishing] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [confirmCopyId, setConfirmCopyId] = useState<string | null>(null);
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
 
   // Linking dialog state
   const [linkDraft, setLinkDraft] = useState<DraftRow | null>(null);
   const [linkSearching, setLinkSearching] = useState(false);
   const [linkMatches, setLinkMatches] = useState<Array<VehicleMatch & { _score: number }>>([]);
   const [linking, setLinking] = useState<string | null>(null);
+
+  const loadThumbs = async (drafts: DraftRow[]) => {
+    const next: Record<string, string> = {};
+    await Promise.all(drafts.map(async (d) => {
+      // Bevorzugt Storage signed URL für erstes Bild
+      const firstPath = Array.isArray(d.image_paths) && d.image_paths[0];
+      if (firstPath) {
+        try {
+          const { data } = await supabase.storage
+            .from("mobile-ad-images")
+            .createSignedUrl(firstPath, 60 * 60);
+          if (data?.signedUrl) { next[d.id] = data.signedUrl; return; }
+        } catch { /* ignore */ }
+      }
+      // Fallback: URLs aus Payload
+      const url = getDraftPayloadImageUrl(d.payload);
+      if (url) next[d.id] = url;
+    }));
+    setThumbs(next);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -115,7 +223,9 @@ export default function MobileAdDrafts() {
     if (error) {
       toast.error("Laden fehlgeschlagen");
     } else {
-      setRows((data ?? []) as DraftRow[]);
+      const list = (data ?? []) as DraftRow[];
+      setRows(list);
+      loadThumbs(list);
     }
     setLoading(false);
   };
@@ -314,46 +424,55 @@ export default function MobileAdDrafts() {
       ) : (
         <div className="space-y-3">
           {rows.map((r) => {
-            const make = readPath(r.payload, ["vehicle", "make", "key"]) as string | undefined;
-            const model = readPath(r.payload, ["vehicle", "model", "key"]) as string | undefined;
-            const desc = readPath(r.payload, ["vehicle", "model-description"]) as string | undefined;
-            const price = readPath(r.payload, ["price", "consumer-price-gross"]);
+            const title = getDraftDisplayTitle(r);
+            const desc = getDraftSubDescription(r);
+            const price = readFirst(r.payload, [
+              ["price", "consumerPriceGross"],
+              ["price", "consumer-price-gross"],
+              ["consumerPriceGross"],
+            ]);
+            const priceNum = typeof price === "number"
+              ? price
+              : typeof price === "string"
+                ? Number(price.replace(/[^0-9.]/g, ""))
+                : NaN;
             const copiedFromId = readPath(r.payload, ["_copiedFromDraftId"]) as string | undefined;
             const copiedFromAd = readPath(r.payload, ["_copiedFromMobileAdId"]) as string | undefined;
             const isPublished = r.status === "published" || r.status === "published_with_warning";
             const canCopy = isPublished || r.status === "error";
             const needsLink = isPublished && !r.mobile_ad_id;
+            const thumb = thumbs[r.id];
             return (
               <Card key={r.id} className="p-4 flex items-center justify-between gap-3 flex-wrap">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold truncate">
-                      {[make, model].filter(Boolean).join(" ") || "Unbenannt"}
-                    </span>
-                    {desc && <span className="text-sm text-muted-foreground truncate">{desc}</span>}
-                    <Badge
-                      variant={
-                        r.status === "published"
-                          ? "default"
-                          : r.status === "published_with_warning"
-                          ? "secondary"
-                          : r.status === "error"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                    >
-                      {r.status}
-                    </Badge>
-                    {copiedFromId && (
-                      <Badge variant="outline" className="text-xs">
-                        Kopie von {desc || copiedFromAd || copiedFromId.slice(0, 8)}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <DraftThumb url={thumb} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold truncate">{title}</span>
+                      {desc && <span className="text-sm text-muted-foreground truncate">{desc}</span>}
+                      <Badge
+                        variant={
+                          r.status === "published"
+                            ? "default"
+                            : r.status === "published_with_warning"
+                            ? "secondary"
+                            : r.status === "error"
+                            ? "destructive"
+                            : "secondary"
+                        }
+                      >
+                        {r.status}
                       </Badge>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {fmtPrice(price)} · erstellt {fmtDate(r.created_at)}
-                    {r.mobile_ad_id ? ` · Mobile.de ID ${r.mobile_ad_id}` : ""}
-                  </div>
+                      {copiedFromId && (
+                        <Badge variant="outline" className="text-xs">
+                          Kopie{copiedFromAd ? ` von ${copiedFromAd}` : ""}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {fmtPrice(Number.isFinite(priceNum) ? priceNum : undefined)} · erstellt {fmtDate(r.created_at)}
+                      {r.mobile_ad_id ? ` · Mobile.de ID ${r.mobile_ad_id}` : ""}
+                    </div>
                   {(r.status === "error" || r.status === "published_with_warning") && r.error_message && (
                     <div className={`text-xs mt-1 break-all ${r.status === "error" ? "text-destructive" : "text-amber-600"}`}>
                       {r.error_message}
@@ -374,6 +493,7 @@ export default function MobileAdDrafts() {
                       Inserat öffnen
                     </a>
                   )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {!isPublished ? (
@@ -532,6 +652,26 @@ export default function MobileAdDrafts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function DraftThumb({ url }: { url?: string | null }) {
+  const [errored, setErrored] = useState(false);
+  const show = url && !errored;
+  return (
+    <div className="w-[88px] h-[66px] flex-shrink-0 rounded-md overflow-hidden border border-border bg-muted/40 flex items-center justify-center">
+      {show ? (
+        <img
+          src={url}
+          alt=""
+          loading="lazy"
+          className="w-full h-full object-cover"
+          onError={() => setErrored(true)}
+        />
+      ) : (
+        <Car className="h-6 w-6 text-muted-foreground/60" aria-hidden="true" />
+      )}
     </div>
   );
 }
