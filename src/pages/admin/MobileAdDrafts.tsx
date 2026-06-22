@@ -64,6 +64,69 @@ const fmtPrice = (v: unknown) =>
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+// Liest String-Wert aus möglicherweise {key,label}-Objekten oder direkten Strings
+function strOrKey(v: unknown): string | undefined {
+  if (typeof v === "string" && v.trim()) return v.trim();
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    if (typeof o.label === "string" && o.label.trim()) return o.label.trim();
+    if (typeof o.key === "string" && o.key.trim()) return o.key.trim();
+  }
+  return undefined;
+}
+
+function getDraftDisplayTitle(draft: DraftRow): string {
+  const p = (draft.payload ?? {}) as Record<string, unknown>;
+  const v = (p.vehicle ?? {}) as Record<string, unknown>;
+
+  // 1) modelDescription in diversen Schreibweisen
+  const desc =
+    (typeof p.modelDescription === "string" && p.modelDescription) ||
+    (typeof p["model-description"] === "string" && p["model-description"]) ||
+    (typeof v["model-description"] === "string" && v["model-description"]) ||
+    (typeof v.modelDescription === "string" && v.modelDescription);
+  if (desc && String(desc).trim()) return String(desc).trim();
+
+  // 2) make + model (Root)
+  const rootMake = strOrKey(p.make);
+  const rootModel = strOrKey(p.model);
+  if (rootMake || rootModel) {
+    const combined = [rootMake, rootModel].filter(Boolean).join(" ").trim();
+    if (combined) return combined;
+  }
+
+  // 3) vehicle.make/model labels & keys
+  const vMake = strOrKey(v.make);
+  const vModel = strOrKey(v.model);
+  if (vMake || vModel) {
+    const combined = [vMake, vModel].filter(Boolean).join(" ").trim();
+    if (combined) return combined;
+  }
+
+  // 4) generische Titel-Felder
+  if (typeof p.title === "string" && p.title.trim()) return p.title.trim();
+  if (typeof p.name === "string" && p.name.trim()) return p.name.trim();
+
+  // 5) Fallback Mobile.de-ID
+  if (draft.mobile_ad_id) return `Mobile.de Inserat ${draft.mobile_ad_id}`;
+
+  return "Unbenannt";
+}
+
+function getDraftSubDescription(draft: DraftRow): string | null {
+  const p = (draft.payload ?? {}) as Record<string, unknown>;
+  const v = (p.vehicle ?? {}) as Record<string, unknown>;
+  const desc =
+    (typeof p.modelDescription === "string" && p.modelDescription) ||
+    (typeof p["model-description"] === "string" && p["model-description"]) ||
+    (typeof v["model-description"] === "string" && v["model-description"]) ||
+    (typeof v.modelDescription === "string" && v.modelDescription);
+  // Nur zeigen, wenn nicht bereits als Titel verwendet
+  const title = getDraftDisplayTitle(draft);
+  if (desc && String(desc).trim() && String(desc).trim() !== title) return String(desc).trim();
+  return null;
+}
+
 function getDraftIdentity(payload: unknown) {
   const make = (readFirst(payload, [["vehicle","make","key"], ["make","key"], ["make"]]) ?? null) as string | null;
   const model = (readFirst(payload, [["vehicle","model","key"], ["model","key"], ["model"]]) ?? null) as string | null;
@@ -75,6 +138,30 @@ function getDraftIdentity(payload: unknown) {
   const mileage = typeof mileageRaw === "number" ? mileageRaw : (typeof mileageRaw === "string" ? Number(mileageRaw) : null);
   const vin = (readFirst(payload, [["vehicle","vin"], ["vin"]]) ?? null) as string | null;
   return { make, model, desc, price, mileage: Number.isFinite(mileage as number) ? (mileage as number) : null, vin };
+}
+
+function getDraftPayloadImageUrl(payload: unknown): string | null {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const imgUrls = p.image_urls;
+  if (Array.isArray(imgUrls) && typeof imgUrls[0] === "string") return imgUrls[0];
+  const imgs = p.images;
+  if (Array.isArray(imgs) && imgs[0]) {
+    const first = imgs[0] as Record<string, unknown>;
+    if (typeof first.url === "string") return first.url;
+    if (typeof first.ref === "string") return first.ref;
+    // Mobile.de-Format: { representations: [{ url }] } oder { xxl: { url } }
+    const repr = first.representations;
+    if (Array.isArray(repr) && repr[0] && typeof (repr[0] as Record<string, unknown>).url === "string") {
+      return (repr[0] as Record<string, unknown>).url as string;
+    }
+    for (const key of ["xxl", "xl", "l", "m", "s"]) {
+      const v = first[key];
+      if (v && typeof v === "object" && typeof (v as Record<string, unknown>).url === "string") {
+        return (v as Record<string, unknown>).url as string;
+      }
+    }
+  }
+  return null;
 }
 
 function scoreMatch(d: ReturnType<typeof getDraftIdentity>, v: VehicleMatch): number {
