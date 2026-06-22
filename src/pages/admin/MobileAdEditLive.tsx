@@ -199,7 +199,7 @@ function formToPayload(f: FormState): AnyObj {
     warranty: f.warranty || undefined,
     huNew: f.huNew || undefined,
     price: {
-      consumerPriceGross: String(f.consumerPriceGross || "").replace(/[^0-9]/g, ""),
+      consumerPriceGross: normalizePriceInput(f.consumerPriceGross),
       currency: "EUR",
       vatRate: f.vatRate || "19.00",
       type: "FIXED",
