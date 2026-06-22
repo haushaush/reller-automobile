@@ -186,6 +186,9 @@ export default function MobileAdDrafts() {
   const [publishing, setPublishing] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [confirmCopyId, setConfirmCopyId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DraftRow | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
 
   // Linking dialog state
@@ -234,13 +237,38 @@ export default function MobileAdDrafts() {
     load();
   }, []);
 
-  const remove = async (id: string) => {
-    if (!confirm("Entwurf wirklich löschen?")) return;
-    const { error } = await supabase.from("mobile_ad_drafts").delete().eq("id", id);
-    if (error) toast.error("Löschen fehlgeschlagen");
-    else {
-      toast.success("Entwurf gelöscht");
-      load();
+  const doDelete = async (row: DraftRow) => {
+    setDeleting(row.id);
+    try {
+      const isPublished = row.status === "published" || row.status === "published_with_warning";
+      if (isPublished) {
+        if (!row.mobile_ad_id) {
+          toast.error("Keine Mobile.de-ID vorhanden. Bitte zuerst verknüpfen.");
+          return;
+        }
+        const { data, error } = await supabase.functions.invoke("delete-mobile-ad", {
+          body: { draftId: row.id, mobileAdId: row.mobile_ad_id },
+        });
+        const d = (data ?? null) as { success?: boolean; error?: string; alreadyGone?: boolean; message?: string } | null;
+        if (error || !d?.success) {
+          const msg = d?.error || error?.message || "Löschen fehlgeschlagen";
+          toast.error(`Löschen fehlgeschlagen: ${msg}`);
+          return;
+        }
+        toast.success(d.message || "Inserat wurde bei Mobile.de gelöscht.");
+      } else {
+        // Lokaler Entwurf: hart löschen
+        const { error } = await supabase.from("mobile_ad_drafts").delete().eq("id", row.id);
+        if (error) {
+          toast.error(`Löschen fehlgeschlagen: ${error.message}`);
+          return;
+        }
+        toast.success("Entwurf gelöscht");
+      }
+      setDeleteTarget(null);
+      await load();
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -403,27 +431,45 @@ export default function MobileAdDrafts() {
             Entwürfe verwalten und auf Mobile.de veröffentlichen.
           </p>
         </div>
-        <Button onClick={() => navigate("/admin/mobile-ad/new")}>
-          <Plus className="h-4 w-4" />
-          Neuer Entwurf
-        </Button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={(e) => setShowDeleted(e.target.checked)}
+            />
+            Gelöschte anzeigen
+          </label>
+          <Button onClick={() => navigate("/admin/mobile-ad/new")}>
+            <Plus className="h-4 w-4" />
+            Neuer Entwurf
+          </Button>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade…
-        </div>
-      ) : rows.length === 0 ? (
-        <Card className="p-10 text-center text-muted-foreground">
-          Noch keine Entwürfe.{" "}
-          <Link to="/admin/mobile-ad/new" className="underline">
-            Jetzt ersten anlegen
-          </Link>
-          .
-        </Card>
-      ) : (
+      {(() => {
+        const visibleRows = rows.filter((r) => showDeleted || r.status !== "deleted");
+        if (loading) {
+          return (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade…
+            </div>
+          );
+        }
+        if (visibleRows.length === 0) {
+          return (
+            <Card className="p-10 text-center text-muted-foreground">
+              {rows.length === 0 ? (
+                <>Noch keine Entwürfe. <Link to="/admin/mobile-ad/new" className="underline">Jetzt ersten anlegen</Link>.</>
+              ) : (
+                <>Keine sichtbaren Einträge. Aktiviere „Gelöschte anzeigen", um entfernte Inserate zu sehen.</>
+              )}
+            </Card>
+          );
+        }
+        return (
         <div className="space-y-3">
-          {rows.map((r) => {
+          {visibleRows.map((r) => {
             const title = getDraftDisplayTitle(r);
             const desc = getDraftSubDescription(r);
             const price = readFirst(r.payload, [
@@ -568,17 +614,20 @@ export default function MobileAdDrafts() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => remove(r.id)}
+                    onClick={() => setDeleteTarget(r)}
+                    disabled={deleting === r.id || r.status === "deleted"}
                     aria-label="Löschen"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    {deleting === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                   </Button>
                 </div>
               </Card>
             );
           })}
         </div>
-      )}
+        );
+      })()}
+
 
       <AlertDialog open={!!confirmCopyId} onOpenChange={(o) => !o && setConfirmCopyId(null)}>
         <AlertDialogContent>
@@ -652,6 +701,76 @@ export default function MobileAdDrafts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !deleting && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          {(() => {
+            const t = deleteTarget;
+            if (!t) return null;
+            const isPublished = t.status === "published" || t.status === "published_with_warning";
+            if (isPublished && !t.mobile_ad_id) {
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Keine Mobile.de-ID vorhanden</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Keine Mobile.de-ID vorhanden. Bitte zuerst mit synchronisiertem Fahrzeug verknüpfen oder manuell prüfen.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Schließen</AlertDialogCancel>
+                  </AlertDialogFooter>
+                </>
+              );
+            }
+            if (isPublished) {
+              return (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Inserat wirklich löschen?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Dieses Inserat wird live bei Mobile.de gelöscht und anschließend aus Lovable entfernt.
+                      Diese Aktion kann nicht rückgängig gemacht werden.
+                      <br />
+                      Mobile.de ID: <span className="font-mono">{t.mobile_ad_id}</span>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={deleting === t.id}>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={(e) => { e.preventDefault(); doDelete(t); }}
+                      disabled={deleting === t.id}
+                    >
+                      {deleting === t.id && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      Ja, bei Mobile.de und Lovable löschen
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </>
+              );
+            }
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Entwurf löschen?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Dieser Entwurf wird lokal gelöscht. Bei Mobile.de wird nichts geändert.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting === t.id}>Abbrechen</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => { e.preventDefault(); doDelete(t); }}
+                    disabled={deleting === t.id}
+                  >
+                    {deleting === t.id && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    Entwurf löschen
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
