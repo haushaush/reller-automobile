@@ -995,7 +995,7 @@ export default function MobileAdCreate() {
                 <SelectValue placeholder={loadingMakes ? "Lade…" : "Marke wählen"} />
               </SelectTrigger>
               <SelectContent className="max-h-72">
-                {makes.map((m) => (
+                {withUnknown(makes, form.make).map((m) => (
                   <SelectItem key={m.key} value={m.key}>{m.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -1012,7 +1012,7 @@ export default function MobileAdCreate() {
                 <SelectValue placeholder={!form.make ? "Erst Marke wählen" : loadingModels ? "Lade…" : "Modell wählen"} />
               </SelectTrigger>
               <SelectContent className="max-h-72">
-                {models.map((m) => (
+                {withUnknown(models, form.model).map((m) => (
                   <SelectItem key={m.key} value={m.key}>{m.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -1070,7 +1070,7 @@ export default function MobileAdCreate() {
             <Select value={form.category} onValueChange={(v) => update("category", v)}>
               <SelectTrigger><SelectValue placeholder="Kategorie wählen" /></SelectTrigger>
               <SelectContent className="max-h-72">
-                {categories.map((c) => (
+                {withUnknown(categories, form.category).map((c) => (
                   <SelectItem key={c.key} value={c.key}>
                     {labelFor(CATEGORY_LABELS, c.key, c.name)}
                   </SelectItem>
@@ -1083,7 +1083,7 @@ export default function MobileAdCreate() {
             <Select value={form.doors} onValueChange={(v) => update("doors", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent>
-                {DOORS_OPTIONS.map((d) => (
+                {withUnknownDoors(DOORS_OPTIONS, form.doors).map((d) => (
                   <SelectItem key={d.key} value={d.key}>{d.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -1109,7 +1109,7 @@ export default function MobileAdCreate() {
             <Select value={form.gearbox} onValueChange={(v) => update("gearbox", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent>
-                {gearboxes.map((g) => (
+                {withUnknown(gearboxes, form.gearbox).map((g) => (
                   <SelectItem key={g.key} value={g.key}>{labelFor(GEARBOX_LABELS, g.key, g.name)}</SelectItem>
                 ))}
               </SelectContent>
@@ -1120,7 +1120,7 @@ export default function MobileAdCreate() {
             <Select value={form.fuel} onValueChange={(v) => update("fuel", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent className="max-h-72">
-                {fuels.map((f) => (
+                {withUnknown(fuels, form.fuel).map((f) => (
                   <SelectItem key={f.key} value={f.key}>{labelFor(FUEL_LABELS, f.key, f.name)}</SelectItem>
                 ))}
               </SelectContent>
@@ -1165,7 +1165,7 @@ export default function MobileAdCreate() {
                 <SelectValue placeholder={driveTypes.length ? "Wählen" : "Refdata nicht verfügbar"} />
               </SelectTrigger>
               <SelectContent>
-                {driveTypes.map((d) => (
+                {withUnknown(driveTypes, form.driveType).map((d) => (
                   <SelectItem key={d.key} value={d.key}>{d.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -1183,7 +1183,7 @@ export default function MobileAdCreate() {
             <Select value={form.exteriorColor} onValueChange={(v) => update("exteriorColor", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent className="max-h-72">
-                {exteriorColors.map((c) => (
+                {withUnknown(exteriorColors, form.exteriorColor).map((c) => (
                   <SelectItem key={c.key} value={c.key}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -1293,7 +1293,7 @@ export default function MobileAdCreate() {
             <Select value={form.emissionClass} onValueChange={(v) => update("emissionClass", v)} disabled={!emissionClasses.length}>
               <SelectTrigger><SelectValue placeholder={emissionClasses.length ? "Wählen" : "Refdata nicht verfügbar"} /></SelectTrigger>
               <SelectContent className="max-h-72">
-                {emissionClasses.map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
+                {withUnknown(emissionClasses, form.emissionClass).map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
@@ -1302,7 +1302,7 @@ export default function MobileAdCreate() {
             <Select value={form.emissionSticker} onValueChange={(v) => update("emissionSticker", v)} disabled={!emissionStickers.length}>
               <SelectTrigger><SelectValue placeholder={emissionStickers.length ? "Wählen" : "Refdata nicht verfügbar"} /></SelectTrigger>
               <SelectContent>
-                {emissionStickers.map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
+                {withUnknown(emissionStickers, form.emissionSticker).map((e) => (<SelectItem key={e.key} value={e.key}>{e.name}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
@@ -1364,7 +1364,7 @@ export default function MobileAdCreate() {
             <SelectValue placeholder={climatisations.length ? "Wählen" : "Refdata nicht verfügbar (TODO)"} />
           </SelectTrigger>
           <SelectContent>
-            {climatisations.map((o) => (<SelectItem key={o.key} value={o.key}>{o.name}</SelectItem>))}
+            {withUnknown(climatisations, form.climatisation).map((o) => (<SelectItem key={o.key} value={o.key}>{o.name}</SelectItem>))}
           </SelectContent>
         </Select>
       </Card>
@@ -1475,7 +1475,7 @@ export default function MobileAdCreate() {
             <Select value={form.vatRate} onValueChange={(v) => update("vatRate", v)}>
               <SelectTrigger><SelectValue placeholder="Wählen" /></SelectTrigger>
               <SelectContent>
-                {vatRates.map((v) => (
+                {withUnknown(vatRates, form.vatRate).map((v) => (
                   <SelectItem key={v.key} value={v.key}>{v.name}</SelectItem>
                 ))}
               </SelectContent>
