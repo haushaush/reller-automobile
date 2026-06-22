@@ -361,7 +361,7 @@ export default function MobileAdCreate() {
               <SelectContent className="max-h-72">
                 {categories.map((c) => (
                   <SelectItem key={c.key} value={c.key}>
-                    {c.name}
+                    {labelFor(CATEGORY_LABELS, c.key, c.name)}
                   </SelectItem>
                 ))}
               </SelectContent>
