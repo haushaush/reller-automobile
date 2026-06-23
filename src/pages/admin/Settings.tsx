@@ -69,7 +69,9 @@ export default function Settings() {
           MAP_INCLUDE_STORY_KEY,
           MAP_INCLUDE_EXPOSE_KEY,
           MAP_INCLUDE_VEHICLE_LINK_KEY,
+          MAP_INCLUDE_ACCIDENT_KEY,
         ]);
+
       if (error) {
         console.error(error);
         toast.error("Einstellungen konnten nicht geladen werden");
