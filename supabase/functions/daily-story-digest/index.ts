@@ -1,23 +1,8 @@
-// Daily Story Digest: generates story images for all vehicles added in the
-// last 24h and sends a single digest email to the configured story recipients.
-//
-// Runs hourly via pg_cron. The function checks app_settings on each tick:
-//   - daily_digest_enabled (jsonb boolean): on/off switch
-//   - daily_digest_hour    (jsonb number):  target send hour in Europe/Berlin
-//   - daily_digest_last_sent (jsonb string YYYY-MM-DD): idempotency marker
-// Only when the current Berlin hour matches and we haven't sent today, it runs.
-// Query param ?force=true bypasses the hour + idempotency checks (for manual tests).
+// Daily Business Report (technischer Function-Name bleibt "daily-story-digest"
+// aus Cron-Gründen). Statt eines Story/Exposé-Digests berechnet die Function
+// kompakte Tageskennzahlen zum Fahrzeugbestand und versendet einen
+// Kennzahlenbericht via send-transactional-email.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import React from "npm:react@18.3.1";
-import {
-  Document,
-  Page,
-  Text,
-  View,
-  Image as PdfImage,
-  StyleSheet,
-  renderToBuffer,
-} from "npm:@react-pdf/renderer@3.4.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,9 +17,70 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ENABLED_KEY = "daily_digest_enabled";
 const HOUR_KEY = "daily_digest_hour";
 const LAST_SENT_KEY = "daily_digest_last_sent";
+const RECIPIENTS_KEY = "daily_report_recipients";
+const STORY_RECIPIENTS_KEY = "story_email_recipients";
+const INC_NEW_KEY = "daily_report_include_new_vehicles";
+const INC_SOLD_KEY = "daily_report_include_sold_vehicles";
+const INC_INVENTORY_KEY = "daily_report_include_inventory_value";
+const INC_SYNC_KEY = "daily_report_include_sync_status";
 
-const EXPOSE_BUCKET = "vehicle-exposes";
-const EXPOSE_SIGNED_TTL = 60 * 60 * 24 * 7; // 7 days
+const PORTAL_BASE = "https://fahrzeuge.reller-automobile.de";
+
+// ─── German label mapping for raw Mobile.de enums ─────────────────────────────
+const BRAND_LABELS: Record<string, string> = {
+  VW: "Volkswagen",
+  MERCEDES_BENZ: "Mercedes-Benz",
+  "Mercedes-Benz": "Mercedes-Benz",
+  BMW: "BMW",
+  AUDI: "Audi",
+};
+const FUEL_LABELS: Record<string, string> = {
+  PETROL: "Benzin", DIESEL: "Diesel", ELECTRICITY: "Elektro",
+  HYBRID: "Hybrid", HYBRID_DIESEL: "Hybrid (Diesel)", LPG: "LPG", CNG: "CNG",
+};
+const GEARBOX_LABELS: Record<string, string> = {
+  MANUAL_GEAR: "Schaltgetriebe",
+  AUTOMATIC_GEAR: "Automatik",
+  SEMIAUTOMATIC_GEAR: "Halbautomatik",
+};
+const COLOR_LABELS: Record<string, string> = {
+  GREY: "Grau", BLACK: "Schwarz", WHITE: "Weiß", BLUE: "Blau",
+  RED: "Rot", SILVER: "Silber", GREEN: "Grün", BROWN: "Braun",
+  YELLOW: "Gelb", BEIGE: "Beige", GOLD: "Gold", ORANGE: "Orange", VIOLET: "Violett",
+};
+function mapBrand(v?: string | null) { return v ? (BRAND_LABELS[v] ?? v) : ""; }
+
+// ─── Formatters ───────────────────────────────────────────────────────────────
+function fmtPrice(price?: number | null, currency = "€"): string {
+  if (price == null || !Number.isFinite(Number(price))) return "–";
+  return `${Number(price).toLocaleString("de-DE")} ${currency}`;
+}
+function fmtKm(mileage?: number | null): string {
+  if (mileage == null || !Number.isFinite(Number(mileage))) return "–";
+  return `${Number(mileage).toLocaleString("de-DE")} km`;
+}
+function fmtFirstReg(firstReg?: string | null): string | null {
+  if (!firstReg) return null;
+  const s = String(firstReg);
+  if (/^\d{6}$/.test(s)) return `${s.slice(4, 6)}/${s.slice(0, 4)}`;
+  return s;
+}
+function fmtBerlinDateTime(iso?: string | null): string {
+  if (!iso) return "–";
+  try {
+    return new Intl.DateTimeFormat("de-DE", {
+      timeZone: "Europe/Berlin",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).format(new Date(iso));
+  } catch { return String(iso); }
+}
+function fmtBerlinDate(d = new Date()): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+}
 
 function berlinNowParts() {
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -58,117 +104,8 @@ async function loadSetting<T>(
   return (data?.value as T) ?? null;
 }
 
-// ─── Minimal server-side Exposé PDF (mirrors VehicleExpose key fields) ──────
-const pdfStyles = StyleSheet.create({
-  page: { padding: 40, fontFamily: "Helvetica", fontSize: 10, color: "#222" },
-  header: { marginBottom: 20, borderBottom: "2px solid #c0392b", paddingBottom: 12 },
-  companyName: { fontSize: 16, fontFamily: "Helvetica-Bold", color: "#c0392b", marginBottom: 2 },
-  companyInfo: { fontSize: 8, color: "#666", lineHeight: 1.5 },
-  mainImage: { width: "100%", height: 260, objectFit: "cover", borderRadius: 6, marginBottom: 16 },
-  title: { fontSize: 20, fontFamily: "Helvetica-Bold", marginBottom: 8 },
-  price: { fontSize: 18, fontFamily: "Helvetica-Bold", color: "#c0392b", marginBottom: 16 },
-  tableRow: { flexDirection: "row", borderBottom: "1px solid #eee", paddingVertical: 5 },
-  tableLabel: { width: "40%", fontFamily: "Helvetica-Bold", fontSize: 9, color: "#555" },
-  tableValue: { width: "60%", fontSize: 9 },
-  sectionTitle: { fontSize: 13, fontFamily: "Helvetica-Bold", marginBottom: 8, marginTop: 16 },
-  description: { fontSize: 9, lineHeight: 1.6, color: "#444", marginTop: 12 },
-  footer: { position: "absolute", bottom: 30, left: 40, right: 40, borderTop: "1px solid #ddd", paddingTop: 8, fontSize: 7, color: "#999", textAlign: "center" },
-});
-
-function buildExposeDoc(v: Record<string, any>) {
-  const h = React.createElement;
-  const mainImage = Array.isArray(v.image_urls) ? v.image_urls[0] : null;
-  const ps = v.power ? Math.round(Number(v.power) * 1.36) : null;
-  const formattedPrice = v.price
-    ? `${Number(v.price).toLocaleString("de-DE")} ${v.currency || "€"}`
-    : null;
-  const today = new Date().toLocaleDateString("de-DE");
-
-  const specs: Array<[string, string]> = [
-    ["Baujahr", String(v.year ?? "–")],
-    ["Kilometerstand", v.mileage ? `${Number(v.mileage).toLocaleString("de-DE")} km` : "–"],
-    ["Leistung", v.power ? `${v.power} kW${ps ? ` (${ps} PS)` : ""}` : "–"],
-    ["Kraftstoff", v.fuel ?? "–"],
-    ["Getriebe", v.gearbox ?? "–"],
-    ["Erstzulassung", v.first_registration ?? "–"],
-    ["Hubraum", v.cubic_capacity ? `${v.cubic_capacity} ccm` : "–"],
-    ["Farbe", v.exterior_color ?? "–"],
-  ];
-
-  const row = (label: string, value: string, key: number) =>
-    h(View, { key, style: pdfStyles.tableRow },
-      h(Text, { style: pdfStyles.tableLabel }, label),
-      h(Text, { style: pdfStyles.tableValue }, value),
-    );
-
-  return h(Document, {},
-    h(Page, { size: "A4", style: pdfStyles.page },
-      h(View, { style: pdfStyles.header },
-        h(Text, { style: pdfStyles.companyName }, "Reller Automobile GmbH"),
-        h(Text, { style: pdfStyles.companyInfo },
-          "Hauptstraße 1 · 12345 Musterstadt · Tel: +49 (0)123 456789 · info@reller-automobile.de"),
-      ),
-      mainImage ? h(PdfImage, { src: mainImage, style: pdfStyles.mainImage }) : null,
-      h(Text, { style: pdfStyles.title }, v.title || "Fahrzeug"),
-      formattedPrice ? h(Text, { style: pdfStyles.price }, formattedPrice) : null,
-      h(Text, { style: pdfStyles.sectionTitle }, "Technische Daten"),
-      ...specs.map(([l, val], i) => row(l, val, i)),
-      v.description ? h(Text, { style: pdfStyles.description }, String(v.description).slice(0, 1500)) : null,
-      h(Text, { style: pdfStyles.footer },
-        `Exposé erstellt am ${today} · Reller Automobile GmbH · Angaben ohne Gewähr`),
-    ),
-  );
-}
-
-async function ensureExposeForVehicle(
-  admin: ReturnType<typeof createClient>,
-  vehicleId: string,
-): Promise<string | null> {
-  // 1. Reuse existing if present
-  const { data: existing } = await admin
-    .from("vehicle_exposes")
-    .select("pdf_url")
-    .eq("vehicle_id", vehicleId)
-    .maybeSingle();
-
-  let path = (existing as { pdf_url?: string } | null)?.pdf_url;
-
-  if (!path) {
-    // 2. Generate fresh PDF
-    const { data: full, error: vErr } = await admin
-      .from("vehicles").select("*").eq("id", vehicleId).maybeSingle();
-    if (vErr || !full) {
-      console.error(`expose: vehicle ${vehicleId} fetch failed`, vErr);
-      return null;
-    }
-    const buffer = await renderToBuffer(buildExposeDoc(full as Record<string, any>));
-    path = `exposes/${vehicleId}.pdf`;
-    const { error: upErr } = await admin.storage
-      .from(EXPOSE_BUCKET)
-      .upload(path, buffer, { contentType: "application/pdf", upsert: true });
-    if (upErr) {
-      console.error(`expose: upload failed for ${vehicleId}`, upErr);
-      return null;
-    }
-    const { error: dbErr } = await admin.from("vehicle_exposes").upsert(
-      { vehicle_id: vehicleId, pdf_url: path, updated_at: new Date().toISOString() },
-      { onConflict: "vehicle_id" },
-    );
-    if (dbErr) {
-      console.error(`expose: db upsert failed for ${vehicleId}`, dbErr);
-      // continue — signed URL will still work
-    }
-  }
-
-  // 3. Signed URL (7 days)
-  const { data: signed, error: signErr } = await admin.storage
-    .from(EXPOSE_BUCKET)
-    .createSignedUrl(path, EXPOSE_SIGNED_TTL);
-  if (signErr || !signed) {
-    console.error(`expose: signed URL failed for ${vehicleId}`, signErr);
-    return null;
-  }
-  return signed.signedUrl;
+function vehicleUrl(v: { id: string; detail_page_url?: string | null }): string {
+  return v.detail_page_url ?? `${PORTAL_BASE}/fahrzeug/${v.id}`;
 }
 
 Deno.serve(async (req) => {
@@ -178,7 +115,7 @@ Deno.serve(async (req) => {
   const force = url.searchParams.get("force") === "true";
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Auth: accept service-role (cron) OR an authenticated admin user (manual test).
+  // Auth (cron service-role OR admin user)
   try {
     const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization");
     const token = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "") : "";
@@ -205,16 +142,18 @@ Deno.serve(async (req) => {
       }
     }
   } catch (err) {
-    console.error("daily-story-digest: auth check failed", err);
+    console.error("daily-business-report: auth check failed", err);
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
+  const warnings: string[] = [];
+
   try {
     const enabled = await loadSetting<boolean>(admin, ENABLED_KEY);
     if (!force && enabled !== true) {
-      console.log("daily-story-digest: disabled, skipping");
+      console.log("daily-business-report: disabled, skipping");
       return new Response(JSON.stringify({ skipped: "disabled" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -224,7 +163,7 @@ Deno.serve(async (req) => {
     const { date: berlinDate, hour: berlinHour } = berlinNowParts();
 
     if (!force && berlinHour !== hourSetting) {
-      console.log(`daily-story-digest: hour mismatch (now=${berlinHour}, target=${hourSetting})`);
+      console.log(`daily-business-report: hour mismatch (now=${berlinHour}, target=${hourSetting})`);
       return new Response(JSON.stringify({ skipped: "wrong_hour", berlinHour, target: hourSetting }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -232,105 +171,289 @@ Deno.serve(async (req) => {
 
     const lastSent = await loadSetting<string>(admin, LAST_SENT_KEY);
     if (!force && lastSent === berlinDate) {
-      console.log(`daily-story-digest: already sent today (${berlinDate})`);
+      console.log(`daily-business-report: already sent today (${berlinDate})`);
       return new Response(JSON.stringify({ skipped: "already_sent_today", date: berlinDate }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: vehicles, error: vehErr } = await admin
-      .from("vehicles")
-      .select("id, created_at")
-      .gte("created_at", since)
-      .eq("is_sold", false);
-
-    if (vehErr) {
-      console.error("daily-story-digest: vehicles query failed", vehErr);
-      return new Response(JSON.stringify({ error: vehErr.message }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Recipients: prefer daily_report_recipients, fall back to story recipients.
+    let recipients = (await loadSetting<string[]>(admin, RECIPIENTS_KEY)) ?? [];
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+      const storyR = (await loadSetting<string[]>(admin, STORY_RECIPIENTS_KEY)) ?? [];
+      recipients = Array.isArray(storyR) ? storyR : [];
     }
-
-    const vehicleIds = (vehicles ?? []).map((v) => v.id);
-    console.log(`daily-story-digest: found ${vehicleIds.length} new vehicles since ${since}`);
-
-    if (vehicleIds.length === 0) {
-      if (!force) {
-        await admin.from("app_settings").upsert(
-          { key: LAST_SENT_KEY, value: berlinDate, updated_at: new Date().toISOString() },
-          { onConflict: "key" },
-        );
-      }
-      return new Response(JSON.stringify({ sent: 0, reason: "no_new_vehicles", date: berlinDate }), {
+    recipients = recipients.filter((r) => typeof r === "string" && r.includes("@"));
+    if (recipients.length === 0) {
+      console.log("daily-business-report: no recipients configured");
+      return new Response(JSON.stringify({ skipped: "no_recipients" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Generate story images via generate-story (service-role bypass; skip per-vehicle email).
+    const incNew = (await loadSetting<boolean>(admin, INC_NEW_KEY)) ?? true;
+    const incSold = (await loadSetting<boolean>(admin, INC_SOLD_KEY)) ?? true;
+    const incInventory = (await loadSetting<boolean>(admin, INC_INVENTORY_KEY)) ?? true;
+    const incSync = (await loadSetting<boolean>(admin, INC_SYNC_KEY)) ?? true;
+
+    const sinceDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const since = sinceDate.toISOString();
+
+    // ─── KPIs ─────────────────────────────────────────────────────────────
+    // 1. New vehicles (last 24h, not sold)
+    const { data: newVehiclesData, error: newErr } = await admin
+      .from("vehicles")
+      .select("id, brand, model, model_description, price, currency, mileage, first_registration, detail_page_url, created_at")
+      .gte("created_at", since)
+      .eq("is_sold", false)
+      .order("created_at", { ascending: false });
+    if (newErr) {
+      console.error("daily-business-report: new vehicles query failed", newErr);
+      warnings.push("Neue Fahrzeuge konnten nicht geladen werden.");
+    }
+    const newVehicles = newVehiclesData ?? [];
+
+    // 2. Sold vehicles (last 24h)
+    const { data: soldVehiclesData, error: soldErr } = await admin
+      .from("vehicles")
+      .select("id, brand, model, model_description, price, currency, sold_at, detail_page_url")
+      .eq("is_sold", true)
+      .gte("sold_at", since)
+      .order("sold_at", { ascending: false });
+    if (soldErr) {
+      console.error("daily-business-report: sold vehicles query failed", soldErr);
+      warnings.push("Verkaufte Fahrzeuge konnten nicht geladen werden.");
+    }
+    const soldVehicles = soldVehiclesData ?? [];
+
+    // 3. Current inventory + inventory value + missing price/images
+    const { data: inventoryData, error: invErr } = await admin
+      .from("vehicles")
+      .select("id, price, image_urls")
+      .eq("is_sold", false);
+    if (invErr) {
+      console.error("daily-business-report: inventory query failed", invErr);
+      warnings.push("Bestand konnte nicht geladen werden.");
+    }
+    const inventory = inventoryData ?? [];
+    const currentInventoryCount = inventory.length;
+    let inventoryValue = 0;
+    let vehiclesWithoutPriceCount = 0;
+    let vehiclesWithoutImagesCount = 0;
+    for (const v of inventory as Array<{ price: number | null; image_urls: string[] | null }>) {
+      const p = Number(v.price);
+      if (Number.isFinite(p) && p > 0) inventoryValue += p;
+      else vehiclesWithoutPriceCount++;
+      if (!Array.isArray(v.image_urls) || v.image_urls.length === 0) {
+        vehiclesWithoutImagesCount++;
+      }
+    }
+
+    // 4. Sales value 24h
+    let salesValue24h = 0;
+    let soldWithPriceCount = 0;
+    for (const v of soldVehicles as Array<{ price: number | null }>) {
+      const p = Number(v.price);
+      if (Number.isFinite(p) && p > 0) {
+        salesValue24h += p;
+        soldWithPriceCount++;
+      }
+    }
+    const avgSalePrice = soldWithPriceCount > 0 ? Math.round(salesValue24h / soldWithPriceCount) : null;
+
+    // 5. Sync status
+    let lastSyncLabel: string | null = null;
+    const syncErrors: Array<{ syncName: string; when: string; message?: string | null }> = [];
+    if (incSync) {
+      const { data: lastSync, error: lsErr } = await admin
+        .from("sync_logs")
+        .select("sync_name, completed_at")
+        .eq("status", "success")
+        .order("completed_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+      if (lsErr) {
+        console.error("daily-business-report: last sync query failed", lsErr);
+        warnings.push("Letzter Sync konnte nicht ermittelt werden.");
+      } else if (lastSync) {
+        lastSyncLabel = `${lastSync.sync_name} · ${fmtBerlinDateTime(lastSync.completed_at as string)}`;
+      }
+      const { data: errs } = await admin
+        .from("sync_logs")
+        .select("sync_name, completed_at, started_at, error_message, status")
+        .neq("status", "success")
+        .gte("started_at", since)
+        .order("started_at", { ascending: false })
+        .limit(20);
+      for (const e of (errs ?? []) as Array<any>) {
+        syncErrors.push({
+          syncName: e.sync_name,
+          when: fmtBerlinDateTime(e.completed_at ?? e.started_at),
+          message: e.error_message ?? e.status,
+        });
+      }
+    }
+
+    // ─── Build template data ──────────────────────────────────────────────
+    const MAX_LIST = 10;
+    const newList = newVehicles.slice(0, MAX_LIST).map((v: any) => ({
+      id: v.id,
+      brand: mapBrand(v.brand),
+      model: v.model,
+      modelDescription: v.model_description,
+      priceFormatted: fmtPrice(v.price, v.currency ?? "€"),
+      mileageFormatted: fmtKm(v.mileage),
+      firstRegistration: fmtFirstReg(v.first_registration),
+      url: vehicleUrl(v),
+    }));
+    const soldList = soldVehicles.slice(0, MAX_LIST).map((v: any) => ({
+      id: v.id,
+      brand: mapBrand(v.brand),
+      model: v.model,
+      modelDescription: v.model_description,
+      priceFormatted: fmtPrice(v.price, v.currency ?? "€"),
+      soldAtFormatted: fmtBerlinDateTime(v.sold_at),
+      url: vehicleUrl(v),
+    }));
+
+    const dateLabel = fmtBerlinDate();
+    const templateData = {
+      dateLabel,
+      periodLabel: "Zeitraum: letzte 24 Stunden",
+      kpis: {
+        newVehiclesCount: newVehicles.length,
+        soldVehiclesCount: soldVehicles.length,
+        currentInventoryCount,
+        inventoryValueFormatted: fmtPrice(inventoryValue),
+        salesValue24hFormatted: fmtPrice(salesValue24h),
+        avgSalePriceFormatted: avgSalePrice != null ? fmtPrice(avgSalePrice) : null,
+      },
+      newVehicles: newList,
+      newVehiclesMore: Math.max(0, newVehicles.length - MAX_LIST),
+      soldVehicles: soldList,
+      soldVehiclesMore: Math.max(0, soldVehicles.length - MAX_LIST),
+      vehiclesWithoutPriceCount,
+      vehiclesWithoutImagesCount,
+      lastSyncLabel,
+      syncErrors,
+      warnings,
+      includeNewVehicles: incNew,
+      includeSoldVehicles: incSold,
+      includeInventoryValue: incInventory,
+      includeSyncStatus: incSync,
+    };
+
+    console.log("daily-business-report: kpis", {
+      date: berlinDate,
+      newVehiclesCount: newVehicles.length,
+      soldVehiclesCount: soldVehicles.length,
+      currentInventoryCount,
+      inventoryValue,
+      salesValue24h,
+      vehiclesWithoutPriceCount,
+      vehiclesWithoutImagesCount,
+      recipients: recipients.length,
+      warnings: warnings.length,
+    });
+
+    const subject = `Tagesreport Reller Automobile – ${dateLabel}`;
+
+    // ─── Send via send-transactional-email (one recipient per call) ──────
     const adminWithAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
     });
-    const { data: genData, error: genErr } = await adminWithAuth.functions.invoke("generate-story", {
-      body: { vehicleIds, skipDealerEmail: true },
-    });
-    if (genErr) {
-      console.error("daily-story-digest: generate-story failed", genErr);
-      return new Response(JSON.stringify({ error: "generate-story failed", details: String(genErr) }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const storyIds: string[] = Array.isArray(genData?.storyIds) ? genData.storyIds : [];
-    console.log(`daily-story-digest: generated ${storyIds.length} stories`);
 
-    if (storyIds.length === 0) {
-      return new Response(JSON.stringify({ sent: 0, reason: "no_stories_generated" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Ensure exposé PDF + signed URL for each vehicle. Failure per vehicle = skip its link.
-    const exposeUrls: Record<string, string> = {};
-    await Promise.all(vehicleIds.map(async (vid) => {
+    const sendResults: Array<{ recipient: string; success: boolean; error?: string }> = [];
+    let anySuccess = false;
+    let firstError: string | null = null;
+    for (const recipient of recipients) {
+      const idempotencyKey = `daily-report-${berlinDate}-${recipient}`;
       try {
-        const link = await ensureExposeForVehicle(admin, vid);
-        if (link) exposeUrls[vid] = link;
-      } catch (err) {
-        console.error(`daily-story-digest: expose generation failed for ${vid}`, err);
+        const { data, error } = await adminWithAuth.functions.invoke("send-transactional-email", {
+          body: {
+            templateName: "daily-business-report",
+            recipientEmail: recipient,
+            idempotencyKey,
+            templateData,
+          },
+        });
+        if (error) {
+          const msg = (error as Error).message ?? String(error);
+          console.error(`daily-business-report: send failed for ${recipient}`, msg);
+          sendResults.push({ recipient, success: false, error: msg });
+          if (!firstError) firstError = msg;
+        } else {
+          console.log(`daily-business-report: sent to ${recipient}`, data);
+          sendResults.push({ recipient, success: true });
+          anySuccess = true;
+        }
+      } catch (e) {
+        const msg = (e as Error).message ?? String(e);
+        console.error(`daily-business-report: send exception for ${recipient}`, msg);
+        sendResults.push({ recipient, success: false, error: msg });
+        if (!firstError) firstError = msg;
       }
-    }));
-    console.log(`daily-story-digest: prepared ${Object.keys(exposeUrls).length}/${vehicleIds.length} expose links`);
-
-    const { data: sendData, error: sendErr } = await adminWithAuth.functions.invoke("send-stories-email", {
-      body: {
-        storyIds,
-        note: "Neue Fahrzeuge der letzten 24 Stunden",
-        exposeUrls,
-      },
-    });
-    if (sendErr) {
-      console.error("daily-story-digest: send-stories-email failed", sendErr);
-      return new Response(JSON.stringify({ error: "send-stories-email failed", details: String(sendErr) }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
-    if (!force) {
+    // ─── Log to email_logs (one entry summarizing the daily report) ──────
+    try {
+      const status = anySuccess
+        ? (sendResults.every((r) => r.success) ? "sent" : "partial")
+        : "failed";
+      await admin.from("email_logs").insert({
+        mail_type: "daily_business_report",
+        status,
+        recipients,
+        subject,
+        provider: "send-transactional-email",
+        provider_response: { results: sendResults },
+        error_message: firstError,
+        sent_at: anySuccess ? new Date().toISOString() : null,
+        metadata: {
+          date: berlinDate,
+          newVehiclesCount: newVehicles.length,
+          soldVehiclesCount: soldVehicles.length,
+          currentInventoryCount,
+          inventoryValue,
+          salesValue24h,
+          avgSalePrice,
+          vehiclesWithoutPriceCount,
+          vehiclesWithoutImagesCount,
+          syncErrorsCount: syncErrors.length,
+          warnings,
+          force,
+        },
+      });
+    } catch (logErr) {
+      console.error("daily-business-report: email_logs insert failed", logErr);
+    }
+
+    if (!force && anySuccess) {
       await admin.from("app_settings").upsert(
         { key: LAST_SENT_KEY, value: berlinDate, updated_at: new Date().toISOString() },
         { onConflict: "key" },
       );
     }
 
-    console.log(`daily-story-digest: done`, sendData);
     return new Response(JSON.stringify({
-      sent: storyIds.length,
+      sent: sendResults.filter((r) => r.success).length,
+      total: recipients.length,
       date: berlinDate,
-      exposeLinks: Object.keys(exposeUrls).length,
-      sendResult: sendData,
+      results: sendResults,
+      warnings,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
-    console.error("daily-story-digest: fatal", err);
+    console.error("daily-business-report: fatal", err);
+    try {
+      await admin.from("email_logs").insert({
+        mail_type: "daily_business_report",
+        status: "failed",
+        recipients: [],
+        subject: "Tagesreport Reller Automobile",
+        error_message: (err as Error).message,
+        metadata: { fatal: true, warnings },
+      });
+    } catch (_e) { /* ignore */ }
     return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
