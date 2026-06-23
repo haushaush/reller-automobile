@@ -96,6 +96,7 @@ const App = () => (
                       <Route path="mobile-ad/edit/:draftId" element={<MobileAdCreate />} />
                       <Route path="mobile-ad/:draftId/live-edit" element={<MobileAdEditLive />} />
                       <Route path="settings" element={<Settings />} />
+                      <Route path="email-logs" element={<EmailLogs />} />
                       <Route path="vehicles/new" element={<VehicleCreate />} />
                       <Route path="accounts" element={<Accounts />} />
                     </Route>
