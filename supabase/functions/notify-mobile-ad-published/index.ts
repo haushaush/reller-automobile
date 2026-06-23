@@ -468,6 +468,15 @@ Deno.serve(async (req) => {
             recipientEmail: recipient,
             idempotencyKey: `${baseKey}-${recipient}`,
             templateData,
+            logContext: {
+              mailType: "mobile_ad_synced",
+              vehicleId: vehicleId ?? null,
+              mobileAdDraftId: draftId ?? null,
+              mobileAdId: draft.mobile_ad_id ?? null,
+              storyId: (storyImageUrl ? (templateData as any).storyId ?? null : null),
+              exposePath: vehicleId ? `exposes/${vehicleId}.pdf` : null,
+              metadata: { force: !!force },
+            },
           },
         }).then((r) => ({ recipient, error: r.error ? String(r.error.message ?? r.error) : null }))
       ),
