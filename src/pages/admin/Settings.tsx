@@ -49,7 +49,9 @@ export default function Settings() {
   const [mapIncludeStory, setMapIncludeStory] = useState(true);
   const [mapIncludeExpose, setMapIncludeExpose] = useState(true);
   const [mapIncludeVehicleLink, setMapIncludeVehicleLink] = useState(true);
+  const [mapIncludeAccident, setMapIncludeAccident] = useState(true);
   const [isSavingMap, setIsSavingMap] = useState(false);
+
 
   useEffect(() => {
     const load = async () => {
