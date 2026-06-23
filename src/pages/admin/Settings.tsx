@@ -12,7 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Mail, Phone, Plus, X, Clock, Play } from "lucide-react";
+import { Loader2, Mail, Phone, Plus, X, Clock, Play, Send } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 const STORY_RECIPIENTS_KEY = "story_email_recipients";
@@ -20,6 +22,11 @@ const STORY_CONTACT_PHONE_KEY = "story_contact_phone";
 const STORY_CONTACT_EMAIL_KEY = "story_contact_email";
 const DAILY_DIGEST_ENABLED_KEY = "daily_digest_enabled";
 const DAILY_DIGEST_HOUR_KEY = "daily_digest_hour";
+const MAP_ENABLED_KEY = "mobile_ad_publish_email_enabled";
+const MAP_RECIPIENTS_KEY = "mobile_ad_publish_email_recipients";
+const MAP_INCLUDE_STORY_KEY = "mobile_ad_publish_email_include_story";
+const MAP_INCLUDE_EXPOSE_KEY = "mobile_ad_publish_email_include_expose";
+const MAP_INCLUDE_VEHICLE_LINK_KEY = "mobile_ad_publish_email_include_vehicle_link";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Settings() {
