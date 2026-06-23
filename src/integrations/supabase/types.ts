@@ -32,6 +32,78 @@ export type Database = {
         }
         Relationships: []
       }
+      email_logs: {
+        Row: {
+          bounced_at: string | null
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          expose_path: string | null
+          id: string
+          mail_type: string
+          metadata: Json
+          mobile_ad_draft_id: string | null
+          mobile_ad_id: string | null
+          opened_at: string | null
+          provider: string | null
+          provider_message_id: string | null
+          provider_response: Json | null
+          recipients: string[]
+          sent_at: string | null
+          status: string
+          story_id: string | null
+          subject: string | null
+          updated_at: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          bounced_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          expose_path?: string | null
+          id?: string
+          mail_type: string
+          metadata?: Json
+          mobile_ad_draft_id?: string | null
+          mobile_ad_id?: string | null
+          opened_at?: string | null
+          provider?: string | null
+          provider_message_id?: string | null
+          provider_response?: Json | null
+          recipients?: string[]
+          sent_at?: string | null
+          status?: string
+          story_id?: string | null
+          subject?: string | null
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          bounced_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          expose_path?: string | null
+          id?: string
+          mail_type?: string
+          metadata?: Json
+          mobile_ad_draft_id?: string | null
+          mobile_ad_id?: string | null
+          opened_at?: string | null
+          provider?: string | null
+          provider_message_id?: string | null
+          provider_response?: Json | null
+          recipients?: string[]
+          sent_at?: string | null
+          status?: string
+          story_id?: string | null
+          subject?: string | null
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string

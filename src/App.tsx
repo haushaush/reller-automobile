@@ -38,6 +38,7 @@ const Collage = lazy(() => import("./pages/admin/Collage"));
 const MobileAdCreate = lazy(() => import("./pages/admin/MobileAdCreate"));
 const MobileAdDrafts = lazy(() => import("./pages/admin/MobileAdDrafts"));
 const MobileAdEditLive = lazy(() => import("./pages/admin/MobileAdEditLive"));
+const EmailLogs = lazy(() => import("./pages/admin/EmailLogs"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -95,6 +96,7 @@ const App = () => (
                       <Route path="mobile-ad/edit/:draftId" element={<MobileAdCreate />} />
                       <Route path="mobile-ad/:draftId/live-edit" element={<MobileAdEditLive />} />
                       <Route path="settings" element={<Settings />} />
+                      <Route path="email-logs" element={<EmailLogs />} />
                       <Route path="vehicles/new" element={<VehicleCreate />} />
                       <Route path="accounts" element={<Accounts />} />
                     </Route>
