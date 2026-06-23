@@ -652,11 +652,11 @@ Deno.serve(async (req) => {
           console.log(`notify-after-sync: ${pendingDrafts.length} draft(s) ready for email notification`);
           // Fire-and-forget: nicht auf Antwort warten, Sync nicht blockieren.
           for (const d of pendingDrafts) {
-            supabase.functions.invoke("notify-mobile-ad-synced", {
+            supabase.functions.invoke("notify-mobile-ad-published", {
               body: { draftId: d.id, trigger: "sync-vehicles" },
             }).then(({ error }) => {
-              if (error) console.warn(`notify-mobile-ad-synced draft=${d.id} error: ${error.message}`);
-              else console.log(`notify-mobile-ad-synced draft=${d.id} ok`);
+              if (error) console.warn(`notify-mobile-ad-published draft=${d.id} error: ${error.message}`);
+              else console.log(`notify-mobile-ad-published draft=${d.id} ok`);
             }).catch((e) => {
               console.warn(`notify-mobile-ad-synced draft=${d.id} invoke failed: ${(e as Error).message}`);
             });
