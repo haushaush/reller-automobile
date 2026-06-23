@@ -658,7 +658,7 @@ Deno.serve(async (req) => {
               if (error) console.warn(`notify-mobile-ad-published draft=${d.id} error: ${error.message}`);
               else console.log(`notify-mobile-ad-published draft=${d.id} ok`);
             }).catch((e) => {
-              console.warn(`notify-mobile-ad-synced draft=${d.id} invoke failed: ${(e as Error).message}`);
+              console.warn(`notify-mobile-ad-published draft=${d.id} invoke failed: ${(e as Error).message}`);
             });
           }
         }
