@@ -576,6 +576,16 @@ export default function MobileAdDrafts() {
                       Inserat öffnen
                     </a>
                   )}
+                  {isPublished && r.publish_email_sent_at && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Mail gesendet am {new Date(r.publish_email_sent_at).toLocaleString("de-DE")}
+                    </div>
+                  )}
+                  {isPublished && !r.publish_email_sent_at && r.publish_email_error && (
+                    <div className="text-xs text-amber-600 mt-1 break-all">
+                      Mailfehler: {r.publish_email_error}
+                    </div>
+                  )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
