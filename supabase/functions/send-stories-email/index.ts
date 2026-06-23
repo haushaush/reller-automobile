@@ -124,6 +124,14 @@ Deno.serve(async (req) => {
               note: body.note?.trim() || undefined,
               count: storiesPayload.length,
             },
+            logContext: {
+              mailType: "daily_story_digest",
+              metadata: {
+                story_ids: stories.map((s) => s.id),
+                vehicle_ids: vehicleIds,
+                story_count: storiesPayload.length,
+              },
+            },
           },
         }).then((r) => ({ recipient, error: r.error }))
       )
