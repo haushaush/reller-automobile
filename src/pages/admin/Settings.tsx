@@ -470,18 +470,22 @@ export default function Settings() {
         <div className="flex items-start gap-3">
           <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
           <div className="flex-1">
-            <h2 className="text-lg font-semibold">Tägliche Story-Mail</h2>
+            <h2 className="text-lg font-semibold">Täglicher Kennzahlenbericht</h2>
             <p className="text-sm text-muted-foreground">
-              Verschickt einmal täglich eine Mail mit Story-Bildern aller Fahrzeuge,
-              die in den letzten 24 Stunden hinzugefügt wurden. Empfänger = die oben
-              konfigurierten Story-Empfänger.
+              Verschickt einmal täglich einen kompakten Tagesreport mit
+              Kennzahlen zum Fahrzeugbestand (neue/verkaufte Fahrzeuge,
+              Bestand, Bestandswert, Sync-Status).
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Hinweis: Einzelne neue Fahrzeuge werden separat per Sync-Mail verschickt.
+              Dieser Bericht fasst die Kennzahlen des Tages zusammen.
             </p>
           </div>
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
           <Label htmlFor="digest-enabled" className="cursor-pointer">
-            Täglichen Versand aktivieren
+            Täglichen Kennzahlenbericht senden
           </Label>
           <Switch
             id="digest-enabled"
@@ -491,7 +495,7 @@ export default function Settings() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="digest-hour">Versand-Uhrzeit (Europe/Berlin)</Label>
+          <Label htmlFor="digest-hour">Versandzeit (Europe/Berlin)</Label>
           <Select
             value={String(digestHour)}
             onValueChange={(v) => setDigestHour(parseInt(v, 10))}
@@ -509,6 +513,64 @@ export default function Settings() {
           </Select>
         </div>
 
+        <div className="space-y-2">
+          <Label htmlFor="report-recipients">Empfänger</Label>
+          <Textarea
+            id="report-recipients"
+            rows={3}
+            value={reportRecipientsText}
+            onChange={(e) => setReportRecipientsText(e.target.value)}
+            placeholder={"name@beispiel.de\noder kommagetrennt: a@x.de, b@y.de"}
+          />
+          <p className="text-xs text-muted-foreground">
+            Mehrere Adressen erlaubt – kommagetrennt oder zeilenweise.
+            Leer = Story-Empfänger werden verwendet.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="report-new"
+              checked={reportIncludeNew}
+              onCheckedChange={(v) => setReportIncludeNew(v === true)}
+            />
+            <Label htmlFor="report-new" className="cursor-pointer">
+              Neue Fahrzeuge anzeigen
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="report-sold"
+              checked={reportIncludeSold}
+              onCheckedChange={(v) => setReportIncludeSold(v === true)}
+            />
+            <Label htmlFor="report-sold" className="cursor-pointer">
+              Verkaufte Fahrzeuge anzeigen
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="report-inventory"
+              checked={reportIncludeInventory}
+              onCheckedChange={(v) => setReportIncludeInventory(v === true)}
+            />
+            <Label htmlFor="report-inventory" className="cursor-pointer">
+              Bestandswert anzeigen
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="report-sync"
+              checked={reportIncludeSync}
+              onCheckedChange={(v) => setReportIncludeSync(v === true)}
+            />
+            <Label htmlFor="report-sync" className="cursor-pointer">
+              Sync-Status anzeigen
+            </Label>
+          </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
           <Button
             type="button"
@@ -521,7 +583,7 @@ export default function Settings() {
             ) : (
               <Play className="h-4 w-4" />
             )}
-            Daily-Digest jetzt testen
+            Tagesreport jetzt testen
           </Button>
           <Button onClick={saveDigest} disabled={isSavingDigest}>
             {isSavingDigest && <Loader2 className="h-4 w-4 animate-spin" />}
