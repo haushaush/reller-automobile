@@ -369,36 +369,59 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const draftId = String((body as { draftId?: string }).draftId ?? "").trim();
-    const force = Boolean((body as { force?: boolean }).force);
+    const force = Boolean(
+      (body as { force?: boolean; forceResend?: boolean }).force
+        ?? (body as { forceResend?: boolean }).forceResend,
+    );
     const trigger = String((body as { trigger?: string }).trigger ?? "manual");
-    if (!draftId) return json(400, { error: "draftId required" });
+    if (!draftId) {
+      return json(400, { success: false, emailSent: false, error: "draftId required" });
+    }
 
     const { data: draft, error: draftErr } = await admin
       .from("mobile_ad_drafts")
       .select("id, status, payload, mobile_ad_id, vehicle_id, publish_email_sent_at, publish_email_status")
       .eq("id", draftId)
       .maybeSingle();
-    if (draftErr || !draft) return json(404, { error: "Draft not found" });
+    if (draftErr || !draft) {
+      return json(404, { success: false, emailSent: false, error: "Draft not found" });
+    }
 
-    console.log(`notify: draft=${draftId} mobileAdId=${draft.mobile_ad_id ?? "-"} trigger=${trigger} force=${force}`);
+    console.log(`notify: draft=${draftId} mobileAdId=${draft.mobile_ad_id ?? "-"} trigger=${trigger} force=${force} prevStatus=${(draft as Record<string, unknown>).publish_email_status ?? "-"}`);
 
     const settings = await loadSettings(admin);
+    console.log(`notify: settings.enabled=${settings.enabled} recipients=${settings.recipients.length}`);
     if (!settings.enabled) {
       console.log(`notify: disabled in settings (draft ${draftId})`);
-      return json(200, { ok: true, skipped: "disabled" });
+      return json(200, { success: true, emailSent: false, reason: "disabled", draftId });
     }
     if (settings.recipients.length === 0) {
       console.warn(`notify: no recipients configured (draft ${draftId})`);
       await admin.from("mobile_ad_drafts").update({
-        publish_email_status: "failed",
+        publish_email_status: "error",
         publish_email_error: "Keine Empfänger konfiguriert.",
       }).eq("id", draftId);
-      return json(200, { ok: false, skipped: "no_recipients" });
+      return json(200, { success: false, emailSent: false, reason: "no_recipients", draftId });
     }
+    // Doppelsende-Schutz: nur wirklich gesendet, wenn sent_at gesetzt ist.
     if ((draft as Record<string, unknown>).publish_email_sent_at && !force) {
-      console.log(`notify: already sent (draft ${draftId})`);
-      return json(200, { ok: true, skipped: "already_sent" });
+      console.log(`notify: already sent (draft ${draftId} at ${(draft as Record<string, unknown>).publish_email_sent_at})`);
+      return json(200, {
+        success: true,
+        emailSent: false,
+        reason: "already_sent",
+        draftId,
+        sentAt: (draft as Record<string, unknown>).publish_email_sent_at,
+      });
     }
+
+    // Status sofort auf 'sending' setzen (Sync hat das eventuell schon getan,
+    // hier aber sicherstellen — auch für manuellen Trigger).
+    await admin.from("mobile_ad_drafts").update({
+      publish_email_status: "sending",
+      publish_email_last_attempt_at: new Date().toISOString(),
+      publish_email_error: null,
+    }).eq("id", draftId);
 
     const vehicle = await findLinkedVehicle(admin, draft as never);
     const vehicleId = (vehicle?.id as string | undefined) ?? null;
@@ -410,7 +433,12 @@ Deno.serve(async (req) => {
         publish_email_status: "waiting_for_sync",
         publish_email_error: null,
       }).eq("id", draftId);
-      return json(200, { ok: true, skipped: "waiting_for_sync" });
+      return json(200, {
+        success: true,
+        emailSent: false,
+        reason: "waiting_for_sync",
+        draftId,
+      });
     }
 
     const formatted = formatVehicleForEmail(vehicle, draft.payload);
