@@ -38,6 +38,7 @@ const Collage = lazy(() => import("./pages/admin/Collage"));
 const MobileAdCreate = lazy(() => import("./pages/admin/MobileAdCreate"));
 const MobileAdDrafts = lazy(() => import("./pages/admin/MobileAdDrafts"));
 const MobileAdEditLive = lazy(() => import("./pages/admin/MobileAdEditLive"));
+const EmailLogs = lazy(() => import("./pages/admin/EmailLogs"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
