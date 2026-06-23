@@ -223,7 +223,7 @@ export default function MobileAdDrafts() {
     setLoading(true);
     const { data, error } = await supabase
       .from("mobile_ad_drafts")
-      .select("id, status, payload, mobile_ad_id, error_message, created_at, image_paths")
+      .select("id, status, payload, mobile_ad_id, error_message, created_at, image_paths, publish_email_sent_at, publish_email_error")
       .order("created_at", { ascending: false });
     if (error) {
       toast.error("Laden fehlgeschlagen");
