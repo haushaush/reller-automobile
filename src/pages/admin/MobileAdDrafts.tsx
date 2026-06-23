@@ -658,6 +658,18 @@ export default function MobileAdDrafts() {
                       Als Entwurf kopieren
                     </Button>
                   )}
+                  {isPublished && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmResendId(r.id)}
+                      disabled={resending === r.id}
+                      title="Benachrichtigungs-Mail erneut senden"
+                    >
+                      {resending === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                      Mail erneut senden
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
