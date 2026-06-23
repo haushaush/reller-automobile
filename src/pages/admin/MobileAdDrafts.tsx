@@ -23,6 +23,8 @@ interface DraftRow {
   error_message: string | null;
   created_at: string;
   image_paths: string[] | null;
+  publish_email_sent_at: string | null;
+  publish_email_error: string | null;
 }
 
 interface VehicleMatch {
