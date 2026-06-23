@@ -726,6 +726,19 @@ Deno.serve(async (req) => {
       })
       .eq("id", draftId);
 
+    // Fire-and-forget notification email. Failure does NOT roll back the publish.
+    try {
+      const adminWithAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+        global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
+      });
+      const { error: notifyErr } = await adminWithAuth.functions.invoke("notify-mobile-ad-published", {
+        body: { draftId },
+      });
+      if (notifyErr) console.warn("notify-mobile-ad-published invoke error:", notifyErr.message);
+    } catch (e) {
+      console.warn("notify-mobile-ad-published invoke failed:", (e as Error).message);
+    }
+
     return json(200, {
       ok: true,
       mobileAdId,
