@@ -635,6 +635,38 @@ Deno.serve(async (req) => {
     logAdded = vehicleRows.filter((v) => !existingMap.has(v.mobile_de_id)).length;
     logUpdated = vehicleRows.length - logAdded;
 
+    // Nach erfolgreichem Sync: prüfen, ob veröffentlichte Mobile.de-Inserate
+    // jetzt in vehicles angekommen sind und noch auf den Mail-Versand warten.
+    // (Mail wird NICHT direkt nach Publish verschickt — siehe publish-mobile-ad.)
+    try {
+      const syncedIds = vehicleRows.map((v) => v.mobile_de_id);
+      if (syncedIds.length > 0) {
+        const { data: pendingDrafts } = await supabase
+          .from("mobile_ad_drafts")
+          .select("id, mobile_ad_id, publish_email_status, publish_email_sent_at")
+          .in("mobile_ad_id", syncedIds)
+          .eq("publish_email_status", "waiting_for_sync")
+          .is("publish_email_sent_at", null)
+          .limit(50);
+        if (pendingDrafts && pendingDrafts.length > 0) {
+          console.log(`notify-after-sync: ${pendingDrafts.length} draft(s) ready for email notification`);
+          // Fire-and-forget: nicht auf Antwort warten, Sync nicht blockieren.
+          for (const d of pendingDrafts) {
+            supabase.functions.invoke("notify-mobile-ad-published", {
+              body: { draftId: d.id, trigger: "sync-vehicles" },
+            }).then(({ error }) => {
+              if (error) console.warn(`notify-mobile-ad-published draft=${d.id} error: ${error.message}`);
+              else console.log(`notify-mobile-ad-published draft=${d.id} ok`);
+            }).catch((e) => {
+              console.warn(`notify-mobile-ad-published draft=${d.id} invoke failed: ${(e as Error).message}`);
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`notify-after-sync check failed: ${(e as Error).message}`);
+    }
+
     const { count: activeCount } = await supabase
       .from("vehicles")
       .select("*", { count: "exact", head: true })

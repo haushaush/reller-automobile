@@ -723,21 +723,16 @@ Deno.serve(async (req) => {
         status: "published",
         mobile_ad_id: mobileAdId,
         error_message: skippedNote,
+        // E-Mail wird NICHT direkt verschickt. sync-vehicles triggert die
+        // Benachrichtigung, sobald das Inserat über Mobile.de Search-API in
+        // vehicles ankommt (damit Story/Exposé aus dem echten Vehicle-Datensatz
+        // erzeugt werden können).
+        publish_email_status: "waiting_for_sync",
+        publish_email_sent_at: null,
+        publish_email_error: null,
       })
       .eq("id", draftId);
-
-    // Fire-and-forget notification email. Failure does NOT roll back the publish.
-    try {
-      const adminWithAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-        global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
-      });
-      const { error: notifyErr } = await adminWithAuth.functions.invoke("notify-mobile-ad-published", {
-        body: { draftId },
-      });
-      if (notifyErr) console.warn("notify-mobile-ad-published invoke error:", notifyErr.message);
-    } catch (e) {
-      console.warn("notify-mobile-ad-published invoke failed:", (e as Error).message);
-    }
+    console.log(`publish-mobile-ad: draft=${draftId} mobileAdId=${mobileAdId} → publish_email_status=waiting_for_sync`);
 
     return json(200, {
       ok: true,

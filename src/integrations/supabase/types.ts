@@ -221,6 +221,7 @@ export type Database = {
           payload: Json
           publish_email_error: string | null
           publish_email_sent_at: string | null
+          publish_email_status: string | null
           status: string
           updated_at: string
           vehicle_id: string | null
@@ -236,6 +237,7 @@ export type Database = {
           payload?: Json
           publish_email_error?: string | null
           publish_email_sent_at?: string | null
+          publish_email_status?: string | null
           status?: string
           updated_at?: string
           vehicle_id?: string | null
@@ -251,6 +253,7 @@ export type Database = {
           payload?: Json
           publish_email_error?: string | null
           publish_email_sent_at?: string | null
+          publish_email_status?: string | null
           status?: string
           updated_at?: string
           vehicle_id?: string | null
