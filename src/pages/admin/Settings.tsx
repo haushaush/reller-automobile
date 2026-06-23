@@ -97,6 +97,16 @@ export default function Settings() {
             setMapIncludeVehicleLink(row.value);
           }
         }
+        // Default mobile-ad recipients to story recipients if not yet configured.
+        const hasMapRecipients = data.some((r) => r.key === MAP_RECIPIENTS_KEY);
+        if (!hasMapRecipients) {
+          const storyRow = data.find((r) => r.key === STORY_RECIPIENTS_KEY);
+          if (storyRow && Array.isArray(storyRow.value)) {
+            setMapRecipientsText(
+              (storyRow.value as unknown[]).filter((v): v is string => typeof v === "string").join("\n"),
+            );
+          }
+        }
       }
       setIsLoading(false);
     };
