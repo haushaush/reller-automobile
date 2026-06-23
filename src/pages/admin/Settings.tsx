@@ -266,9 +266,11 @@ export default function Settings() {
           { key: MAP_INCLUDE_STORY_KEY, value: mapIncludeStory, updated_at: now },
           { key: MAP_INCLUDE_EXPOSE_KEY, value: mapIncludeExpose, updated_at: now },
           { key: MAP_INCLUDE_VEHICLE_LINK_KEY, value: mapIncludeVehicleLink, updated_at: now },
+          { key: MAP_INCLUDE_ACCIDENT_KEY, value: mapIncludeAccident, updated_at: now },
         ],
         { onConflict: "key" },
       );
+
     setIsSavingMap(false);
     if (error) {
       console.error(error);
