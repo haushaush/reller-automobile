@@ -1,6 +1,7 @@
-// Sends a notification email after a Mobile.de ad was successfully published
-// from the portal (publish-mobile-ad). Uses existing Lovable email infra and
-// re-uses generate-story if a linked vehicle exists.
+// Sendet die Benachrichtigungs-Mail NACH erfolgreichem Mobile.de Search-Sync
+// (Trigger aus sync-vehicles), nicht direkt nach dem Publish.
+// Verwendet primär den verifizierten vehicles-Datensatz und übersetzt
+// Mobile.de-API-Keys (z. B. PETROL, MANUAL_GEAR) in deutsche Anzeigenamen.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -20,6 +21,80 @@ const json = (status: number, body: unknown) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+// ───────────────────────── German label mappings ─────────────────────────
+const MAKE_LABELS: Record<string, string> = {
+  VW: "Volkswagen",
+  VOLKSWAGEN: "Volkswagen",
+  "MERCEDES-BENZ": "Mercedes-Benz",
+  MERCEDES: "Mercedes-Benz",
+  BMW: "BMW",
+  AUDI: "Audi",
+  KIA: "Kia",
+  FIAT: "Fiat",
+  CITROEN: "Citroën",
+  "CITROËN": "Citroën",
+};
+const FUEL_LABELS: Record<string, string> = {
+  PETROL: "Benzin",
+  DIESEL: "Diesel",
+  HYBRID: "Hybrid",
+  ELECTRICITY: "Elektro",
+  ELECTRIC: "Elektro",
+  PLUGIN_HYBRID: "Plug-in-Hybrid",
+  HYBRID_PLUGIN: "Plug-in-Hybrid",
+  LPG: "Autogas LPG",
+  CNG: "Erdgas CNG",
+};
+const GEARBOX_LABELS: Record<string, string> = {
+  MANUAL_GEAR: "Schaltgetriebe",
+  AUTOMATIC_GEAR: "Automatik",
+  SEMIAUTOMATIC_GEAR: "Halbautomatik",
+};
+const COLOR_LABELS: Record<string, string> = {
+  BLACK: "Schwarz",
+  GREY: "Grau",
+  GRAY: "Grau",
+  WHITE: "Weiß",
+  SILVER: "Silber",
+  BLUE: "Blau",
+  RED: "Rot",
+  GREEN: "Grün",
+  YELLOW: "Gelb",
+  BROWN: "Braun",
+  BEIGE: "Beige",
+  ORANGE: "Orange",
+  GOLD: "Gold",
+};
+const CATEGORY_LABELS: Record<string, string> = {
+  SmallCar: "Kleinwagen",
+  Limousine: "Limousine",
+  EstateCar: "Kombi",
+  OffRoad: "SUV/Geländewagen",
+  Van: "Van/Kleinbus",
+  SportsCar: "Sportwagen/Coupé",
+  Cabrio: "Cabrio",
+};
+const DOORS_LABELS: Record<string, string> = {
+  TWO_OR_THREE: "2/3",
+  FOUR_OR_FIVE: "4/5",
+  SIX_OR_SEVEN: "6/7",
+};
+const CONDITION_LABELS: Record<string, string> = {
+  USED: "Gebrauchtfahrzeug",
+  NEW: "Neufahrzeug",
+};
+
+function mapLabel(map: Record<string, string>, raw: unknown, missing: string[], field: string): string | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const key = String(raw).trim();
+  if (!key) return undefined;
+  const hit = map[key] ?? map[key.toUpperCase()];
+  if (hit) return hit;
+  missing.push(`${field}=${key}`);
+  return key; // fallback: original
+}
+
+// ───────────────────────── Settings ─────────────────────────
 type Settings = {
   enabled: boolean;
   recipients: string[];
@@ -50,7 +125,7 @@ async function loadSettings(admin: ReturnType<typeof createClient>): Promise<Set
     ? (recipients as unknown[]).filter((v): v is string => typeof v === "string").map((s) => s.trim()).filter(Boolean)
     : [];
   return {
-    enabled: enabledV !== false, // default true
+    enabled: enabledV !== false,
     recipients: recList,
     includeStory: includeStoryV !== false,
     includeExpose: includeExposeV !== false,
@@ -58,6 +133,7 @@ async function loadSettings(admin: ReturnType<typeof createClient>): Promise<Set
   };
 }
 
+// ───────────────────────── Helpers ─────────────────────────
 function readPath(obj: unknown, path: string[]): unknown {
   let cur: unknown = obj;
   for (const k of path) {
@@ -76,64 +152,141 @@ function readFirst(obj: unknown, paths: string[][]): unknown {
 }
 function strOrKey(v: unknown): string | undefined {
   if (typeof v === "string" && v.trim()) return v.trim();
+  if (typeof v === "number") return String(v);
   if (v && typeof v === "object") {
     const o = v as Record<string, unknown>;
-    if (typeof o.label === "string" && o.label.trim()) return o.label.trim();
     if (typeof o.key === "string" && o.key.trim()) return o.key.trim();
+    if (typeof o.label === "string" && o.label.trim()) return o.label.trim();
   }
   return undefined;
 }
-
-function extractFacts(payload: unknown) {
-  const make = strOrKey(readFirst(payload, [["vehicle", "make"], ["make"]]));
-  const model = strOrKey(readFirst(payload, [["vehicle", "model"], ["model"]]));
-  const desc = strOrKey(readFirst(payload, [["vehicle", "modelDescription"], ["vehicle", "model-description"], ["modelDescription"]]));
-  const priceRaw = readFirst(payload, [["price", "consumerPriceGross"], ["price", "consumer-price-gross"], ["consumerPriceGross"]]);
-  const priceNum = typeof priceRaw === "number" ? priceRaw : (typeof priceRaw === "string" ? Number(String(priceRaw).replace(/[^0-9.]/g, "")) : NaN);
-  const mileageRaw = readFirst(payload, [["vehicle", "mileage"], ["mileage"]]);
-  const mileage = typeof mileageRaw === "number" ? mileageRaw : (typeof mileageRaw === "string" ? Number(mileageRaw) : NaN);
-  const firstReg = readFirst(payload, [["vehicle", "firstRegistration"], ["firstRegistration"], ["vehicle", "first-registration"]]);
-  const fuel = strOrKey(readFirst(payload, [["vehicle", "fuel"], ["fuel"]]));
-  const gearbox = strOrKey(readFirst(payload, [["vehicle", "gearbox"], ["gearbox"]]));
-  const powerRaw = readFirst(payload, [["vehicle", "power"], ["power"]]);
-  const power = typeof powerRaw === "number" ? powerRaw : (typeof powerRaw === "string" ? Number(powerRaw) : NaN);
-  const cubicRaw = readFirst(payload, [["vehicle", "cubicCapacity"], ["cubicCapacity"]]);
-  const cubic = typeof cubicRaw === "number" ? cubicRaw : (typeof cubicRaw === "string" ? Number(cubicRaw) : NaN);
-  const color = strOrKey(readFirst(payload, [["vehicle", "exteriorColor"], ["exteriorColor"]]));
-  const vin = strOrKey(readFirst(payload, [["vehicle", "vin"], ["vin"]]));
-  return { make, model, desc, priceNum, mileage, firstReg, fuel, gearbox, power, cubic, color, vin };
+function toNum(v: unknown): number {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const n = Number(v.replace(/[^0-9.\-]/g, ""));
+    return Number.isFinite(n) ? n : NaN;
+  }
+  return NaN;
 }
-
 function fmtPrice(n: number): string | undefined {
   if (!Number.isFinite(n) || n <= 0) return undefined;
-  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+  return `${Math.round(n).toLocaleString("de-DE")} €`;
+}
+function fmtMileage(n: number): string | undefined {
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return `${Math.round(n).toLocaleString("de-DE")} km`;
 }
 function fmtFirstReg(v: unknown): string | undefined {
-  const s = String(v ?? "");
-  // Expect YYYYMM or YYYY-MM or YYYY
+  const s = String(v ?? "").trim();
+  if (!s) return undefined;
   const m = s.match(/^(\d{4})(\d{2})?$/) ?? s.match(/^(\d{4})-(\d{2})/);
   if (m) {
-    const y = m[1];
-    const mo = m[2];
+    const y = m[1]; const mo = m[2];
     return mo ? `${mo}/${y}` : y;
   }
-  return s || undefined;
+  return s;
 }
 
-async function findLinkedVehicleId(
+type VehicleRow = Record<string, unknown> | null;
+
+/**
+ * Übersetzt Vehicle + Draft-Payload in deutsche Anzeigenamen.
+ * Priorität: vehicles-Spalte → draft.payload (verschachtelt oder flach).
+ */
+function formatVehicleForEmail(vehicle: VehicleRow, draftPayload: unknown) {
+  const missing: string[] = [];
+  const v = (vehicle ?? {}) as Record<string, unknown>;
+  const p = draftPayload;
+
+  const pickRaw = (vehKey: string, draftPaths: string[][]): unknown => {
+    const fromVeh = v[vehKey];
+    if (fromVeh !== undefined && fromVeh !== null && fromVeh !== "") return fromVeh;
+    return readFirst(p, draftPaths);
+  };
+
+  const makeRaw = strOrKey(pickRaw("brand", [["vehicle", "make"], ["make"]]));
+  const modelRaw = strOrKey(pickRaw("model", [["vehicle", "model"], ["model"]]));
+  const descRaw = strOrKey(pickRaw("model_description", [["vehicle", "modelDescription"], ["modelDescription"], ["vehicle", "model-description"]]));
+  const fuelRaw = strOrKey(pickRaw("fuel", [["vehicle", "fuel"], ["fuel"]]));
+  const gearboxRaw = strOrKey(pickRaw("gearbox", [["vehicle", "gearbox"], ["gearbox"]]));
+  const colorRaw = strOrKey(pickRaw("exterior_color", [["vehicle", "exteriorColor"], ["exteriorColor"]]));
+  const categoryRaw = strOrKey(pickRaw("category", [["vehicle", "category"], ["category"]]));
+  const conditionRaw = strOrKey(pickRaw("condition", [["vehicle", "condition"], ["condition"]]));
+  const doorsRaw = strOrKey(readFirst(p, [["vehicle", "doors"], ["doors"]]));
+  const manufacturerColor = strOrKey(readFirst(p, [["vehicle", "manufacturerColorName"], ["manufacturerColorName"]]));
+
+  const price = toNum(pickRaw("price", [["price", "consumerPriceGross"], ["price", "consumer-price-gross"], ["consumerPriceGross"]]));
+  const mileage = toNum(pickRaw("mileage", [["vehicle", "mileage"], ["mileage"]]));
+  const power = toNum(pickRaw("power", [["vehicle", "power"], ["power"]]));
+  const cubic = toNum(pickRaw("cubic_capacity", [["vehicle", "cubicCapacity"], ["cubicCapacity"]]));
+  const firstReg = pickRaw("year", [["vehicle", "firstRegistration"], ["firstRegistration"], ["vehicle", "first-registration"]]);
+  const vin = strOrKey(pickRaw("vin", [["vehicle", "vin"], ["vin"]]));
+
+  const makeLabel = mapLabel(MAKE_LABELS, makeRaw, missing, "make");
+  const fuelLabel = mapLabel(FUEL_LABELS, fuelRaw, missing, "fuel");
+  const gearboxLabel = mapLabel(GEARBOX_LABELS, gearboxRaw, missing, "gearbox");
+  const colorLabel = mapLabel(COLOR_LABELS, colorRaw, missing, "exteriorColor");
+  const categoryLabel = mapLabel(CATEGORY_LABELS, categoryRaw, missing, "category");
+  const conditionLabel = mapLabel(CONDITION_LABELS, conditionRaw, missing, "condition");
+  const doorsLabel = mapLabel(DOORS_LABELS, doorsRaw, missing, "doors");
+
+  const colorDisplay = colorLabel
+    ? (manufacturerColor ? `${colorLabel} – ${manufacturerColor}` : colorLabel)
+    : undefined;
+
+  const powerDisplay = Number.isFinite(power) && power > 0
+    ? `${Math.round(power)} kW (${Math.round(power * 1.35962)} PS)`
+    : undefined;
+
+  const specs: Array<{ label: string; value?: string }> = [
+    { label: "Marke", value: makeLabel },
+    { label: "Modell", value: modelRaw },
+    descRaw ? { label: "Modellbeschreibung", value: descRaw } : { label: "", value: undefined },
+    { label: "Preis", value: fmtPrice(price) },
+    { label: "Kilometerstand", value: fmtMileage(mileage) },
+    { label: "Erstzulassung", value: fmtFirstReg(firstReg) },
+    { label: "Kraftstoff", value: fuelLabel },
+    { label: "Getriebe", value: gearboxLabel },
+    { label: "Leistung", value: powerDisplay },
+    Number.isFinite(cubic) && cubic > 0 ? { label: "Hubraum", value: `${Math.round(cubic).toLocaleString("de-DE")} cm³` } : { label: "", value: undefined },
+    { label: "Farbe", value: colorDisplay },
+    categoryLabel ? { label: "Fahrzeugklasse", value: categoryLabel } : { label: "", value: undefined },
+    doorsLabel ? { label: "Türen", value: doorsLabel } : { label: "", value: undefined },
+    conditionLabel ? { label: "Zustand", value: conditionLabel } : { label: "", value: undefined },
+    vin ? { label: "FIN", value: vin } : { label: "", value: undefined },
+  ].filter((s) => s.label && s.value);
+
+  return {
+    title: [makeLabel, modelRaw].filter(Boolean).join(" ") || "Fahrzeug",
+    brand: makeLabel,
+    model: modelRaw,
+    modelDescription: descRaw,
+    specs,
+    missing,
+  };
+}
+
+async function findLinkedVehicle(
   admin: ReturnType<typeof createClient>,
-  draft: { id: string; mobile_ad_id: string | null; payload: unknown },
-): Promise<string | null> {
+  draft: { id: string; mobile_ad_id: string | null; payload: unknown; vehicle_id?: string | null },
+): Promise<VehicleRow> {
+  if (draft.vehicle_id) {
+    const { data } = await admin.from("vehicles").select("*").eq("id", draft.vehicle_id).maybeSingle();
+    if (data) return data as VehicleRow;
+  }
   const linked = readPath(draft.payload, ["_linkedVehicleId"]);
-  if (typeof linked === "string" && linked) return linked;
+  if (typeof linked === "string" && linked) {
+    const { data } = await admin.from("vehicles").select("*").eq("id", linked).maybeSingle();
+    if (data) return data as VehicleRow;
+  }
   if (draft.mobile_ad_id) {
-    const { data } = await admin.from("vehicles").select("id").eq("mobile_de_id", draft.mobile_ad_id).maybeSingle();
-    if (data?.id) return data.id as string;
+    const { data } = await admin.from("vehicles").select("*").eq("mobile_de_id", draft.mobile_ad_id).maybeSingle();
+    if (data) return data as VehicleRow;
   }
   const vin = strOrKey(readFirst(draft.payload, [["vehicle", "vin"], ["vin"]]));
   if (vin) {
-    const { data } = await admin.from("vehicles").select("id").ilike("vin", vin).maybeSingle();
-    if (data?.id) return data.id as string;
+    const { data } = await admin.from("vehicles").select("*").ilike("vin", vin).maybeSingle();
+    if (data) return data as VehicleRow;
   }
   return null;
 }
@@ -152,29 +305,23 @@ async function getOrCreateStory(
       .maybeSingle();
     if (existing?.story_image_url) return { url: existing.story_image_url as string };
   } catch (e) {
-    console.warn("getOrCreateStory: lookup failed:", (e as Error).message);
+    console.warn("getOrCreateStory lookup failed:", (e as Error).message);
   }
-  // Generate fresh via existing function (skip dealer email to avoid double-send).
   try {
     const { data, error } = await admin.functions.invoke("generate-story", {
       body: { vehicleIds: [vehicleId], skipDealerEmail: true },
     });
-    if (error) return { error: `Story-Erzeugung fehlgeschlagen: ${error.message}` };
+    if (error) return { error: "WhatsApp-Story konnte nicht automatisch erzeugt werden." };
     const generated = (data as { generated?: Array<{ vehicleId: string; storyImageUrl?: string }> } | null)?.generated;
     const first = generated?.find((g) => g.vehicleId === vehicleId)?.storyImageUrl;
     if (first) return { url: first };
-    // Fallback: re-query
     const { data: row } = await admin
-      .from("vehicle_stories")
-      .select("story_image_url")
-      .eq("vehicle_id", vehicleId)
-      .order("generated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .from("vehicle_stories").select("story_image_url").eq("vehicle_id", vehicleId)
+      .order("generated_at", { ascending: false }).limit(1).maybeSingle();
     if (row?.story_image_url) return { url: row.story_image_url as string };
     return { error: "WhatsApp-Story konnte nicht automatisch erzeugt werden." };
-  } catch (e) {
-    return { error: `Story-Erzeugung fehlgeschlagen: ${(e as Error).message}` };
+  } catch {
+    return { error: "WhatsApp-Story konnte nicht automatisch erzeugt werden." };
   }
 }
 
@@ -184,18 +331,16 @@ async function findExposeSignedUrl(
 ): Promise<{ url?: string; error?: string }> {
   try {
     const { data: files, error } = await admin.storage
-      .from("vehicle-exposes")
-      .list("", { search: vehicleId, limit: 50 });
-    if (error) return { error: `Exposé-Suche fehlgeschlagen: ${error.message}` };
+      .from("vehicle-exposes").list("", { search: vehicleId, limit: 50 });
+    if (error) return { error: "Exposé konnte nicht automatisch erzeugt werden." };
     const match = (files ?? []).find((f) => f.name.includes(vehicleId)) ?? (files ?? [])[0];
-    if (!match) return { error: "Exposé wird verfügbar, sobald das Fahrzeug im Bestand synchronisiert wurde." };
+    if (!match) return { error: "Exposé konnte nicht automatisch erzeugt werden." };
     const { data: signed, error: sErr } = await admin.storage
-      .from("vehicle-exposes")
-      .createSignedUrl(match.name, 60 * 60 * 24 * 7); // 7 days
-    if (sErr || !signed?.signedUrl) return { error: `Exposé-Link konnte nicht erzeugt werden.` };
+      .from("vehicle-exposes").createSignedUrl(match.name, 60 * 60 * 24 * 7);
+    if (sErr || !signed?.signedUrl) return { error: "Exposé konnte nicht automatisch erzeugt werden." };
     return { url: signed.signedUrl };
-  } catch (e) {
-    return { error: `Exposé konnte nicht automatisch ermittelt werden: ${(e as Error).message}` };
+  } catch {
+    return { error: "Exposé konnte nicht automatisch erzeugt werden." };
   }
 }
 
@@ -207,7 +352,6 @@ Deno.serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Service-role bypass for internal callers (publish-mobile-ad); otherwise require admin.
     const isService = token === SUPABASE_SERVICE_ROLE_KEY;
     if (!isService) {
       const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -222,14 +366,17 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const draftId = String((body as { draftId?: string }).draftId ?? "").trim();
     const force = Boolean((body as { force?: boolean }).force);
+    const trigger = String((body as { trigger?: string }).trigger ?? "manual");
     if (!draftId) return json(400, { error: "draftId required" });
 
     const { data: draft, error: draftErr } = await admin
       .from("mobile_ad_drafts")
-      .select("id, status, payload, mobile_ad_id, publish_email_sent_at")
+      .select("id, status, payload, mobile_ad_id, vehicle_id, publish_email_sent_at, publish_email_status")
       .eq("id", draftId)
       .maybeSingle();
     if (draftErr || !draft) return json(404, { error: "Draft not found" });
+
+    console.log(`notify: draft=${draftId} mobileAdId=${draft.mobile_ad_id ?? "-"} trigger=${trigger} force=${force}`);
 
     const settings = await loadSettings(admin);
     if (!settings.enabled) {
@@ -239,6 +386,7 @@ Deno.serve(async (req) => {
     if (settings.recipients.length === 0) {
       console.warn(`notify: no recipients configured (draft ${draftId})`);
       await admin.from("mobile_ad_drafts").update({
+        publish_email_status: "failed",
         publish_email_error: "Keine Empfänger konfiguriert.",
       }).eq("id", draftId);
       return json(200, { ok: false, skipped: "no_recipients" });
@@ -248,7 +396,22 @@ Deno.serve(async (req) => {
       return json(200, { ok: true, skipped: "already_sent" });
     }
 
-    const facts = extractFacts(draft.payload);
+    const vehicle = await findLinkedVehicle(admin, draft as never);
+    const vehicleId = (vehicle?.id as string | undefined) ?? null;
+
+    // Wenn noch kein vehicle vorhanden → warten auf Sync (kein Mailversand).
+    if (!vehicle || !vehicleId) {
+      console.log(`notify: vehicle not yet synced for draft=${draftId} mobileAdId=${draft.mobile_ad_id ?? "-"} → waiting_for_sync`);
+      await admin.from("mobile_ad_drafts").update({
+        publish_email_status: "waiting_for_sync",
+        publish_email_error: null,
+      }).eq("id", draftId);
+      return json(200, { ok: true, skipped: "waiting_for_sync" });
+    }
+
+    const formatted = formatVehicleForEmail(vehicle, draft.payload);
+    console.log(`notify: draft=${draftId} vehicleId=${vehicleId} label_misses=${formatted.missing.length ? formatted.missing.join("|") : "none"}`);
+
     const adminWithAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
     });
@@ -256,61 +419,33 @@ Deno.serve(async (req) => {
     // Story
     let storyImageUrl: string | undefined;
     let storyError: string | undefined;
-    let vehicleId: string | null = null;
     if (settings.includeStory) {
-      vehicleId = await findLinkedVehicleId(admin, draft as never);
-      if (vehicleId) {
-        const r = await getOrCreateStory(adminWithAuth, vehicleId);
-        storyImageUrl = r.url;
-        storyError = r.error;
-      } else {
-        storyError = "WhatsApp-Story wird verfügbar, sobald das Fahrzeug im Bestand synchronisiert wurde.";
-      }
+      const r = await getOrCreateStory(adminWithAuth, vehicleId);
+      storyImageUrl = r.url;
+      storyError = r.error;
     }
 
     // Expose
     let exposeUrl: string | undefined;
     let exposeError: string | undefined;
     if (settings.includeExpose) {
-      if (!vehicleId) vehicleId = await findLinkedVehicleId(admin, draft as never);
-      if (vehicleId) {
-        const r = await findExposeSignedUrl(adminWithAuth, vehicleId);
-        exposeUrl = r.url;
-        exposeError = r.error;
-      } else {
-        exposeError = "Exposé wird verfügbar, sobald das Fahrzeug im Bestand synchronisiert wurde.";
-      }
+      const r = await findExposeSignedUrl(adminWithAuth, vehicleId);
+      exposeUrl = r.url;
+      exposeError = r.error;
     }
 
     const mobileAdUrl = draft.mobile_ad_id
       ? `https://suchen.mobile.de/fahrzeuge/details.html?id=${draft.mobile_ad_id}`
       : undefined;
-    const portalUrl = settings.includeVehicleLink && vehicleId
-      ? `${PORTAL_BASE}/fahrzeug/${vehicleId}`
-      : undefined;
-
-    const specs = [
-      { label: "Marke", value: facts.make },
-      { label: "Modell", value: facts.model },
-      facts.desc ? { label: "Modellbeschreibung", value: facts.desc } : null,
-      { label: "Preis", value: fmtPrice(facts.priceNum) },
-      Number.isFinite(facts.mileage) ? { label: "Kilometerstand", value: `${(facts.mileage as number).toLocaleString("de-DE")} km` } : null,
-      { label: "Erstzulassung", value: fmtFirstReg(facts.firstReg) },
-      { label: "Kraftstoff", value: facts.fuel },
-      { label: "Getriebe", value: facts.gearbox },
-      Number.isFinite(facts.power) ? { label: "Leistung", value: `${facts.power} kW` } : null,
-      Number.isFinite(facts.cubic) ? { label: "Hubraum", value: `${(facts.cubic as number).toLocaleString("de-DE")} cm³` } : null,
-      { label: "Farbe", value: facts.color },
-      facts.vin ? { label: "FIN", value: facts.vin } : null,
-    ].filter(Boolean);
+    const portalUrl = settings.includeVehicleLink ? `${PORTAL_BASE}/fahrzeug/${vehicleId}` : undefined;
 
     const templateData = {
-      title: [facts.make, facts.model].filter(Boolean).join(" "),
-      brand: facts.make,
-      model: facts.model,
-      modelDescription: facts.desc,
+      title: formatted.title,
+      brand: formatted.brand,
+      model: formatted.model,
+      modelDescription: formatted.modelDescription,
       mobileAdId: draft.mobile_ad_id ?? undefined,
-      specs,
+      specs: formatted.specs,
       storyImageUrl,
       storyDownloadUrl: storyImageUrl,
       storyError,
@@ -320,7 +455,7 @@ Deno.serve(async (req) => {
       portalUrl,
     };
 
-    const baseKey = `mobile-ad-published-${draftId}${force ? `-resend-${Date.now()}` : ""}`;
+    const baseKey = `mobile-ad-synced-${draftId}${force ? `-resend-${Date.now()}` : ""}`;
     const sendResults = await Promise.all(
       settings.recipients.map((recipient) =>
         adminWithAuth.functions.invoke("send-transactional-email", {
@@ -335,15 +470,17 @@ Deno.serve(async (req) => {
     );
     const failed = sendResults.filter((r) => r.error);
     const sentOk = sendResults.length - failed.length;
-    console.log(`notify draft=${draftId} sent=${sentOk}/${sendResults.length} failed=${JSON.stringify(failed)}`);
+    console.log(`notify draft=${draftId} sent=${sentOk}/${sendResults.length} failed=${JSON.stringify(failed.map((f) => f.recipient))}`);
 
     if (sentOk > 0) {
       await admin.from("mobile_ad_drafts").update({
+        publish_email_status: failed.length ? "sent_with_warning" : "sent",
         publish_email_sent_at: new Date().toISOString(),
         publish_email_error: failed.length ? `Teilfehler: ${failed.map((f) => f.recipient).join(", ")}` : null,
       }).eq("id", draftId);
     } else {
       await admin.from("mobile_ad_drafts").update({
+        publish_email_status: "failed",
         publish_email_error: `Versand fehlgeschlagen: ${failed.map((f) => `${f.recipient}: ${f.error}`).join("; ").slice(0, 1500)}`,
       }).eq("id", draftId);
       return json(502, { ok: false, error: "send failed", failed });
@@ -353,7 +490,8 @@ Deno.serve(async (req) => {
       ok: true,
       sent: sentOk,
       total: sendResults.length,
-      failed: failed.map((f) => f.recipient),
+      vehicleId,
+      labelMisses: formatted.missing,
       storyIncluded: Boolean(storyImageUrl),
       exposeIncluded: Boolean(exposeUrl),
     });
