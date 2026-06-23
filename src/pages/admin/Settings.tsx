@@ -22,6 +22,11 @@ const STORY_CONTACT_PHONE_KEY = "story_contact_phone";
 const STORY_CONTACT_EMAIL_KEY = "story_contact_email";
 const DAILY_DIGEST_ENABLED_KEY = "daily_digest_enabled";
 const DAILY_DIGEST_HOUR_KEY = "daily_digest_hour";
+const DAILY_REPORT_RECIPIENTS_KEY = "daily_report_recipients";
+const DAILY_REPORT_INC_NEW_KEY = "daily_report_include_new_vehicles";
+const DAILY_REPORT_INC_SOLD_KEY = "daily_report_include_sold_vehicles";
+const DAILY_REPORT_INC_INVENTORY_KEY = "daily_report_include_inventory_value";
+const DAILY_REPORT_INC_SYNC_KEY = "daily_report_include_sync_status";
 const MAP_ENABLED_KEY = "new_synced_vehicle_email_enabled";
 const MAP_RECIPIENTS_KEY = "new_synced_vehicle_email_recipients";
 const MAP_INCLUDE_STORY_KEY = "new_synced_vehicle_email_include_story";
@@ -43,6 +48,12 @@ export default function Settings() {
   const [isSavingContact, setIsSavingContact] = useState(false);
   const [isSavingDigest, setIsSavingDigest] = useState(false);
   const [isTestingDigest, setIsTestingDigest] = useState(false);
+
+  const [reportRecipientsText, setReportRecipientsText] = useState("");
+  const [reportIncludeNew, setReportIncludeNew] = useState(true);
+  const [reportIncludeSold, setReportIncludeSold] = useState(true);
+  const [reportIncludeInventory, setReportIncludeInventory] = useState(true);
+  const [reportIncludeSync, setReportIncludeSync] = useState(true);
 
   const [mapEnabled, setMapEnabled] = useState(true);
   const [mapRecipientsText, setMapRecipientsText] = useState("");
