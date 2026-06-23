@@ -723,16 +723,14 @@ Deno.serve(async (req) => {
         status: "published",
         mobile_ad_id: mobileAdId,
         error_message: skippedNote,
-        // E-Mail wird NICHT direkt verschickt. sync-vehicles triggert die
-        // Benachrichtigung, sobald das Inserat über Mobile.de Search-API in
-        // vehicles ankommt (damit Story/Exposé aus dem echten Vehicle-Datensatz
-        // erzeugt werden können).
-        publish_email_status: "waiting_for_sync",
-        publish_email_sent_at: null,
-        publish_email_error: null,
+        // Hinweis: Mailbenachrichtigung ist NICHT mehr an mobile_ad_drafts
+        // gekoppelt. Die neue automatische Mail wird ausgelöst, sobald ein
+        // wirklich neues Fahrzeug per Mobile.de Search-Sync in vehicles
+        // angelegt wurde (notify-new-synced-vehicle).
       })
       .eq("id", draftId);
-    console.log(`publish-mobile-ad: draft=${draftId} mobileAdId=${mobileAdId} → publish_email_status=waiting_for_sync`);
+    console.log(`publish-mobile-ad: draft=${draftId} mobileAdId=${mobileAdId} published (sync-mail wird vom Sync-Trigger übernommen)`);
+
 
     return json(200, {
       ok: true,

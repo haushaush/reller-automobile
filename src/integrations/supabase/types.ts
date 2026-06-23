@@ -622,6 +622,10 @@ export type Database = {
           model: string | null
           model_description: string | null
           modification_date: string | null
+          new_sync_email_error: string | null
+          new_sync_email_last_attempt_at: string | null
+          new_sync_email_sent_at: string | null
+          new_sync_email_status: string | null
           num_seats: number | null
           power: number | null
           price: number | null
@@ -665,6 +669,10 @@ export type Database = {
           model?: string | null
           model_description?: string | null
           modification_date?: string | null
+          new_sync_email_error?: string | null
+          new_sync_email_last_attempt_at?: string | null
+          new_sync_email_sent_at?: string | null
+          new_sync_email_status?: string | null
           num_seats?: number | null
           power?: number | null
           price?: number | null
@@ -708,6 +716,10 @@ export type Database = {
           model?: string | null
           model_description?: string | null
           modification_date?: string | null
+          new_sync_email_error?: string | null
+          new_sync_email_last_attempt_at?: string | null
+          new_sync_email_sent_at?: string | null
+          new_sync_email_status?: string | null
           num_seats?: number | null
           power?: number | null
           price?: number | null

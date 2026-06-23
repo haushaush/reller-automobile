@@ -22,11 +22,13 @@ const STORY_CONTACT_PHONE_KEY = "story_contact_phone";
 const STORY_CONTACT_EMAIL_KEY = "story_contact_email";
 const DAILY_DIGEST_ENABLED_KEY = "daily_digest_enabled";
 const DAILY_DIGEST_HOUR_KEY = "daily_digest_hour";
-const MAP_ENABLED_KEY = "mobile_ad_publish_email_enabled";
-const MAP_RECIPIENTS_KEY = "mobile_ad_publish_email_recipients";
-const MAP_INCLUDE_STORY_KEY = "mobile_ad_publish_email_include_story";
-const MAP_INCLUDE_EXPOSE_KEY = "mobile_ad_publish_email_include_expose";
-const MAP_INCLUDE_VEHICLE_LINK_KEY = "mobile_ad_publish_email_include_vehicle_link";
+const MAP_ENABLED_KEY = "new_synced_vehicle_email_enabled";
+const MAP_RECIPIENTS_KEY = "new_synced_vehicle_email_recipients";
+const MAP_INCLUDE_STORY_KEY = "new_synced_vehicle_email_include_story";
+const MAP_INCLUDE_EXPOSE_KEY = "new_synced_vehicle_email_include_expose";
+const MAP_INCLUDE_VEHICLE_LINK_KEY = "new_synced_vehicle_email_include_vehicle_link";
+const MAP_INCLUDE_ACCIDENT_KEY = "new_synced_vehicle_email_include_accident_vehicles";
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Settings() {
@@ -47,7 +49,9 @@ export default function Settings() {
   const [mapIncludeStory, setMapIncludeStory] = useState(true);
   const [mapIncludeExpose, setMapIncludeExpose] = useState(true);
   const [mapIncludeVehicleLink, setMapIncludeVehicleLink] = useState(true);
+  const [mapIncludeAccident, setMapIncludeAccident] = useState(true);
   const [isSavingMap, setIsSavingMap] = useState(false);
+
 
   useEffect(() => {
     const load = async () => {
@@ -65,7 +69,9 @@ export default function Settings() {
           MAP_INCLUDE_STORY_KEY,
           MAP_INCLUDE_EXPOSE_KEY,
           MAP_INCLUDE_VEHICLE_LINK_KEY,
+          MAP_INCLUDE_ACCIDENT_KEY,
         ]);
+
       if (error) {
         console.error(error);
         toast.error("Einstellungen konnten nicht geladen werden");
@@ -95,7 +101,10 @@ export default function Settings() {
             setMapIncludeExpose(row.value);
           } else if (row.key === MAP_INCLUDE_VEHICLE_LINK_KEY && typeof row.value === "boolean") {
             setMapIncludeVehicleLink(row.value);
+          } else if (row.key === MAP_INCLUDE_ACCIDENT_KEY && typeof row.value === "boolean") {
+            setMapIncludeAccident(row.value);
           }
+
         }
         // Default mobile-ad recipients to story recipients if not yet configured.
         const hasMapRecipients = data.some((r) => r.key === MAP_RECIPIENTS_KEY);
@@ -257,9 +266,11 @@ export default function Settings() {
           { key: MAP_INCLUDE_STORY_KEY, value: mapIncludeStory, updated_at: now },
           { key: MAP_INCLUDE_EXPOSE_KEY, value: mapIncludeExpose, updated_at: now },
           { key: MAP_INCLUDE_VEHICLE_LINK_KEY, value: mapIncludeVehicleLink, updated_at: now },
+          { key: MAP_INCLUDE_ACCIDENT_KEY, value: mapIncludeAccident, updated_at: now },
         ],
         { onConflict: "key" },
       );
+
     setIsSavingMap(false);
     if (error) {
       console.error(error);
@@ -464,16 +475,17 @@ export default function Settings() {
         <div className="flex items-start gap-3">
           <Send className="h-5 w-5 text-muted-foreground mt-0.5" />
           <div className="flex-1">
-            <h2 className="text-lg font-semibold">Mobile.de Inserate</h2>
+            <h2 className="text-lg font-semibold">Neue Sync-Fahrzeuge</h2>
             <p className="text-sm text-muted-foreground">
-              Automatische Mail nach erfolgreicher Veröffentlichung eines Mobile.de-Inserats aus dem Portal.
+              Automatische Mail, wenn der Mobile.de-Sync ein neues Fahrzeug im Bestand anlegt.
+              Wird nicht bei normalen Sync-Updates verschickt.
             </p>
           </div>
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
           <Label htmlFor="map-enabled" className="cursor-pointer">
-            Mail senden, wenn ein Mobile.de-Inserat veröffentlicht wurde
+            Mail senden, wenn durch Mobile.de-Sync ein neues Fahrzeug im Bestand erscheint
           </Label>
           <Switch id="map-enabled" checked={mapEnabled} onCheckedChange={setMapEnabled} />
         </div>
@@ -523,11 +535,22 @@ export default function Settings() {
               Fahrzeug-Link mitsenden
             </Label>
           </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="map-accident"
+              checked={mapIncludeAccident}
+              onCheckedChange={(v) => setMapIncludeAccident(v === true)}
+            />
+            <Label htmlFor="map-accident" className="cursor-pointer">
+              Auch Unfallwagen berücksichtigen
+            </Label>
+          </div>
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Die WhatsApp-Story wird als Bild über einen Link in der Mail angezeigt. Das Exposé wird als Link verschickt.
+          Hinweis: Die Mail wird nur bei neu angelegten Fahrzeugen versendet, nicht bei normalen Sync-Updates.
         </p>
+
 
         <div className="flex justify-end pt-2">
           <Button onClick={saveMap} disabled={isSavingMap}>

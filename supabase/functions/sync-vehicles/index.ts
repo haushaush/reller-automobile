@@ -592,6 +592,9 @@ Deno.serve(async (req) => {
     const existingMap = new Map<string, { image_urls: string[] | null; modification_date: string | null }>(
       (existingVehicles || []).map((v) => [v.mobile_de_id, { image_urls: v.image_urls, modification_date: v.modification_date }])
     );
+    // Snapshot der mobile_de_ids, die VOR diesem Sync schon existierten.
+    // Wird unten zur Erkennung wirklich neuer Fahrzeuge verwendet.
+    const existingMobileDeIds = new Set<string>(existingMap.keys());
 
     const toEnrich = vehicleRows.filter((v) => {
       const existing = existingMap.get(v.mobile_de_id);
@@ -632,80 +635,48 @@ Deno.serve(async (req) => {
     }
     console.log(`Upserted ${vehicleRows.length} vehicles`);
     logTotal = vehicleRows.length;
-    logAdded = vehicleRows.filter((v) => !existingMap.has(v.mobile_de_id)).length;
+    logAdded = vehicleRows.filter((v) => !existingMobileDeIds.has(v.mobile_de_id)).length;
     logUpdated = vehicleRows.length - logAdded;
 
-    // Nach erfolgreichem Sync: prüfen, ob veröffentlichte Mobile.de-Inserate
-    // jetzt in vehicles angekommen sind und noch auf den Mail-Versand warten.
-    // WICHTIG: Sync setzt NIEMALS publish_email_status='sent' direkt.
-    // Der finale Status 'sent' wird ausschließlich von notify-mobile-ad-published
-    // gesetzt, nachdem der eigentliche Mailversand erfolgreich war.
+    // === Neue Fahrzeuge erkennen und Sync-Mail auslösen ===
+    // Ein Fahrzeug gilt als "neu", wenn dessen mobile_de_id VOR diesem
+    // Sync noch nicht in vehicles existierte. Bei reinen Updates wird
+    // KEINE Mail verschickt. Doppelsende-Schutz erfolgt zusätzlich in
+    // notify-new-synced-vehicle über vehicles.new_sync_email_sent_at.
     try {
-      const syncedIds = vehicleRows.map((v) => v.mobile_de_id);
-      if (syncedIds.length > 0) {
-        const { data: pendingDrafts } = await supabase
-          .from("mobile_ad_drafts")
-          .select("id, mobile_ad_id, publish_email_status, publish_email_sent_at")
-          .in("mobile_ad_id", syncedIds)
-          .in("publish_email_status", ["waiting_for_sync", "sending", "error", "failed"])
-          .is("publish_email_sent_at", null)
-          .limit(50);
-        if (pendingDrafts && pendingDrafts.length > 0) {
-          console.log(`notify-after-sync: ${pendingDrafts.length} draft(s) ready for email notification`);
-          // Sequenziell und AWAITED ausführen — fire-and-forget verliert die
-          // ausgehende HTTP-Verbindung sobald sync-vehicles seine Response
-          // zurückgibt, weshalb die Mail nie wirklich abgesendet wurde.
-          for (const d of pendingDrafts) {
-            const prevStatus = (d as { publish_email_status?: string }).publish_email_status ?? "unknown";
-            const nowIso = new Date().toISOString();
-            // Markiere als 'sending' VOR dem Aufruf — sent darf nur notify selbst setzen.
-            await supabase
-              .from("mobile_ad_drafts")
-              .update({
-                publish_email_status: "sending",
-                publish_email_last_attempt_at: nowIso,
-                publish_email_error: null,
-              })
-              .eq("id", d.id);
-            try {
-              console.log(`notify-after-sync invoke draft=${d.id} mobileAdId=${d.mobile_ad_id ?? "-"} prevStatus=${prevStatus}`);
-              const { data: notifyData, error: notifyError } = await supabase.functions.invoke(
-                "notify-mobile-ad-published",
-                { body: { draftId: d.id, trigger: "sync-vehicles", forceResend: false } },
-              );
-              if (notifyError) {
-                const msg = String(notifyError.message ?? notifyError).slice(0, 800);
-                console.warn(`notify-after-sync draft=${d.id} invoke error: ${msg}`);
-                await supabase
-                  .from("mobile_ad_drafts")
-                  .update({
-                    publish_email_status: "error",
-                    publish_email_error: `Notify-Aufruf fehlgeschlagen: ${msg}`,
-                  })
-                  .eq("id", d.id);
-              } else {
-                const summary = JSON.stringify(notifyData ?? {}).slice(0, 400);
-                console.log(`notify-after-sync draft=${d.id} response=${summary}`);
-                // Hinweis: notify selbst hat den finalen Status bereits gesetzt
-                // (sent / failed / waiting_for_sync / disabled). Sync greift nicht ein.
-              }
-            } catch (e) {
-              const msg = (e as Error).message.slice(0, 800);
-              console.warn(`notify-after-sync draft=${d.id} threw: ${msg}`);
-              await supabase
-                .from("mobile_ad_drafts")
-                .update({
-                  publish_email_status: "error",
-                  publish_email_error: `Notify-Exception: ${msg}`,
-                })
-                .eq("id", d.id);
+      const newlyAddedMobileDeIds = vehicleRows
+        .filter((v) => !existingMobileDeIds.has(v.mobile_de_id))
+        .map((v) => v.mobile_de_id);
+      console.log(`notify-new-sync: ${newlyAddedMobileDeIds.length} new vehicle(s) to notify`);
+      if (newlyAddedMobileDeIds.length > 0) {
+        // Reale vehicle-Rows holen (nur tatsächlich gespeicherte Fahrzeuge)
+        const { data: newVehicles } = await supabase
+          .from("vehicles")
+          .select("id, mobile_de_id, new_sync_email_sent_at, new_sync_email_status")
+          .in("mobile_de_id", newlyAddedMobileDeIds);
+        for (const nv of newVehicles ?? []) {
+          if (nv.new_sync_email_sent_at) continue;
+          if (nv.new_sync_email_status === "sent") continue;
+          try {
+            const { data: notifyData, error: notifyError } = await supabase.functions.invoke(
+              "notify-new-synced-vehicle",
+              { body: { vehicleId: nv.id, trigger: "sync-vehicles", forceResend: false } },
+            );
+            if (notifyError) {
+              console.warn(`notify-new-sync invoke error vehicle=${nv.id}: ${String(notifyError.message ?? notifyError).slice(0, 400)}`);
+            } else {
+              console.log(`notify-new-sync vehicle=${nv.id} response=${JSON.stringify(notifyData ?? {}).slice(0, 200)}`);
             }
+          } catch (e) {
+            console.warn(`notify-new-sync vehicle=${nv.id} threw: ${(e as Error).message.slice(0, 400)}`);
           }
         }
       }
     } catch (e) {
-      console.warn(`notify-after-sync check failed: ${(e as Error).message}`);
+      console.warn(`notify-new-sync trigger block failed: ${(e as Error).message}`);
     }
+
+
 
     const { count: activeCount } = await supabase
       .from("vehicles")
