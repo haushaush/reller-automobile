@@ -229,6 +229,48 @@ export default function Settings() {
     }
   };
 
+  const parseMapRecipients = (): string[] | null => {
+    const list = mapRecipientsText
+      .split(/[\s,;]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const unique = Array.from(new Set(list));
+    const invalid = unique.filter((e) => !EMAIL_RE.test(e));
+    if (invalid.length > 0) {
+      toast.error(`Ungültige E-Mail-Adressen: ${invalid.join(", ")}`);
+      return null;
+    }
+    return unique;
+  };
+
+  const saveMap = async () => {
+    const recList = parseMapRecipients();
+    if (recList === null) return;
+    setIsSavingMap(true);
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert(
+        [
+          { key: MAP_ENABLED_KEY, value: mapEnabled, updated_at: now },
+          { key: MAP_RECIPIENTS_KEY, value: recList, updated_at: now },
+          { key: MAP_INCLUDE_STORY_KEY, value: mapIncludeStory, updated_at: now },
+          { key: MAP_INCLUDE_EXPOSE_KEY, value: mapIncludeExpose, updated_at: now },
+          { key: MAP_INCLUDE_VEHICLE_LINK_KEY, value: mapIncludeVehicleLink, updated_at: now },
+        ],
+        { onConflict: "key" },
+      );
+    setIsSavingMap(false);
+    if (error) {
+      console.error(error);
+      toast.error("Speichern fehlgeschlagen");
+    } else {
+      toast.success("Einstellungen gespeichert");
+    }
+  };
+
+
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
