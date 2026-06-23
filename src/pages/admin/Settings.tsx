@@ -42,6 +42,13 @@ export default function Settings() {
   const [isSavingDigest, setIsSavingDigest] = useState(false);
   const [isTestingDigest, setIsTestingDigest] = useState(false);
 
+  const [mapEnabled, setMapEnabled] = useState(true);
+  const [mapRecipientsText, setMapRecipientsText] = useState("");
+  const [mapIncludeStory, setMapIncludeStory] = useState(true);
+  const [mapIncludeExpose, setMapIncludeExpose] = useState(true);
+  const [mapIncludeVehicleLink, setMapIncludeVehicleLink] = useState(true);
+  const [isSavingMap, setIsSavingMap] = useState(false);
+
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
@@ -53,6 +60,11 @@ export default function Settings() {
           STORY_CONTACT_EMAIL_KEY,
           DAILY_DIGEST_ENABLED_KEY,
           DAILY_DIGEST_HOUR_KEY,
+          MAP_ENABLED_KEY,
+          MAP_RECIPIENTS_KEY,
+          MAP_INCLUDE_STORY_KEY,
+          MAP_INCLUDE_EXPOSE_KEY,
+          MAP_INCLUDE_VEHICLE_LINK_KEY,
         ]);
       if (error) {
         console.error(error);
