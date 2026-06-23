@@ -178,40 +178,69 @@ function formatVehicleForEmail(v: Record<string, unknown>) {
   };
 }
 
-async function getOrCreateStory(
+async function loadLatestStory(
   admin: ReturnType<typeof createClient>,
   vehicleId: string,
-): Promise<{ url?: string; storyId?: string; error?: string }> {
+): Promise<{ id: string; url: string } | null> {
   try {
-    const { data: existing } = await admin
+    const { data, error } = await admin
       .from("vehicle_stories")
       .select("id, story_image_url")
       .eq("vehicle_id", vehicleId)
       .order("generated_at", { ascending: false })
-      .limit(1).maybeSingle();
-    if (existing?.story_image_url) {
-      return { url: existing.story_image_url as string, storyId: existing.id as string };
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.warn(`story lookup error vehicle=${vehicleId}: ${error.message}`);
+      return null;
     }
+    if (data?.story_image_url) {
+      return { id: data.id as string, url: data.story_image_url as string };
+    }
+    return null;
   } catch (e) {
-    console.warn("getOrCreateStory lookup failed:", (e as Error).message);
+    console.warn(`story lookup exception vehicle=${vehicleId}: ${(e as Error).message}`);
+    return null;
   }
+}
+
+async function getOrCreateStory(
+  admin: ReturnType<typeof createClient>,
+  vehicleId: string,
+): Promise<{ url?: string; storyId?: string; error?: string; reused?: boolean }> {
+  // 1) Reuse existing story if present
+  const existing = await loadLatestStory(admin, vehicleId);
+  if (existing) {
+    console.log(`story reuse vehicle=${vehicleId} storyId=${existing.id}`);
+    return { url: existing.url, storyId: existing.id, reused: true };
+  }
+
+  // 2) Invoke shared generator (same logic as /admin/stories)
+  console.log(`story generate start vehicle=${vehicleId}`);
   try {
     const { data, error } = await admin.functions.invoke("generate-story", {
       body: { vehicleIds: [vehicleId], skipDealerEmail: true },
     });
-    if (error) return { error: "WhatsApp-Story konnte nicht automatisch erzeugt werden." };
-    const generated = (data as { generated?: Array<{ vehicleId: string; storyImageUrl?: string }> } | null)?.generated;
-    const first = generated?.find((g) => g.vehicleId === vehicleId)?.storyImageUrl;
-    if (first) {
-      const { data: row } = await admin
-        .from("vehicle_stories").select("id, story_image_url").eq("vehicle_id", vehicleId)
-        .order("generated_at", { ascending: false }).limit(1).maybeSingle();
-      return { url: first, storyId: row?.id as string | undefined };
+    if (error) {
+      const msg = String((error as { message?: string }).message ?? error);
+      console.warn(`generate-story invoke error vehicle=${vehicleId}: ${msg}`);
+      return { error: "WhatsApp-Story konnte nicht automatisch erzeugt werden." };
     }
-    return { error: "WhatsApp-Story konnte nicht automatisch erzeugt werden." };
-  } catch {
+    const result = data as { generated?: number; resent?: number; storyIds?: string[] } | null;
+    console.log(`generate-story result vehicle=${vehicleId} generated=${result?.generated ?? 0} resent=${result?.resent ?? 0} storyIds=${(result?.storyIds ?? []).join(",")}`);
+  } catch (e) {
+    console.warn(`generate-story exception vehicle=${vehicleId}: ${(e as Error).message}`);
     return { error: "WhatsApp-Story konnte nicht automatisch erzeugt werden." };
   }
+
+  // 3) Re-read latest story (generate-story persists to vehicle_stories)
+  const created = await loadLatestStory(admin, vehicleId);
+  if (created) {
+    console.log(`story generate ok vehicle=${vehicleId} storyId=${created.id}`);
+    return { url: created.url, storyId: created.id, reused: false };
+  }
+  console.warn(`story generate produced no row vehicle=${vehicleId}`);
+  return { error: "WhatsApp-Story konnte nicht automatisch erzeugt werden." };
 }
 
 async function ensureExposeSignedUrl(
@@ -334,12 +363,16 @@ Deno.serve(async (req) => {
       : undefined;
     const portalUrl = settings.includeVehicleLink ? `${PORTAL_BASE}/fahrzeug/${vehicleId}` : undefined;
 
+    const imgCount = Array.isArray(v.image_urls) ? (v.image_urls as unknown[]).length : 0;
+    console.log(`notify-new-sync: vehicleId=${vehicleId} imageCount=${imgCount} storyOk=${Boolean(storyImageUrl)} storyError=${storyError ?? "-"} exposeOk=${Boolean(exposeUrl)}`);
+
     const templateData = {
       title: formatted.title,
       brand: formatted.brand,
       model: formatted.model,
       modelDescription: formatted.modelDescription,
       mobileAdId: mobileDeId ?? undefined,
+
       specs: formatted.specs,
       storyImageUrl,
       storyDownloadUrl: storyImageUrl,
