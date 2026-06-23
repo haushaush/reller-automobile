@@ -325,21 +325,25 @@ async function getOrCreateStory(
   }
 }
 
-async function findExposeSignedUrl(
+async function ensureExposeSignedUrl(
   admin: ReturnType<typeof createClient>,
   vehicleId: string,
 ): Promise<{ url?: string; error?: string }> {
   try {
-    const { data: files, error } = await admin.storage
-      .from("vehicle-exposes").list("", { search: vehicleId, limit: 50 });
-    if (error) return { error: "Exposé konnte nicht automatisch erzeugt werden." };
-    const match = (files ?? []).find((f) => f.name.includes(vehicleId)) ?? (files ?? [])[0];
-    if (!match) return { error: "Exposé konnte nicht automatisch erzeugt werden." };
-    const { data: signed, error: sErr } = await admin.storage
-      .from("vehicle-exposes").createSignedUrl(match.name, 60 * 60 * 24 * 7);
-    if (sErr || !signed?.signedUrl) return { error: "Exposé konnte nicht automatisch erzeugt werden." };
-    return { url: signed.signedUrl };
-  } catch {
+    const { data, error } = await admin.functions.invoke("ensure-vehicle-expose", {
+      body: { vehicleId },
+    });
+    if (error) {
+      console.warn(`ensureExposeSignedUrl: invoke error for ${vehicleId}: ${error.message ?? error}`);
+      return { error: "Exposé konnte nicht automatisch erzeugt werden." };
+    }
+    const url = (data as { signedUrl?: string } | null)?.signedUrl;
+    const generated = (data as { generated?: boolean } | null)?.generated;
+    console.log(`ensureExposeSignedUrl: vehicleId=${vehicleId} generated=${generated ? "yes" : "no"} url=${url ? "ok" : "missing"}`);
+    if (!url) return { error: "Exposé konnte nicht automatisch erzeugt werden." };
+    return { url };
+  } catch (e) {
+    console.warn(`ensureExposeSignedUrl exception for ${vehicleId}: ${(e as Error).message}`);
     return { error: "Exposé konnte nicht automatisch erzeugt werden." };
   }
 }
