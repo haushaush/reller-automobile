@@ -292,6 +292,7 @@ export type Database = {
           mobile_ad_id: string | null
           payload: Json
           publish_email_error: string | null
+          publish_email_last_attempt_at: string | null
           publish_email_sent_at: string | null
           publish_email_status: string | null
           status: string
@@ -308,6 +309,7 @@ export type Database = {
           mobile_ad_id?: string | null
           payload?: Json
           publish_email_error?: string | null
+          publish_email_last_attempt_at?: string | null
           publish_email_sent_at?: string | null
           publish_email_status?: string | null
           status?: string
@@ -324,6 +326,7 @@ export type Database = {
           mobile_ad_id?: string | null
           payload?: Json
           publish_email_error?: string | null
+          publish_email_last_attempt_at?: string | null
           publish_email_sent_at?: string | null
           publish_email_status?: string | null
           status?: string
