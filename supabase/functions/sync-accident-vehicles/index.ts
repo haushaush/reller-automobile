@@ -514,6 +514,7 @@ Deno.serve(async (req) => {
     const existingMap = new Map<string, { image_urls: string[] | null; modification_date: string | null }>(
       (existingVehicles || []).map((v) => [v.mobile_de_id, { image_urls: v.image_urls, modification_date: v.modification_date }])
     );
+    const existingMobileDeIds = new Set<string>(existingMap.keys());
 
     const toEnrich = vehicleRows.filter((v) => {
       const existing = existingMap.get(v.mobile_de_id);
@@ -554,8 +555,41 @@ Deno.serve(async (req) => {
     }
     console.log(`[accident] Upserted ${vehicleRows.length} vehicles`);
     logTotal = vehicleRows.length;
-    logAdded = vehicleRows.filter((v) => !existingMap.has(v.mobile_de_id)).length;
+    logAdded = vehicleRows.filter((v) => !existingMobileDeIds.has(v.mobile_de_id)).length;
     logUpdated = vehicleRows.length - logAdded;
+
+    // Sync-Mail nur für wirklich neue Unfallwagen auslösen.
+    // Die include_accident_vehicles-Einstellung wird in notify-new-synced-vehicle geprüft.
+    try {
+      const newlyAddedMobileDeIds = vehicleRows
+        .filter((v) => !existingMobileDeIds.has(v.mobile_de_id))
+        .map((v) => v.mobile_de_id);
+      console.log(`[accident] notify-new-sync: ${newlyAddedMobileDeIds.length} new vehicle(s)`);
+      if (newlyAddedMobileDeIds.length > 0) {
+        const { data: newVehicles } = await supabase
+          .from("vehicles")
+          .select("id, mobile_de_id, new_sync_email_sent_at, new_sync_email_status")
+          .in("mobile_de_id", newlyAddedMobileDeIds);
+        for (const nv of newVehicles ?? []) {
+          if (nv.new_sync_email_sent_at) continue;
+          if (nv.new_sync_email_status === "sent") continue;
+          try {
+            const { error: notifyError } = await supabase.functions.invoke(
+              "notify-new-synced-vehicle",
+              { body: { vehicleId: nv.id, trigger: "sync-accident-vehicles", forceResend: false } },
+            );
+            if (notifyError) {
+              console.warn(`[accident] notify-new-sync invoke error vehicle=${nv.id}: ${String(notifyError.message ?? notifyError).slice(0, 400)}`);
+            }
+          } catch (e) {
+            console.warn(`[accident] notify-new-sync vehicle=${nv.id} threw: ${(e as Error).message.slice(0, 400)}`);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`[accident] notify-new-sync trigger failed: ${(e as Error).message}`);
+    }
+
 
     const { count: activeCount } = await supabase
       .from("vehicles")
