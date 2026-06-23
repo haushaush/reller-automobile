@@ -25,6 +25,8 @@ interface DraftRow {
   image_paths: string[] | null;
   publish_email_sent_at: string | null;
   publish_email_error: string | null;
+  publish_email_status: string | null;
+  publish_email_last_attempt_at: string | null;
 }
 
 interface VehicleMatch {
@@ -223,7 +225,7 @@ export default function MobileAdDrafts() {
     setLoading(true);
     const { data, error } = await supabase
       .from("mobile_ad_drafts")
-      .select("id, status, payload, mobile_ad_id, error_message, created_at, image_paths, publish_email_sent_at, publish_email_error")
+      .select("id, status, payload, mobile_ad_id, error_message, created_at, image_paths, publish_email_sent_at, publish_email_error, publish_email_status, publish_email_last_attempt_at")
       .order("created_at", { ascending: false });
     if (error) {
       toast.error("Laden fehlgeschlagen");
@@ -316,13 +318,15 @@ export default function MobileAdDrafts() {
     setResending(id);
     try {
       const { data, error } = await supabase.functions.invoke("notify-mobile-ad-published", {
-        body: { draftId: id, force: true },
+        body: { draftId: id, force: true, forceResend: true, trigger: "manual-resend" },
       });
-      const d = data as { ok?: boolean; sent?: number; failed?: string[]; error?: string } | null;
-      if (error || d?.ok === false) {
+      const d = data as { success?: boolean; emailSent?: boolean; sent?: number; error?: string; reason?: string } | null;
+      if (error || d?.success === false) {
         toast.error(`Mail konnte nicht gesendet werden: ${d?.error || error?.message || "Unbekannter Fehler"}`);
-      } else {
+      } else if (d?.emailSent) {
         toast.success(`Benachrichtigung gesendet (${d?.sent ?? 0}).`);
+      } else {
+        toast.message(`Keine Mail versendet: ${d?.reason ?? "unbekannt"}`);
       }
       await load();
     } finally {
@@ -330,6 +334,7 @@ export default function MobileAdDrafts() {
       setConfirmResendId(null);
     }
   };
+
 
 
   const copyAsDraft = async (id: string) => {
@@ -576,16 +581,53 @@ export default function MobileAdDrafts() {
                       Inserat öffnen
                     </a>
                   )}
-                  {isPublished && r.publish_email_sent_at && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Mail gesendet am {new Date(r.publish_email_sent_at).toLocaleString("de-DE")}
-                    </div>
-                  )}
-                  {isPublished && !r.publish_email_sent_at && r.publish_email_error && (
-                    <div className="text-xs text-amber-600 mt-1 break-all">
-                      Mailfehler: {r.publish_email_error}
-                    </div>
-                  )}
+                  {isPublished && (() => {
+                    const st = r.publish_email_status;
+                    const sentAt = r.publish_email_sent_at;
+                    if (st === "sent" && sentAt) {
+                      return (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Mail gesendet am {new Date(sentAt).toLocaleString("de-DE")}
+                        </div>
+                      );
+                    }
+                    if (st === "sent_with_warning" && sentAt) {
+                      return (
+                        <div className="text-xs text-amber-600 mt-1">
+                          Mail teilweise gesendet am {new Date(sentAt).toLocaleString("de-DE")}
+                          {r.publish_email_error ? ` — ${r.publish_email_error}` : ""}
+                        </div>
+                      );
+                    }
+                    if (st === "sent" && !sentAt) {
+                      return (
+                        <div className="text-xs text-amber-600 mt-1">
+                          Mailstatus unklar — bitte „Mail erneut senden" prüfen.
+                        </div>
+                      );
+                    }
+                    if (st === "sending") {
+                      return <div className="text-xs text-blue-600 mt-1">Mail wird gesendet…</div>;
+                    }
+                    if (st === "waiting_for_sync") {
+                      return <div className="text-xs text-muted-foreground mt-1">Mail wartet auf Sync</div>;
+                    }
+                    if (st === "error" || st === "failed") {
+                      return (
+                        <div className="text-xs text-destructive mt-1 break-all">
+                          Mailfehler: {r.publish_email_error ?? "unbekannt"}
+                        </div>
+                      );
+                    }
+                    if (r.publish_email_error) {
+                      return (
+                        <div className="text-xs text-amber-600 mt-1 break-all">
+                          Mailfehler: {r.publish_email_error}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

@@ -637,7 +637,9 @@ Deno.serve(async (req) => {
 
     // Nach erfolgreichem Sync: prüfen, ob veröffentlichte Mobile.de-Inserate
     // jetzt in vehicles angekommen sind und noch auf den Mail-Versand warten.
-    // (Mail wird NICHT direkt nach Publish verschickt — siehe publish-mobile-ad.)
+    // WICHTIG: Sync setzt NIEMALS publish_email_status='sent' direkt.
+    // Der finale Status 'sent' wird ausschließlich von notify-mobile-ad-published
+    // gesetzt, nachdem der eigentliche Mailversand erfolgreich war.
     try {
       const syncedIds = vehicleRows.map((v) => v.mobile_de_id);
       if (syncedIds.length > 0) {
@@ -645,21 +647,59 @@ Deno.serve(async (req) => {
           .from("mobile_ad_drafts")
           .select("id, mobile_ad_id, publish_email_status, publish_email_sent_at")
           .in("mobile_ad_id", syncedIds)
-          .eq("publish_email_status", "waiting_for_sync")
+          .in("publish_email_status", ["waiting_for_sync", "sending", "error", "failed"])
           .is("publish_email_sent_at", null)
           .limit(50);
         if (pendingDrafts && pendingDrafts.length > 0) {
           console.log(`notify-after-sync: ${pendingDrafts.length} draft(s) ready for email notification`);
-          // Fire-and-forget: nicht auf Antwort warten, Sync nicht blockieren.
+          // Sequenziell und AWAITED ausführen — fire-and-forget verliert die
+          // ausgehende HTTP-Verbindung sobald sync-vehicles seine Response
+          // zurückgibt, weshalb die Mail nie wirklich abgesendet wurde.
           for (const d of pendingDrafts) {
-            supabase.functions.invoke("notify-mobile-ad-published", {
-              body: { draftId: d.id, trigger: "sync-vehicles" },
-            }).then(({ error }) => {
-              if (error) console.warn(`notify-mobile-ad-published draft=${d.id} error: ${error.message}`);
-              else console.log(`notify-mobile-ad-published draft=${d.id} ok`);
-            }).catch((e) => {
-              console.warn(`notify-mobile-ad-published draft=${d.id} invoke failed: ${(e as Error).message}`);
-            });
+            const prevStatus = (d as { publish_email_status?: string }).publish_email_status ?? "unknown";
+            const nowIso = new Date().toISOString();
+            // Markiere als 'sending' VOR dem Aufruf — sent darf nur notify selbst setzen.
+            await supabase
+              .from("mobile_ad_drafts")
+              .update({
+                publish_email_status: "sending",
+                publish_email_last_attempt_at: nowIso,
+                publish_email_error: null,
+              })
+              .eq("id", d.id);
+            try {
+              console.log(`notify-after-sync invoke draft=${d.id} mobileAdId=${d.mobile_ad_id ?? "-"} prevStatus=${prevStatus}`);
+              const { data: notifyData, error: notifyError } = await supabase.functions.invoke(
+                "notify-mobile-ad-published",
+                { body: { draftId: d.id, trigger: "sync-vehicles", forceResend: false } },
+              );
+              if (notifyError) {
+                const msg = String(notifyError.message ?? notifyError).slice(0, 800);
+                console.warn(`notify-after-sync draft=${d.id} invoke error: ${msg}`);
+                await supabase
+                  .from("mobile_ad_drafts")
+                  .update({
+                    publish_email_status: "error",
+                    publish_email_error: `Notify-Aufruf fehlgeschlagen: ${msg}`,
+                  })
+                  .eq("id", d.id);
+              } else {
+                const summary = JSON.stringify(notifyData ?? {}).slice(0, 400);
+                console.log(`notify-after-sync draft=${d.id} response=${summary}`);
+                // Hinweis: notify selbst hat den finalen Status bereits gesetzt
+                // (sent / failed / waiting_for_sync / disabled). Sync greift nicht ein.
+              }
+            } catch (e) {
+              const msg = (e as Error).message.slice(0, 800);
+              console.warn(`notify-after-sync draft=${d.id} threw: ${msg}`);
+              await supabase
+                .from("mobile_ad_drafts")
+                .update({
+                  publish_email_status: "error",
+                  publish_email_error: `Notify-Exception: ${msg}`,
+                })
+                .eq("id", d.id);
+            }
           }
         }
       }
