@@ -459,6 +459,83 @@ export default function Settings() {
           </Button>
         </div>
       </Card>
+
+      <Card className="p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <Send className="h-5 w-5 text-muted-foreground mt-0.5" />
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold">Mobile.de Inserate</h2>
+            <p className="text-sm text-muted-foreground">
+              Automatische Mail nach erfolgreicher Veröffentlichung eines Mobile.de-Inserats aus dem Portal.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+          <Label htmlFor="map-enabled" className="cursor-pointer">
+            Mail senden, wenn ein Mobile.de-Inserat veröffentlicht wurde
+          </Label>
+          <Switch id="map-enabled" checked={mapEnabled} onCheckedChange={setMapEnabled} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="map-recipients">Empfänger</Label>
+          <Textarea
+            id="map-recipients"
+            rows={4}
+            value={mapRecipientsText}
+            onChange={(e) => setMapRecipientsText(e.target.value)}
+            placeholder={"name@beispiel.de\noder kommagetrennt: a@x.de, b@y.de"}
+          />
+          <p className="text-xs text-muted-foreground">
+            Mehrere Adressen erlaubt – kommagetrennt oder zeilenweise.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="map-story"
+              checked={mapIncludeStory}
+              onCheckedChange={(v) => setMapIncludeStory(v === true)}
+            />
+            <Label htmlFor="map-story" className="cursor-pointer">
+              WhatsApp-Story als Bild in der Mail anzeigen
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="map-expose"
+              checked={mapIncludeExpose}
+              onCheckedChange={(v) => setMapIncludeExpose(v === true)}
+            />
+            <Label htmlFor="map-expose" className="cursor-pointer">
+              Exposé-Link mitsenden
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="map-vehicle"
+              checked={mapIncludeVehicleLink}
+              onCheckedChange={(v) => setMapIncludeVehicleLink(v === true)}
+            />
+            <Label htmlFor="map-vehicle" className="cursor-pointer">
+              Fahrzeug-Link mitsenden
+            </Label>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Die WhatsApp-Story wird als Bild über einen Link in der Mail angezeigt. Das Exposé wird als Link verschickt.
+        </p>
+
+        <div className="flex justify-end pt-2">
+          <Button onClick={saveMap} disabled={isSavingMap}>
+            {isSavingMap && <Loader2 className="h-4 w-4 animate-spin" />}
+            Speichern
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
