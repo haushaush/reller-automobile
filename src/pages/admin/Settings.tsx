@@ -221,7 +221,23 @@ export default function Settings() {
     }
   };
 
+  const parseReportRecipients = (): string[] | null => {
+    const list = reportRecipientsText
+      .split(/[\s,;]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const unique = Array.from(new Set(list));
+    const invalid = unique.filter((e) => !EMAIL_RE.test(e));
+    if (invalid.length > 0) {
+      toast.error(`Ungültige E-Mail-Adressen: ${invalid.join(", ")}`);
+      return null;
+    }
+    return unique;
+  };
+
   const saveDigest = async () => {
+    const reportRecList = parseReportRecipients();
+    if (reportRecList === null) return;
     setIsSavingDigest(true);
     const now = new Date().toISOString();
     const { error } = await supabase
@@ -230,6 +246,11 @@ export default function Settings() {
         [
           { key: DAILY_DIGEST_ENABLED_KEY, value: digestEnabled, updated_at: now },
           { key: DAILY_DIGEST_HOUR_KEY, value: digestHour, updated_at: now },
+          { key: DAILY_REPORT_RECIPIENTS_KEY, value: reportRecList, updated_at: now },
+          { key: DAILY_REPORT_INC_NEW_KEY, value: reportIncludeNew, updated_at: now },
+          { key: DAILY_REPORT_INC_SOLD_KEY, value: reportIncludeSold, updated_at: now },
+          { key: DAILY_REPORT_INC_INVENTORY_KEY, value: reportIncludeInventory, updated_at: now },
+          { key: DAILY_REPORT_INC_SYNC_KEY, value: reportIncludeSync, updated_at: now },
         ],
         { onConflict: "key" },
       );
