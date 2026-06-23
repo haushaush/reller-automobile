@@ -433,7 +433,7 @@ Deno.serve(async (req) => {
     let exposeUrl: string | undefined;
     let exposeError: string | undefined;
     if (settings.includeExpose) {
-      const r = await findExposeSignedUrl(adminWithAuth, vehicleId);
+      const r = await ensureExposeSignedUrl(adminWithAuth, vehicleId);
       exposeUrl = r.url;
       exposeError = r.error;
     }
