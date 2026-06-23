@@ -511,33 +511,60 @@ Deno.serve(async (req) => {
     );
     const failed = sendResults.filter((r) => r.error);
     const sentOk = sendResults.length - failed.length;
-    console.log(`notify draft=${draftId} sent=${sentOk}/${sendResults.length} failed=${JSON.stringify(failed.map((f) => f.recipient))}`);
+    console.log(`notify draft=${draftId} vehicleId=${vehicleId} story=${Boolean(storyImageUrl)} expose=${Boolean(exposeUrl)} sent=${sentOk}/${sendResults.length} failed=${JSON.stringify(failed.map((f) => f.recipient))}`);
+
+    const sentAtIso = new Date().toISOString();
 
     if (sentOk > 0) {
+      // sent darf nur hier gesetzt werden — nach echtem Erfolg.
       await admin.from("mobile_ad_drafts").update({
         publish_email_status: failed.length ? "sent_with_warning" : "sent",
-        publish_email_sent_at: new Date().toISOString(),
+        publish_email_sent_at: sentAtIso,
         publish_email_error: failed.length ? `Teilfehler: ${failed.map((f) => f.recipient).join(", ")}` : null,
       }).eq("id", draftId);
-    } else {
-      await admin.from("mobile_ad_drafts").update({
-        publish_email_status: "failed",
-        publish_email_error: `Versand fehlgeschlagen: ${failed.map((f) => `${f.recipient}: ${f.error}`).join("; ").slice(0, 1500)}`,
-      }).eq("id", draftId);
-      return json(502, { ok: false, error: "send failed", failed });
+      return json(200, {
+        success: true,
+        emailSent: true,
+        draftId,
+        vehicleId,
+        sentAt: sentAtIso,
+        sent: sentOk,
+        total: sendResults.length,
+        labelMisses: formatted.missing,
+        storyIncluded: Boolean(storyImageUrl),
+        exposeIncluded: Boolean(exposeUrl),
+        partialFailures: failed,
+      });
     }
 
-    return json(200, {
-      ok: true,
-      sent: sentOk,
-      total: sendResults.length,
+    // Vollständiger Fehlschlag — sent_at bleibt null.
+    const errorMsg = `Versand fehlgeschlagen: ${failed.map((f) => `${f.recipient}: ${f.error}`).join("; ")}`.slice(0, 1500);
+    await admin.from("mobile_ad_drafts").update({
+      publish_email_status: "error",
+      publish_email_error: errorMsg,
+    }).eq("id", draftId);
+    return json(502, {
+      success: false,
+      emailSent: false,
+      draftId,
       vehicleId,
-      labelMisses: formatted.missing,
-      storyIncluded: Boolean(storyImageUrl),
-      exposeIncluded: Boolean(exposeUrl),
+      error: errorMsg,
+      failed,
     });
   } catch (err) {
     console.error("notify-mobile-ad-published fatal:", err);
-    return json(500, { error: String((err as Error).message || err) });
+    // Best-effort: Status auf error setzen, falls draftId bekannt
+    try {
+      const bodyClone = await req.clone().json().catch(() => ({}));
+      const dId = (bodyClone as { draftId?: string }).draftId;
+      if (dId) {
+        const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        await admin.from("mobile_ad_drafts").update({
+          publish_email_status: "error",
+          publish_email_error: `Notify-Exception: ${String((err as Error).message || err)}`.slice(0, 1500),
+        }).eq("id", dId);
+      }
+    } catch { /* ignore */ }
+    return json(500, { success: false, emailSent: false, error: String((err as Error).message || err) });
   }
 });
