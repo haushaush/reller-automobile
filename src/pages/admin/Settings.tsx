@@ -105,6 +105,18 @@ export default function Settings() {
             setDigestEnabled(row.value);
           } else if (row.key === DAILY_DIGEST_HOUR_KEY && typeof row.value === "number") {
             setDigestHour(row.value);
+          } else if (row.key === DAILY_REPORT_RECIPIENTS_KEY && Array.isArray(row.value)) {
+            setReportRecipientsText(
+              (row.value as unknown[]).filter((v): v is string => typeof v === "string").join("\n"),
+            );
+          } else if (row.key === DAILY_REPORT_INC_NEW_KEY && typeof row.value === "boolean") {
+            setReportIncludeNew(row.value);
+          } else if (row.key === DAILY_REPORT_INC_SOLD_KEY && typeof row.value === "boolean") {
+            setReportIncludeSold(row.value);
+          } else if (row.key === DAILY_REPORT_INC_INVENTORY_KEY && typeof row.value === "boolean") {
+            setReportIncludeInventory(row.value);
+          } else if (row.key === DAILY_REPORT_INC_SYNC_KEY && typeof row.value === "boolean") {
+            setReportIncludeSync(row.value);
           } else if (row.key === MAP_ENABLED_KEY && typeof row.value === "boolean") {
             setMapEnabled(row.value);
           } else if (row.key === MAP_RECIPIENTS_KEY && Array.isArray(row.value)) {
@@ -128,6 +140,16 @@ export default function Settings() {
           const storyRow = data.find((r) => r.key === STORY_RECIPIENTS_KEY);
           if (storyRow && Array.isArray(storyRow.value)) {
             setMapRecipientsText(
+              (storyRow.value as unknown[]).filter((v): v is string => typeof v === "string").join("\n"),
+            );
+          }
+        }
+        // Default daily-report recipients to story recipients if not yet configured.
+        const hasReportRecipients = data.some((r) => r.key === DAILY_REPORT_RECIPIENTS_KEY);
+        if (!hasReportRecipients) {
+          const storyRow = data.find((r) => r.key === STORY_RECIPIENTS_KEY);
+          if (storyRow && Array.isArray(storyRow.value)) {
+            setReportRecipientsText(
               (storyRow.value as unknown[]).filter((v): v is string => typeof v === "string").join("\n"),
             );
           }
