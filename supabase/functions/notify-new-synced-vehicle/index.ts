@@ -366,10 +366,13 @@ Deno.serve(async (req) => {
     const imgCount = Array.isArray(v.image_urls) ? (v.image_urls as unknown[]).length : 0;
     console.log(`notify-new-sync: vehicleId=${vehicleId} imageCount=${imgCount} storyOk=${Boolean(storyImageUrl)} storyError=${storyError ?? "-"} exposeOk=${Boolean(exposeUrl)}`);
 
-    let storyId: string | undefined;
-    // (storyId is set above by getOrCreateStory)
-
+    const templateData = {
+      title: formatted.title,
+      brand: formatted.brand,
+      model: formatted.model,
+      modelDescription: formatted.modelDescription,
       mobileAdId: mobileDeId ?? undefined,
+
       specs: formatted.specs,
       storyImageUrl,
       storyDownloadUrl: storyImageUrl,
