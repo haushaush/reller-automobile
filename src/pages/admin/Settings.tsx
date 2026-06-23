@@ -475,16 +475,17 @@ export default function Settings() {
         <div className="flex items-start gap-3">
           <Send className="h-5 w-5 text-muted-foreground mt-0.5" />
           <div className="flex-1">
-            <h2 className="text-lg font-semibold">Mobile.de Inserate</h2>
+            <h2 className="text-lg font-semibold">Neue Sync-Fahrzeuge</h2>
             <p className="text-sm text-muted-foreground">
-              Automatische Mail nach erfolgreicher Veröffentlichung eines Mobile.de-Inserats aus dem Portal.
+              Automatische Mail, wenn der Mobile.de-Sync ein neues Fahrzeug im Bestand anlegt.
+              Wird nicht bei normalen Sync-Updates verschickt.
             </p>
           </div>
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
           <Label htmlFor="map-enabled" className="cursor-pointer">
-            Mail senden, wenn ein Mobile.de-Inserat veröffentlicht wurde
+            Mail senden, wenn durch Mobile.de-Sync ein neues Fahrzeug im Bestand erscheint
           </Label>
           <Switch id="map-enabled" checked={mapEnabled} onCheckedChange={setMapEnabled} />
         </div>
@@ -534,11 +535,22 @@ export default function Settings() {
               Fahrzeug-Link mitsenden
             </Label>
           </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="map-accident"
+              checked={mapIncludeAccident}
+              onCheckedChange={(v) => setMapIncludeAccident(v === true)}
+            />
+            <Label htmlFor="map-accident" className="cursor-pointer">
+              Auch Unfallwagen berücksichtigen
+            </Label>
+          </div>
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Die WhatsApp-Story wird als Bild über einen Link in der Mail angezeigt. Das Exposé wird als Link verschickt.
+          Hinweis: Die Mail wird nur bei neu angelegten Fahrzeugen versendet, nicht bei normalen Sync-Updates.
         </p>
+
 
         <div className="flex justify-end pt-2">
           <Button onClick={saveMap} disabled={isSavingMap}>
