@@ -705,6 +705,26 @@ export default function MobileAdDrafts() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={!!confirmResendId} onOpenChange={(o) => !o && setConfirmResendId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Benachrichtigungs-Mail erneut senden?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die Mail wird erneut an alle in den Einstellungen hinterlegten Empfänger gesendet,
+              auch wenn sie zuvor bereits versendet wurde.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmResendId && resendMail(confirmResendId)}>
+              Erneut senden
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
+
       <Dialog open={!!linkDraft} onOpenChange={(o) => { if (!o) { setLinkDraft(null); setLinkMatches([]); } }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
