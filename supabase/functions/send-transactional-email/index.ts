@@ -333,6 +333,44 @@ Deno.serve(async (req) => {
       ? template.subject(templateData)
       : template.subject
 
+  // 4b. Create email_logs row (rich, admin-facing history)
+  // We store templateName + a copy of templateData in metadata so resend works.
+  const baseMetadata: Record<string, any> = {
+    ...(logContext.metadata ?? {}),
+    template_name: templateName,
+    template_data: templateData,
+    idempotency_key: idempotencyKey,
+    message_id: messageId,
+  }
+  let emailLogId: string | null = null
+  try {
+    const { data: logRow, error: logErr } = await supabase
+      .from('email_logs')
+      .insert({
+        mail_type: logContext.mailType || templateName,
+        status: 'sending',
+        recipients: [effectiveRecipient],
+        subject: resolvedSubject,
+        vehicle_id: logContext.vehicleId ?? null,
+        mobile_ad_draft_id: logContext.mobileAdDraftId ?? null,
+        mobile_ad_id: logContext.mobileAdId ?? null,
+        story_id: logContext.storyId ?? null,
+        expose_path: logContext.exposePath ?? null,
+        provider: 'lovable-email-js',
+        provider_message_id: messageId,
+        metadata: baseMetadata,
+      })
+      .select('id')
+      .single()
+    if (logErr) {
+      console.error('email_logs insert failed', { error: logErr.message })
+    } else {
+      emailLogId = logRow?.id ?? null
+    }
+  } catch (e) {
+    console.error('email_logs insert threw', String(e))
+  }
+
   // 5. Enqueue the pre-rendered email for async processing by the dispatcher.
   // The dispatcher (process-email-queue) handles sending, retries, and rate-limit backoff.
 
@@ -377,16 +415,30 @@ Deno.serve(async (req) => {
       error_message: 'Failed to enqueue email',
     })
 
-    return new Response(JSON.stringify({ error: 'Failed to enqueue email' }), {
+    if (emailLogId) {
+      await supabase.from('email_logs').update({
+        status: 'failed',
+        error_message: `Enqueue fehlgeschlagen: ${enqueueError.message ?? 'unknown'}`.slice(0, 1000),
+      }).eq('id', emailLogId)
+    }
+
+    return new Response(JSON.stringify({ error: 'Failed to enqueue email', emailLogId }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 
-  console.log('Transactional email enqueued', { templateName, effectiveRecipient })
+  if (emailLogId) {
+    await supabase.from('email_logs').update({
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+    }).eq('id', emailLogId)
+  }
+
+  console.log('Transactional email enqueued', { templateName, effectiveRecipient, emailLogId })
 
   return new Response(
-    JSON.stringify({ success: true, queued: true }),
+    JSON.stringify({ success: true, queued: true, emailLogId }),
     {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
