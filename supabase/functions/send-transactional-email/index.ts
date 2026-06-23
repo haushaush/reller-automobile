@@ -84,6 +84,15 @@ Deno.serve(async (req) => {
   let idempotencyKey: string
   let messageId: string
   let templateData: Record<string, any> = {}
+  let logContext: {
+    mailType?: string
+    vehicleId?: string | null
+    mobileAdDraftId?: string | null
+    mobileAdId?: string | null
+    storyId?: string | null
+    exposePath?: string | null
+    metadata?: Record<string, any>
+  } = {}
   try {
     const body = await req.json()
     templateName = body.templateName || body.template_name
@@ -92,6 +101,9 @@ Deno.serve(async (req) => {
     idempotencyKey = body.idempotencyKey || body.idempotency_key || messageId
     if (body.templateData && typeof body.templateData === 'object') {
       templateData = body.templateData
+    }
+    if (body.logContext && typeof body.logContext === 'object') {
+      logContext = body.logContext
     }
   } catch {
     return new Response(
