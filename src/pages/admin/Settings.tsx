@@ -101,7 +101,10 @@ export default function Settings() {
             setMapIncludeExpose(row.value);
           } else if (row.key === MAP_INCLUDE_VEHICLE_LINK_KEY && typeof row.value === "boolean") {
             setMapIncludeVehicleLink(row.value);
+          } else if (row.key === MAP_INCLUDE_ACCIDENT_KEY && typeof row.value === "boolean") {
+            setMapIncludeAccident(row.value);
           }
+
         }
         // Default mobile-ad recipients to story recipients if not yet configured.
         const hasMapRecipients = data.some((r) => r.key === MAP_RECIPIENTS_KEY);
