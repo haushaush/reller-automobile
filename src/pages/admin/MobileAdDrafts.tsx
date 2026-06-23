@@ -289,13 +289,48 @@ export default function MobileAdDrafts() {
       } else if ((data as { warning?: boolean } | null)?.warning) {
         toast.warning((data as { message?: string }).message ?? "Inserat erstellt, aber Mobile.de-ID fehlt.");
       } else {
-        toast.success("Auf Mobile.de veröffentlicht");
+        // Re-check draft to surface notification status accurately.
+        const { data: fresh } = await supabase
+          .from("mobile_ad_drafts")
+          .select("publish_email_sent_at, publish_email_error")
+          .eq("id", id)
+          .maybeSingle();
+        if (fresh?.publish_email_sent_at) {
+          toast.success("Inserat veröffentlicht und Benachrichtigung versendet.");
+        } else if (fresh?.publish_email_error) {
+          toast.warning(`Inserat veröffentlicht, aber Benachrichtigung fehlgeschlagen: ${fresh.publish_email_error}`);
+        } else {
+          toast.success("Inserat veröffentlicht. Benachrichtigung ist deaktiviert oder wird gerade gesendet.");
+        }
       }
       await load();
     } finally {
       setPublishing(null);
     }
   };
+
+  const [resending, setResending] = useState<string | null>(null);
+  const [confirmResendId, setConfirmResendId] = useState<string | null>(null);
+
+  const resendMail = async (id: string) => {
+    setResending(id);
+    try {
+      const { data, error } = await supabase.functions.invoke("notify-mobile-ad-published", {
+        body: { draftId: id, force: true },
+      });
+      const d = data as { ok?: boolean; sent?: number; failed?: string[]; error?: string } | null;
+      if (error || d?.ok === false) {
+        toast.error(`Mail konnte nicht gesendet werden: ${d?.error || error?.message || "Unbekannter Fehler"}`);
+      } else {
+        toast.success(`Benachrichtigung gesendet (${d?.sent ?? 0}).`);
+      }
+      await load();
+    } finally {
+      setResending(null);
+      setConfirmResendId(null);
+    }
+  };
+
 
   const copyAsDraft = async (id: string) => {
     const orig = rows.find((r) => r.id === id);
