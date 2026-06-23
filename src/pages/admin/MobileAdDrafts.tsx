@@ -578,16 +578,53 @@ export default function MobileAdDrafts() {
                       Inserat öffnen
                     </a>
                   )}
-                  {isPublished && r.publish_email_sent_at && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Mail gesendet am {new Date(r.publish_email_sent_at).toLocaleString("de-DE")}
-                    </div>
-                  )}
-                  {isPublished && !r.publish_email_sent_at && r.publish_email_error && (
-                    <div className="text-xs text-amber-600 mt-1 break-all">
-                      Mailfehler: {r.publish_email_error}
-                    </div>
-                  )}
+                  {isPublished && (() => {
+                    const st = r.publish_email_status;
+                    const sentAt = r.publish_email_sent_at;
+                    if (st === "sent" && sentAt) {
+                      return (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Mail gesendet am {new Date(sentAt).toLocaleString("de-DE")}
+                        </div>
+                      );
+                    }
+                    if (st === "sent_with_warning" && sentAt) {
+                      return (
+                        <div className="text-xs text-amber-600 mt-1">
+                          Mail teilweise gesendet am {new Date(sentAt).toLocaleString("de-DE")}
+                          {r.publish_email_error ? ` — ${r.publish_email_error}` : ""}
+                        </div>
+                      );
+                    }
+                    if (st === "sent" && !sentAt) {
+                      return (
+                        <div className="text-xs text-amber-600 mt-1">
+                          Mailstatus unklar — bitte „Mail erneut senden" prüfen.
+                        </div>
+                      );
+                    }
+                    if (st === "sending") {
+                      return <div className="text-xs text-blue-600 mt-1">Mail wird gesendet…</div>;
+                    }
+                    if (st === "waiting_for_sync") {
+                      return <div className="text-xs text-muted-foreground mt-1">Mail wartet auf Sync</div>;
+                    }
+                    if (st === "error" || st === "failed") {
+                      return (
+                        <div className="text-xs text-destructive mt-1 break-all">
+                          Mailfehler: {r.publish_email_error ?? "unbekannt"}
+                        </div>
+                      );
+                    }
+                    if (r.publish_email_error) {
+                      return (
+                        <div className="text-xs text-amber-600 mt-1 break-all">
+                          Mailfehler: {r.publish_email_error}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
