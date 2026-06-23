@@ -83,6 +83,18 @@ export default function Settings() {
             setDigestEnabled(row.value);
           } else if (row.key === DAILY_DIGEST_HOUR_KEY && typeof row.value === "number") {
             setDigestHour(row.value);
+          } else if (row.key === MAP_ENABLED_KEY && typeof row.value === "boolean") {
+            setMapEnabled(row.value);
+          } else if (row.key === MAP_RECIPIENTS_KEY && Array.isArray(row.value)) {
+            setMapRecipientsText(
+              (row.value as unknown[]).filter((v): v is string => typeof v === "string").join("\n"),
+            );
+          } else if (row.key === MAP_INCLUDE_STORY_KEY && typeof row.value === "boolean") {
+            setMapIncludeStory(row.value);
+          } else if (row.key === MAP_INCLUDE_EXPOSE_KEY && typeof row.value === "boolean") {
+            setMapIncludeExpose(row.value);
+          } else if (row.key === MAP_INCLUDE_VEHICLE_LINK_KEY && typeof row.value === "boolean") {
+            setMapIncludeVehicleLink(row.value);
           }
         }
       }
