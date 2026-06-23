@@ -278,7 +278,7 @@ async function buildExposePdf(vehicle: Vehicle): Promise<Uint8Array> {
       const img = await fetchImageBytes(url);
       if (!img) continue;
       try {
-        const embed = img.type === "png" ? await p2.doc.embedPng(img.bytes) : await p2.doc.embedJpg(img.bytes);
+        const embed = img.type === "png" ? await doc.embedPng(img.bytes) : await doc.embedJpg(img.bytes);
         const ratio = Math.min(cellW / embed.width, cellH / embed.height);
         const w = embed.width * ratio;
         const h = embed.height * ratio;
