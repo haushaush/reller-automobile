@@ -318,13 +318,15 @@ export default function MobileAdDrafts() {
     setResending(id);
     try {
       const { data, error } = await supabase.functions.invoke("notify-mobile-ad-published", {
-        body: { draftId: id, force: true },
+        body: { draftId: id, force: true, forceResend: true, trigger: "manual-resend" },
       });
-      const d = data as { ok?: boolean; sent?: number; failed?: string[]; error?: string } | null;
-      if (error || d?.ok === false) {
+      const d = data as { success?: boolean; emailSent?: boolean; sent?: number; error?: string; reason?: string } | null;
+      if (error || d?.success === false) {
         toast.error(`Mail konnte nicht gesendet werden: ${d?.error || error?.message || "Unbekannter Fehler"}`);
-      } else {
+      } else if (d?.emailSent) {
         toast.success(`Benachrichtigung gesendet (${d?.sent ?? 0}).`);
+      } else {
+        toast.message(`Keine Mail versendet: ${d?.reason ?? "unbekannt"}`);
       }
       await load();
     } finally {
@@ -332,6 +334,7 @@ export default function MobileAdDrafts() {
       setConfirmResendId(null);
     }
   };
+
 
 
   const copyAsDraft = async (id: string) => {
