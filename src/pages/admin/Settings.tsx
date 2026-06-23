@@ -22,6 +22,11 @@ const STORY_CONTACT_PHONE_KEY = "story_contact_phone";
 const STORY_CONTACT_EMAIL_KEY = "story_contact_email";
 const DAILY_DIGEST_ENABLED_KEY = "daily_digest_enabled";
 const DAILY_DIGEST_HOUR_KEY = "daily_digest_hour";
+const DAILY_REPORT_RECIPIENTS_KEY = "daily_report_recipients";
+const DAILY_REPORT_INC_NEW_KEY = "daily_report_include_new_vehicles";
+const DAILY_REPORT_INC_SOLD_KEY = "daily_report_include_sold_vehicles";
+const DAILY_REPORT_INC_INVENTORY_KEY = "daily_report_include_inventory_value";
+const DAILY_REPORT_INC_SYNC_KEY = "daily_report_include_sync_status";
 const MAP_ENABLED_KEY = "new_synced_vehicle_email_enabled";
 const MAP_RECIPIENTS_KEY = "new_synced_vehicle_email_recipients";
 const MAP_INCLUDE_STORY_KEY = "new_synced_vehicle_email_include_story";
@@ -44,6 +49,12 @@ export default function Settings() {
   const [isSavingDigest, setIsSavingDigest] = useState(false);
   const [isTestingDigest, setIsTestingDigest] = useState(false);
 
+  const [reportRecipientsText, setReportRecipientsText] = useState("");
+  const [reportIncludeNew, setReportIncludeNew] = useState(true);
+  const [reportIncludeSold, setReportIncludeSold] = useState(true);
+  const [reportIncludeInventory, setReportIncludeInventory] = useState(true);
+  const [reportIncludeSync, setReportIncludeSync] = useState(true);
+
   const [mapEnabled, setMapEnabled] = useState(true);
   const [mapRecipientsText, setMapRecipientsText] = useState("");
   const [mapIncludeStory, setMapIncludeStory] = useState(true);
@@ -64,6 +75,11 @@ export default function Settings() {
           STORY_CONTACT_EMAIL_KEY,
           DAILY_DIGEST_ENABLED_KEY,
           DAILY_DIGEST_HOUR_KEY,
+          DAILY_REPORT_RECIPIENTS_KEY,
+          DAILY_REPORT_INC_NEW_KEY,
+          DAILY_REPORT_INC_SOLD_KEY,
+          DAILY_REPORT_INC_INVENTORY_KEY,
+          DAILY_REPORT_INC_SYNC_KEY,
           MAP_ENABLED_KEY,
           MAP_RECIPIENTS_KEY,
           MAP_INCLUDE_STORY_KEY,
@@ -89,6 +105,18 @@ export default function Settings() {
             setDigestEnabled(row.value);
           } else if (row.key === DAILY_DIGEST_HOUR_KEY && typeof row.value === "number") {
             setDigestHour(row.value);
+          } else if (row.key === DAILY_REPORT_RECIPIENTS_KEY && Array.isArray(row.value)) {
+            setReportRecipientsText(
+              (row.value as unknown[]).filter((v): v is string => typeof v === "string").join("\n"),
+            );
+          } else if (row.key === DAILY_REPORT_INC_NEW_KEY && typeof row.value === "boolean") {
+            setReportIncludeNew(row.value);
+          } else if (row.key === DAILY_REPORT_INC_SOLD_KEY && typeof row.value === "boolean") {
+            setReportIncludeSold(row.value);
+          } else if (row.key === DAILY_REPORT_INC_INVENTORY_KEY && typeof row.value === "boolean") {
+            setReportIncludeInventory(row.value);
+          } else if (row.key === DAILY_REPORT_INC_SYNC_KEY && typeof row.value === "boolean") {
+            setReportIncludeSync(row.value);
           } else if (row.key === MAP_ENABLED_KEY && typeof row.value === "boolean") {
             setMapEnabled(row.value);
           } else if (row.key === MAP_RECIPIENTS_KEY && Array.isArray(row.value)) {
@@ -112,6 +140,16 @@ export default function Settings() {
           const storyRow = data.find((r) => r.key === STORY_RECIPIENTS_KEY);
           if (storyRow && Array.isArray(storyRow.value)) {
             setMapRecipientsText(
+              (storyRow.value as unknown[]).filter((v): v is string => typeof v === "string").join("\n"),
+            );
+          }
+        }
+        // Default daily-report recipients to story recipients if not yet configured.
+        const hasReportRecipients = data.some((r) => r.key === DAILY_REPORT_RECIPIENTS_KEY);
+        if (!hasReportRecipients) {
+          const storyRow = data.find((r) => r.key === STORY_RECIPIENTS_KEY);
+          if (storyRow && Array.isArray(storyRow.value)) {
+            setReportRecipientsText(
               (storyRow.value as unknown[]).filter((v): v is string => typeof v === "string").join("\n"),
             );
           }
@@ -183,7 +221,23 @@ export default function Settings() {
     }
   };
 
+  const parseReportRecipients = (): string[] | null => {
+    const list = reportRecipientsText
+      .split(/[\s,;]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const unique = Array.from(new Set(list));
+    const invalid = unique.filter((e) => !EMAIL_RE.test(e));
+    if (invalid.length > 0) {
+      toast.error(`Ungültige E-Mail-Adressen: ${invalid.join(", ")}`);
+      return null;
+    }
+    return unique;
+  };
+
   const saveDigest = async () => {
+    const reportRecList = parseReportRecipients();
+    if (reportRecList === null) return;
     setIsSavingDigest(true);
     const now = new Date().toISOString();
     const { error } = await supabase
@@ -192,6 +246,11 @@ export default function Settings() {
         [
           { key: DAILY_DIGEST_ENABLED_KEY, value: digestEnabled, updated_at: now },
           { key: DAILY_DIGEST_HOUR_KEY, value: digestHour, updated_at: now },
+          { key: DAILY_REPORT_RECIPIENTS_KEY, value: reportRecList, updated_at: now },
+          { key: DAILY_REPORT_INC_NEW_KEY, value: reportIncludeNew, updated_at: now },
+          { key: DAILY_REPORT_INC_SOLD_KEY, value: reportIncludeSold, updated_at: now },
+          { key: DAILY_REPORT_INC_INVENTORY_KEY, value: reportIncludeInventory, updated_at: now },
+          { key: DAILY_REPORT_INC_SYNC_KEY, value: reportIncludeSync, updated_at: now },
         ],
         { onConflict: "key" },
       );
@@ -411,18 +470,22 @@ export default function Settings() {
         <div className="flex items-start gap-3">
           <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
           <div className="flex-1">
-            <h2 className="text-lg font-semibold">Tägliche Story-Mail</h2>
+            <h2 className="text-lg font-semibold">Täglicher Kennzahlenbericht</h2>
             <p className="text-sm text-muted-foreground">
-              Verschickt einmal täglich eine Mail mit Story-Bildern aller Fahrzeuge,
-              die in den letzten 24 Stunden hinzugefügt wurden. Empfänger = die oben
-              konfigurierten Story-Empfänger.
+              Verschickt einmal täglich einen kompakten Tagesreport mit
+              Kennzahlen zum Fahrzeugbestand (neue/verkaufte Fahrzeuge,
+              Bestand, Bestandswert, Sync-Status).
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Hinweis: Einzelne neue Fahrzeuge werden separat per Sync-Mail verschickt.
+              Dieser Bericht fasst die Kennzahlen des Tages zusammen.
             </p>
           </div>
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
           <Label htmlFor="digest-enabled" className="cursor-pointer">
-            Täglichen Versand aktivieren
+            Täglichen Kennzahlenbericht senden
           </Label>
           <Switch
             id="digest-enabled"
@@ -432,7 +495,7 @@ export default function Settings() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="digest-hour">Versand-Uhrzeit (Europe/Berlin)</Label>
+          <Label htmlFor="digest-hour">Versandzeit (Europe/Berlin)</Label>
           <Select
             value={String(digestHour)}
             onValueChange={(v) => setDigestHour(parseInt(v, 10))}
@@ -450,6 +513,64 @@ export default function Settings() {
           </Select>
         </div>
 
+        <div className="space-y-2">
+          <Label htmlFor="report-recipients">Empfänger</Label>
+          <Textarea
+            id="report-recipients"
+            rows={3}
+            value={reportRecipientsText}
+            onChange={(e) => setReportRecipientsText(e.target.value)}
+            placeholder={"name@beispiel.de\noder kommagetrennt: a@x.de, b@y.de"}
+          />
+          <p className="text-xs text-muted-foreground">
+            Mehrere Adressen erlaubt – kommagetrennt oder zeilenweise.
+            Leer = Story-Empfänger werden verwendet.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="report-new"
+              checked={reportIncludeNew}
+              onCheckedChange={(v) => setReportIncludeNew(v === true)}
+            />
+            <Label htmlFor="report-new" className="cursor-pointer">
+              Neue Fahrzeuge anzeigen
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="report-sold"
+              checked={reportIncludeSold}
+              onCheckedChange={(v) => setReportIncludeSold(v === true)}
+            />
+            <Label htmlFor="report-sold" className="cursor-pointer">
+              Verkaufte Fahrzeuge anzeigen
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="report-inventory"
+              checked={reportIncludeInventory}
+              onCheckedChange={(v) => setReportIncludeInventory(v === true)}
+            />
+            <Label htmlFor="report-inventory" className="cursor-pointer">
+              Bestandswert anzeigen
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="report-sync"
+              checked={reportIncludeSync}
+              onCheckedChange={(v) => setReportIncludeSync(v === true)}
+            />
+            <Label htmlFor="report-sync" className="cursor-pointer">
+              Sync-Status anzeigen
+            </Label>
+          </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
           <Button
             type="button"
@@ -462,7 +583,7 @@ export default function Settings() {
             ) : (
               <Play className="h-4 w-4" />
             )}
-            Daily-Digest jetzt testen
+            Tagesreport jetzt testen
           </Button>
           <Button onClick={saveDigest} disabled={isSavingDigest}>
             {isSavingDigest && <Loader2 className="h-4 w-4 animate-spin" />}
