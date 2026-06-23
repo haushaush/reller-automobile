@@ -12,7 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Mail, Phone, Plus, X, Clock, Play } from "lucide-react";
+import { Loader2, Mail, Phone, Plus, X, Clock, Play, Send } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 const STORY_RECIPIENTS_KEY = "story_email_recipients";
@@ -20,6 +22,11 @@ const STORY_CONTACT_PHONE_KEY = "story_contact_phone";
 const STORY_CONTACT_EMAIL_KEY = "story_contact_email";
 const DAILY_DIGEST_ENABLED_KEY = "daily_digest_enabled";
 const DAILY_DIGEST_HOUR_KEY = "daily_digest_hour";
+const MAP_ENABLED_KEY = "mobile_ad_publish_email_enabled";
+const MAP_RECIPIENTS_KEY = "mobile_ad_publish_email_recipients";
+const MAP_INCLUDE_STORY_KEY = "mobile_ad_publish_email_include_story";
+const MAP_INCLUDE_EXPOSE_KEY = "mobile_ad_publish_email_include_expose";
+const MAP_INCLUDE_VEHICLE_LINK_KEY = "mobile_ad_publish_email_include_vehicle_link";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Settings() {
@@ -35,6 +42,13 @@ export default function Settings() {
   const [isSavingDigest, setIsSavingDigest] = useState(false);
   const [isTestingDigest, setIsTestingDigest] = useState(false);
 
+  const [mapEnabled, setMapEnabled] = useState(true);
+  const [mapRecipientsText, setMapRecipientsText] = useState("");
+  const [mapIncludeStory, setMapIncludeStory] = useState(true);
+  const [mapIncludeExpose, setMapIncludeExpose] = useState(true);
+  const [mapIncludeVehicleLink, setMapIncludeVehicleLink] = useState(true);
+  const [isSavingMap, setIsSavingMap] = useState(false);
+
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
@@ -46,6 +60,11 @@ export default function Settings() {
           STORY_CONTACT_EMAIL_KEY,
           DAILY_DIGEST_ENABLED_KEY,
           DAILY_DIGEST_HOUR_KEY,
+          MAP_ENABLED_KEY,
+          MAP_RECIPIENTS_KEY,
+          MAP_INCLUDE_STORY_KEY,
+          MAP_INCLUDE_EXPOSE_KEY,
+          MAP_INCLUDE_VEHICLE_LINK_KEY,
         ]);
       if (error) {
         console.error(error);
@@ -64,6 +83,28 @@ export default function Settings() {
             setDigestEnabled(row.value);
           } else if (row.key === DAILY_DIGEST_HOUR_KEY && typeof row.value === "number") {
             setDigestHour(row.value);
+          } else if (row.key === MAP_ENABLED_KEY && typeof row.value === "boolean") {
+            setMapEnabled(row.value);
+          } else if (row.key === MAP_RECIPIENTS_KEY && Array.isArray(row.value)) {
+            setMapRecipientsText(
+              (row.value as unknown[]).filter((v): v is string => typeof v === "string").join("\n"),
+            );
+          } else if (row.key === MAP_INCLUDE_STORY_KEY && typeof row.value === "boolean") {
+            setMapIncludeStory(row.value);
+          } else if (row.key === MAP_INCLUDE_EXPOSE_KEY && typeof row.value === "boolean") {
+            setMapIncludeExpose(row.value);
+          } else if (row.key === MAP_INCLUDE_VEHICLE_LINK_KEY && typeof row.value === "boolean") {
+            setMapIncludeVehicleLink(row.value);
+          }
+        }
+        // Default mobile-ad recipients to story recipients if not yet configured.
+        const hasMapRecipients = data.some((r) => r.key === MAP_RECIPIENTS_KEY);
+        if (!hasMapRecipients) {
+          const storyRow = data.find((r) => r.key === STORY_RECIPIENTS_KEY);
+          if (storyRow && Array.isArray(storyRow.value)) {
+            setMapRecipientsText(
+              (storyRow.value as unknown[]).filter((v): v is string => typeof v === "string").join("\n"),
+            );
           }
         }
       }
@@ -187,6 +228,48 @@ export default function Settings() {
       setIsTestingDigest(false);
     }
   };
+
+  const parseMapRecipients = (): string[] | null => {
+    const list = mapRecipientsText
+      .split(/[\s,;]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const unique = Array.from(new Set(list));
+    const invalid = unique.filter((e) => !EMAIL_RE.test(e));
+    if (invalid.length > 0) {
+      toast.error(`Ungültige E-Mail-Adressen: ${invalid.join(", ")}`);
+      return null;
+    }
+    return unique;
+  };
+
+  const saveMap = async () => {
+    const recList = parseMapRecipients();
+    if (recList === null) return;
+    setIsSavingMap(true);
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert(
+        [
+          { key: MAP_ENABLED_KEY, value: mapEnabled, updated_at: now },
+          { key: MAP_RECIPIENTS_KEY, value: recList, updated_at: now },
+          { key: MAP_INCLUDE_STORY_KEY, value: mapIncludeStory, updated_at: now },
+          { key: MAP_INCLUDE_EXPOSE_KEY, value: mapIncludeExpose, updated_at: now },
+          { key: MAP_INCLUDE_VEHICLE_LINK_KEY, value: mapIncludeVehicleLink, updated_at: now },
+        ],
+        { onConflict: "key" },
+      );
+    setIsSavingMap(false);
+    if (error) {
+      console.error(error);
+      toast.error("Speichern fehlgeschlagen");
+    } else {
+      toast.success("Einstellungen gespeichert");
+    }
+  };
+
+
 
   if (isLoading) {
     return (
@@ -372,6 +455,83 @@ export default function Settings() {
           </Button>
           <Button onClick={saveDigest} disabled={isSavingDigest}>
             {isSavingDigest && <Loader2 className="h-4 w-4 animate-spin" />}
+            Speichern
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <Send className="h-5 w-5 text-muted-foreground mt-0.5" />
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold">Mobile.de Inserate</h2>
+            <p className="text-sm text-muted-foreground">
+              Automatische Mail nach erfolgreicher Veröffentlichung eines Mobile.de-Inserats aus dem Portal.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+          <Label htmlFor="map-enabled" className="cursor-pointer">
+            Mail senden, wenn ein Mobile.de-Inserat veröffentlicht wurde
+          </Label>
+          <Switch id="map-enabled" checked={mapEnabled} onCheckedChange={setMapEnabled} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="map-recipients">Empfänger</Label>
+          <Textarea
+            id="map-recipients"
+            rows={4}
+            value={mapRecipientsText}
+            onChange={(e) => setMapRecipientsText(e.target.value)}
+            placeholder={"name@beispiel.de\noder kommagetrennt: a@x.de, b@y.de"}
+          />
+          <p className="text-xs text-muted-foreground">
+            Mehrere Adressen erlaubt – kommagetrennt oder zeilenweise.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="map-story"
+              checked={mapIncludeStory}
+              onCheckedChange={(v) => setMapIncludeStory(v === true)}
+            />
+            <Label htmlFor="map-story" className="cursor-pointer">
+              WhatsApp-Story als Bild in der Mail anzeigen
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="map-expose"
+              checked={mapIncludeExpose}
+              onCheckedChange={(v) => setMapIncludeExpose(v === true)}
+            />
+            <Label htmlFor="map-expose" className="cursor-pointer">
+              Exposé-Link mitsenden
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="map-vehicle"
+              checked={mapIncludeVehicleLink}
+              onCheckedChange={(v) => setMapIncludeVehicleLink(v === true)}
+            />
+            <Label htmlFor="map-vehicle" className="cursor-pointer">
+              Fahrzeug-Link mitsenden
+            </Label>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Die WhatsApp-Story wird als Bild über einen Link in der Mail angezeigt. Das Exposé wird als Link verschickt.
+        </p>
+
+        <div className="flex justify-end pt-2">
+          <Button onClick={saveMap} disabled={isSavingMap}>
+            {isSavingMap && <Loader2 className="h-4 w-4 animate-spin" />}
             Speichern
           </Button>
         </div>

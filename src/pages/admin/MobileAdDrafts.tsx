@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Trash2, Upload, Loader2, Pencil, Radio, Copy, Search, Link2, Car } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2, Pencil, Radio, Copy, Search, Link2, Car, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -23,6 +23,8 @@ interface DraftRow {
   error_message: string | null;
   created_at: string;
   image_paths: string[] | null;
+  publish_email_sent_at: string | null;
+  publish_email_error: string | null;
 }
 
 interface VehicleMatch {
@@ -221,7 +223,7 @@ export default function MobileAdDrafts() {
     setLoading(true);
     const { data, error } = await supabase
       .from("mobile_ad_drafts")
-      .select("id, status, payload, mobile_ad_id, error_message, created_at, image_paths")
+      .select("id, status, payload, mobile_ad_id, error_message, created_at, image_paths, publish_email_sent_at, publish_email_error")
       .order("created_at", { ascending: false });
     if (error) {
       toast.error("Laden fehlgeschlagen");
@@ -287,13 +289,48 @@ export default function MobileAdDrafts() {
       } else if ((data as { warning?: boolean } | null)?.warning) {
         toast.warning((data as { message?: string }).message ?? "Inserat erstellt, aber Mobile.de-ID fehlt.");
       } else {
-        toast.success("Auf Mobile.de veröffentlicht");
+        // Re-check draft to surface notification status accurately.
+        const { data: fresh } = await supabase
+          .from("mobile_ad_drafts")
+          .select("publish_email_sent_at, publish_email_error")
+          .eq("id", id)
+          .maybeSingle();
+        if (fresh?.publish_email_sent_at) {
+          toast.success("Inserat veröffentlicht und Benachrichtigung versendet.");
+        } else if (fresh?.publish_email_error) {
+          toast.warning(`Inserat veröffentlicht, aber Benachrichtigung fehlgeschlagen: ${fresh.publish_email_error}`);
+        } else {
+          toast.success("Inserat veröffentlicht. Benachrichtigung ist deaktiviert oder wird gerade gesendet.");
+        }
       }
       await load();
     } finally {
       setPublishing(null);
     }
   };
+
+  const [resending, setResending] = useState<string | null>(null);
+  const [confirmResendId, setConfirmResendId] = useState<string | null>(null);
+
+  const resendMail = async (id: string) => {
+    setResending(id);
+    try {
+      const { data, error } = await supabase.functions.invoke("notify-mobile-ad-published", {
+        body: { draftId: id, force: true },
+      });
+      const d = data as { ok?: boolean; sent?: number; failed?: string[]; error?: string } | null;
+      if (error || d?.ok === false) {
+        toast.error(`Mail konnte nicht gesendet werden: ${d?.error || error?.message || "Unbekannter Fehler"}`);
+      } else {
+        toast.success(`Benachrichtigung gesendet (${d?.sent ?? 0}).`);
+      }
+      await load();
+    } finally {
+      setResending(null);
+      setConfirmResendId(null);
+    }
+  };
+
 
   const copyAsDraft = async (id: string) => {
     const orig = rows.find((r) => r.id === id);
@@ -539,6 +576,16 @@ export default function MobileAdDrafts() {
                       Inserat öffnen
                     </a>
                   )}
+                  {isPublished && r.publish_email_sent_at && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Mail gesendet am {new Date(r.publish_email_sent_at).toLocaleString("de-DE")}
+                    </div>
+                  )}
+                  {isPublished && !r.publish_email_sent_at && r.publish_email_error && (
+                    <div className="text-xs text-amber-600 mt-1 break-all">
+                      Mailfehler: {r.publish_email_error}
+                    </div>
+                  )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -611,6 +658,18 @@ export default function MobileAdDrafts() {
                       Als Entwurf kopieren
                     </Button>
                   )}
+                  {isPublished && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmResendId(r.id)}
+                      disabled={resending === r.id}
+                      title="Benachrichtigungs-Mail erneut senden"
+                    >
+                      {resending === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                      Mail erneut senden
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
@@ -645,6 +704,26 @@ export default function MobileAdDrafts() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!confirmResendId} onOpenChange={(o) => !o && setConfirmResendId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Benachrichtigungs-Mail erneut senden?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die Mail wird erneut an alle in den Einstellungen hinterlegten Empfänger gesendet,
+              auch wenn sie zuvor bereits versendet wurde.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmResendId && resendMail(confirmResendId)}>
+              Erneut senden
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
 
       <Dialog open={!!linkDraft} onOpenChange={(o) => { if (!o) { setLinkDraft(null); setLinkMatches([]); } }}>
         <DialogContent className="max-w-2xl">

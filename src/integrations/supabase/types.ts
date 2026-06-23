@@ -219,6 +219,8 @@ export type Database = {
           image_paths: string[] | null
           mobile_ad_id: string | null
           payload: Json
+          publish_email_error: string | null
+          publish_email_sent_at: string | null
           status: string
           updated_at: string
           vehicle_id: string | null
@@ -232,6 +234,8 @@ export type Database = {
           image_paths?: string[] | null
           mobile_ad_id?: string | null
           payload?: Json
+          publish_email_error?: string | null
+          publish_email_sent_at?: string | null
           status?: string
           updated_at?: string
           vehicle_id?: string | null
@@ -245,6 +249,8 @@ export type Database = {
           image_paths?: string[] | null
           mobile_ad_id?: string | null
           payload?: Json
+          publish_email_error?: string | null
+          publish_email_sent_at?: string | null
           status?: string
           updated_at?: string
           vehicle_id?: string | null
