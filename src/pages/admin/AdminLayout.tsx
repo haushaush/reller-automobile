@@ -10,7 +10,6 @@ import {
   LogOut,
   ArrowLeft,
   Menu,
-  Plus,
   Settings,
   Users,
   FileText,
@@ -33,7 +32,6 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Übersicht", path: "/admin", icon: LayoutDashboard, exact: true },
-  { label: "Auto hinzufügen", path: "/admin/vehicles/new", icon: Plus },
   { label: "Accounts", path: "/admin/accounts", icon: Users, adminOnly: true },
   { label: "Sync-Status", path: "/admin/sync", icon: RefreshCw },
   { label: "Anfragen", path: "/admin/inquiries", icon: Mail, badgeKey: "inquiries" },
