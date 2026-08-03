@@ -782,58 +782,100 @@ export default function MobileAdCreate() {
     return null;
   };
 
+  // Kernfelder zusätzlich in die normalen vehicles-Spalten spiegeln,
+  // damit Portal-Listen/Detailseiten ohne Mobile.de funktionieren.
+  const buildVehicleColumns = () => {
+    const makeName = makes.find((m) => m.key === form.make)?.name ?? form.make;
+    const modelName = models.find((m) => m.key === form.model)?.name ?? form.model;
+    const title = [makeName, modelName, form.modelDescription].filter(Boolean).join(" ").trim();
+    const priceNum = Number(String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""));
+    return {
+      title: title || "Unbenanntes Fahrzeug",
+      brand: makeName || null,
+      model: modelName || null,
+      model_description: form.modelDescription || null,
+      category: form.category || null,
+      vehicle_category: form.category || null,
+      body_type: form.category || null,
+      year: form.regYear || null,
+      mileage: form.mileage ? parseInt(String(form.mileage).replace(/[^0-9]/g, ""), 10) : null,
+      price: Number.isFinite(priceNum) && priceNum > 0 ? priceNum : null,
+      currency: "EUR",
+      fuel: form.fuel || null,
+      gearbox: form.gearbox || null,
+      power: form.power ? parseInt(String(form.power).replace(/[^0-9]/g, ""), 10) : null,
+      cubic_capacity: form.cubicCapacity ? parseInt(String(form.cubicCapacity).replace(/[^0-9]/g, ""), 10) : null,
+      exterior_color: form.exteriorColor || null,
+      description: form.description || null,
+    };
+  };
+
+  const buildMobilePayload = () => ({
+    ...(buildPayload() as Record<string, unknown>),
+    _imagePaths: imagePaths,
+  });
+
   const saveDraft = async () => {
     const err = validate();
     if (err) { toast.error(err); return; }
     setSaving(true);
     try {
-      if (isEdit && draftId) {
-        const nextStatus = draftStatus === "error" ? "draft" : draftStatus;
+      if (isEdit && vehicleId) {
+        const keepPublished = draftStatus === "published";
         const { error } = await supabase
-          .from("mobile_ad_drafts")
+          .from("vehicles")
           .update({
-            payload: buildPayload() as never,
-            image_paths: imagePaths,
-            status: nextStatus,
-            error_message: nextStatus === "draft" ? null : undefined,
-          })
-          .eq("id", draftId);
+            ...buildVehicleColumns(),
+            mobile_payload: buildMobilePayload() as never,
+            publish_status: keepPublished ? "out_of_sync" : "draft",
+            publish_error: null,
+          } as never)
+          .eq("id", vehicleId);
         if (error) {
           console.error(error);
           toast.error(`Speichern fehlgeschlagen: ${error.message}`);
           return;
         }
-        toast.success("Entwurf aktualisiert");
+        toast.success(keepPublished
+          ? "Gespeichert – Änderung ist noch nicht bei Mobile.de übertragen."
+          : "Fahrzeug aktualisiert");
+        navigate("/admin/fahrzeuge");
       } else {
-        const { data: userRes } = await supabase.auth.getUser();
-        const { error } = await supabase.from("mobile_ad_drafts").insert({
-          status: "draft",
-          payload: buildPayload() as never,
-          image_paths: imagePaths,
-          created_by: userRes.user?.id ?? null,
-        });
+        const { data: inserted, error } = await supabase
+          .from("vehicles")
+          .insert({
+            ...buildVehicleColumns(),
+            mobile_de_id: `portal_${Date.now()}`,
+            source: "portal",
+            publish_status: "draft",
+            is_sold: false,
+            synced_at: new Date().toISOString(),
+            mobile_payload: buildMobilePayload() as never,
+          } as never)
+          .select("id")
+          .single();
         if (error) {
           console.error(error);
           toast.error(`Speichern fehlgeschlagen: ${error.message}`);
           return;
         }
-        toast.success("Entwurf gespeichert");
+        toast.success("Fahrzeug gespeichert");
+        navigate(`/admin/fahrzeuge/${(inserted as { id: string }).id}/inserat`);
       }
-      navigate("/admin/mobile-ad");
     } finally {
       setSaving(false);
     }
   };
 
   const saveLive = async () => {
-    if (!draftId) return;
+    if (!vehicleId) return;
     const err = validate();
     if (err) { toast.error(err); return; }
     setSaving(true);
     setLastUpdateError(null);
     try {
       const { data, error } = await supabase.functions.invoke("update-mobile-ad", {
-        body: { draftId, mobileAdId: liveMobileAdId || undefined, formPayload: buildPayload() },
+        body: { vehicleId, mobileAdId: liveMobileAdId || undefined, formPayload: buildMobilePayload() },
       });
       const d = (data ?? null) as { success?: boolean; error?: string; details?: unknown } | null;
       if (error || !d?.success) {
@@ -847,8 +889,10 @@ export default function MobileAdCreate() {
         toast.error(msg);
         return;
       }
+      // Portal-Spalten mitziehen
+      await supabase.from("vehicles").update(buildVehicleColumns() as never).eq("id", vehicleId);
       toast.success("Inserat wurde live bei Mobile.de aktualisiert.");
-      navigate("/admin/mobile-ad");
+      navigate("/admin/fahrzeuge");
     } catch (e) {
       const msg = (e as Error)?.message || "Unbekannter Fehler beim Live-Update";
       setLastUpdateError({ msg });
@@ -857,6 +901,58 @@ export default function MobileAdCreate() {
       setSaving(false);
     }
   };
+
+  const saveAndPublish = async () => {
+    const err = validate();
+    if (err) { toast.error(err); return; }
+    setSaving(true);
+    try {
+      let id = vehicleId;
+      if (isEdit && id) {
+        const { error } = await supabase
+          .from("vehicles")
+          .update({
+            ...buildVehicleColumns(),
+            mobile_payload: buildMobilePayload() as never,
+            publish_error: null,
+          } as never)
+          .eq("id", id);
+        if (error) { toast.error(`Speichern fehlgeschlagen: ${error.message}`); return; }
+      } else {
+        const { data: inserted, error } = await supabase
+          .from("vehicles")
+          .insert({
+            ...buildVehicleColumns(),
+            mobile_de_id: `portal_${Date.now()}`,
+            source: "portal",
+            publish_status: "draft",
+            is_sold: false,
+            synced_at: new Date().toISOString(),
+            mobile_payload: buildMobilePayload() as never,
+          } as never)
+          .select("id")
+          .single();
+        if (error) { toast.error(`Speichern fehlgeschlagen: ${error.message}`); return; }
+        id = (inserted as { id: string }).id;
+      }
+
+      const { data, error: fnErr } = await supabase.functions.invoke("publish-mobile-ad", {
+        body: { vehicleId: id },
+      });
+      const d = (data ?? null) as { success?: boolean; error?: string; details?: unknown } | null;
+      if (fnErr || !d?.success) {
+        const raw = d?.error || fnErr?.message || "Veröffentlichen fehlgeschlagen";
+        toast.error(`Mobile.de: ${raw}`);
+        navigate(`/admin/fahrzeuge/${id}/inserat`);
+        return;
+      }
+      toast.success("Fahrzeug wurde bei Mobile.de veröffentlicht.");
+      navigate("/admin/fahrzeuge");
+    } finally {
+      setSaving(false);
+    }
+  };
+
 
   const months = useMemo(
     () => Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")),
