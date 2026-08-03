@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, CheckCircle2, XCircle, Clock, Loader2, SkipForward } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Clock, Loader2, SkipForward, Ban } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
@@ -175,6 +175,8 @@ export default function SyncStatus() {
         return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
       case "skipped":
         return <SkipForward className="h-4 w-4 text-muted-foreground" />;
+      case "aborted":
+        return <Ban className="h-4 w-4 text-muted-foreground" />;
       default:
         return <Clock className="h-4 w-4 text-muted-foreground" />;
     }

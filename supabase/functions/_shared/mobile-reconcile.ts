@@ -14,6 +14,13 @@ export interface SellerAd {
   raw: Record<string, unknown>;
 }
 
+export interface SellerAdsResult {
+  ads: SellerAd[];
+  pages: number;
+  error?: string;
+  rootKeys: string[];
+}
+
 export function basicAuth(user: string, pass: string) {
   return `Basic ${btoa(`${user}:${pass}`)}`;
 }
@@ -45,30 +52,58 @@ function normalizeAd(raw: Record<string, unknown>): SellerAd | null {
 export async function fetchSellerAds(
   sellerId: string,
   auth: string,
-): Promise<{ ads: SellerAd[]; pages: number; error?: string }> {
+): Promise<SellerAdsResult> {
   const ads: SellerAd[] = [];
   let page = 1;
   const pageSize = 100;
   const maxPages = 50;
+  const startedAt = Date.now();
+  let rootKeys: string[] = [];
   while (page <= maxPages) {
+    if (Date.now() - startedAt >= 90_000) {
+      return { ads, pages: page - 1, rootKeys, error: "Gesamtbudget der Seller-API-Pagination (90 Sekunden) überschritten" };
+    }
     const url = `${API_BASE}/sellers/${sellerId}/ads?page.size=${pageSize}&page.number=${page}`;
-    const res = await fetch(url, { headers: { Authorization: auth, Accept: MOBILE_MIME } });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { Authorization: auth, Accept: MOBILE_MIME },
+        signal: AbortSignal.timeout(Math.min(20_000, 90_000 - (Date.now() - startedAt))),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { ads, pages: page - 1, rootKeys, error: `Seller-API Timeout/Netzwerkfehler auf Seite ${page}: ${message}` };
+    }
     const text = await res.text();
     if (!res.ok) {
-      return { ads, pages: page - 1, error: `Seller-API ${res.status}: ${text.slice(0, 300)}` };
+      return { ads, pages: page - 1, rootKeys, error: `Seller-API ${res.status}: ${text.slice(0, 300)}` };
     }
     let json: Record<string, unknown> = {};
-    try { json = JSON.parse(text); } catch { return { ads, pages: page - 1, error: "Ungültige Seller-API-Antwort" }; }
-    const list = (json.ads ?? json.items ?? json.searchResult ?? []) as unknown[];
+    try { json = JSON.parse(text); } catch { return { ads, pages: page - 1, rootKeys, error: "Ungültige Seller-API-Antwort" }; }
+    if (page === 1) {
+      rootKeys = Object.keys(json);
+      console.log(`Seller-API first response root keys: ${rootKeys.join(", ") || "(none)"}`);
+    }
+    const embedded = json._embedded as Record<string, unknown> | undefined;
+    const searchResult = json.searchResult as Record<string, unknown> | unknown[] | undefined;
+    const list = (
+      json.ads ??
+      json.items ??
+      (Array.isArray(searchResult) ? searchResult : searchResult?.ads ?? searchResult?.items) ??
+      embedded?.ads ??
+      embedded?.items ??
+      []
+    ) as unknown[];
     const arr = Array.isArray(list) ? list : [];
     for (const item of arr) {
       const ad = normalizeAd(item as Record<string, unknown>);
       if (ad) ads.push(ad);
     }
-    if (arr.length < pageSize) return { ads, pages: page };
+    if (arr.length < pageSize) return { ads, pages: page, rootKeys };
     page++;
+    await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  return { ads, pages: maxPages };
+  return { ads, pages: maxPages, rootKeys, error: "Maximale Seitenzahl der Seller-API erreicht" };
 }
 
 export interface ReconcileResult {
@@ -84,6 +119,7 @@ export async function reconcile(
   supabase: SupabaseClient,
   ads: SellerAd[],
   scope: string,
+  allowUnpublish = true,
 ): Promise<ReconcileResult> {
   const { data: rows } = await supabase
     .from("vehicles")
@@ -135,10 +171,12 @@ export async function reconcile(
     issues.push({
       vehicle_id: v.id, mobile_ad_id: String(v.mobile_ad_id), scope,
       issue_type: "ad_missing", severity: "error",
-      detail: "Inserat ist bei Mobile.de nicht mehr auffindbar – Status auf „zurückgezogen“ gesetzt.",
+        detail: allowUnpublish
+          ? "Inserat ist bei Mobile.de nicht mehr auffindbar – Status auf „zurückgezogen“ gesetzt."
+          : "Inserat ist bei Mobile.de nicht mehr auffindbar – Statusänderung wegen ungewöhnlich kleiner Ergebnismenge übersprungen.",
     });
   }
-  if (vanished.length) {
+  if (allowUnpublish && vanished.length) {
     await supabase
       .from("vehicles")
       .update({ publish_status: "unpublished" })
