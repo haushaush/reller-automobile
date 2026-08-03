@@ -95,15 +95,15 @@ const App = () => (
                       <Route path="story-archive" element={<StoryArchive />} />
                       <Route path="expose-archive" element={<ExposeArchive />} />
                       <Route path="collage" element={<Collage />} />
-                      <Route path="mobile-ad" element={<MobileAdDrafts />} />
-                      <Route path="mobile-ad/new" element={<MobileAdCreate />} />
-                      <Route path="mobile-ad/edit/:draftId" element={<MobileAdCreate />} />
-                      <Route path="mobile-ad/:draftId/live-edit" element={<MobileAdEditLive />} />
+                      <Route path="mobile-ad" element={<Navigate to="/admin/fahrzeuge" replace />} />
                       <Route path="settings" element={<Settings />} />
                       <Route path="email-logs" element={<EmailLogs />} />
                       <Route path="fahrzeuge" element={<VehiclesAdmin />} />
+                      <Route path="fahrzeuge/neu" element={<MobileAdCreate />} />
+                      <Route path="fahrzeuge/:vehicleId/inserat" element={<MobileAdCreate />} />
+                      <Route path="fahrzeuge/:vehicleId/live-edit" element={<MobileAdCreate />} />
                       <Route path="fahrzeuge/:id" element={<VehicleAdminDetail />} />
-                      <Route path="vehicles/new" element={<VehicleCreate />} />
+                      <Route path="vehicles/new" element={<Navigate to="/admin/fahrzeuge/neu" replace />} />
                       <Route path="accounts" element={<Accounts />} />
                     </Route>
                     <Route path="*" element={<NotFound />} />
