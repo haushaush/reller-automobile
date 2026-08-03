@@ -17,9 +17,10 @@ Deno.serve(async (req) => {
 
   const supabase = serviceClient();
   const startedAt = new Date();
-  await supabase.from("sync_locks").upsert({
+  const { error: ensureLockError } = await supabase.from("sync_locks").upsert({
     lock_name: LOCK_NAME, locked_at: new Date(0).toISOString(), locked_until: new Date(0).toISOString(),
   }, { onConflict: "lock_name", ignoreDuplicates: true });
+  if (ensureLockError) return json(500, { error: `Unfall-Reconcile-Lock konnte nicht angelegt werden: ${ensureLockError.message}` });
   const { data: lockRow, error: lockError } = await supabase.from("sync_locks")
     .update({ locked_at: startedAt.toISOString(), locked_until: new Date(startedAt.getTime() + 10 * 60_000).toISOString() })
     .eq("lock_name", LOCK_NAME).lte("locked_until", startedAt.toISOString()).select("lock_name").maybeSingle();
@@ -31,11 +32,12 @@ Deno.serve(async (req) => {
   }).eq("status", "running").lt("started_at", new Date(startedAt.getTime() - 15 * 60_000).toISOString());
   if (staleError) console.error("Stale accident reconcile cleanup failed:", staleError.message);
 
-  const { data: logRow } = await supabase
+  const { data: logRow, error: logInsertError } = await supabase
     .from("sync_logs")
     .insert({ sync_name: "mobile-de-reconcile-accident", started_at: startedAt.toISOString(), status: "running" })
     .select("id")
     .maybeSingle();
+  if (logInsertError) console.error("Failed to create accident reconcile log:", logInsertError.message);
   const logId = logRow?.id as string | undefined;
 
   let finalStatus = "failed";
@@ -84,7 +86,7 @@ Deno.serve(async (req) => {
       pages_fetched: pages,
       vehicles_total: result.checked,
       quality_issues_found: result.issues,
-      stop_reason: error ? `partial: ${error}` : "complete",
+      stop_reason: suspiciouslySmall ? "partial-result-protection" : error ? `partial: ${error}` : "complete",
     };
 
     return json(200, { ok: true, mode: "reconcile-only", scope: "accident", pages, ...result });

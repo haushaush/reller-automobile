@@ -1,4 +1,5 @@
 import { sendLovableEmail } from 'npm:@lovable.dev/email-js'
+import { corsHeaders } from '../_shared/cors.ts'
 
 // Minimal valid PDF containing the text "Test"
 const MINIMAL_PDF = `%PDF-1.1
@@ -24,11 +25,6 @@ startxref
 
 function toBase64(str: string): string {
   return btoa(str)
-}
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 Deno.serve(async (req) => {
