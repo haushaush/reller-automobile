@@ -290,7 +290,7 @@ export default function EmailLogs() {
                 <div className="col-span-2"><div className="text-muted-foreground text-xs">Provider Message ID</div><code className="text-xs">{selected.provider_message_id ?? "—"}</code></div>
                 {selected.vehicle_id && <div><div className="text-muted-foreground text-xs">Fahrzeug</div><a className="text-primary underline" href={`/fahrzeug/${selected.vehicle_id}`} target="_blank" rel="noreferrer">{selected.vehicle_id.slice(0, 8)}…</a></div>}
                 {selected.mobile_ad_id && <div><div className="text-muted-foreground text-xs">Mobile.de-ID</div>{selected.mobile_ad_id}</div>}
-                {selected.mobile_ad_draft_id && <div><div className="text-muted-foreground text-xs">Draft</div><a className="text-primary underline" href={`/admin/mobile-ad/edit/${selected.mobile_ad_draft_id}`}>{selected.mobile_ad_draft_id.slice(0, 8)}…</a></div>}
+                {selected.mobile_ad_draft_id && <div><div className="text-muted-foreground text-xs">Draft</div><a className="text-primary underline" href={`/admin/fahrzeuge`}>{selected.mobile_ad_draft_id.slice(0, 8)}…</a></div>}
                 {selected.expose_path && <div className="col-span-2"><div className="text-muted-foreground text-xs">Exposé-Pfad</div><code className="text-xs">{selected.expose_path}</code></div>}
               </div>
               {selected.status === "sent" && !selected.delivered_at && (
