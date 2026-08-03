@@ -598,15 +598,34 @@ Deno.serve(async (req) => {
     }
 
     // Diff-sync: only enrich new/changed/image-less vehicles
-    const { data: existingVehicles } = await supabase
-      .from("vehicles")
-      .select("mobile_de_id, image_urls, modification_date")
-      .in("mobile_de_id", vehicleRows.map((v) => v.mobile_de_id));
-
-    const existingMap = new Map<string, { image_urls: string[] | null; modification_date: string | null }>(
-      (existingVehicles || []).map((v) => [v.mobile_de_id, { image_urls: v.image_urls, modification_date: v.modification_date }])
-    );
+    type ExistingFull = {
+      id: string;
+      image_urls: string[] | null;
+      modification_date: string | null;
+      price: number | null;
+      currency: string | null;
+      // deno-lint-ignore no-explicit-any
+      manual_overrides: any;
+    };
+    const existingMap = new Map<string, ExistingFull>();
+    for (const ids of chunk(vehicleRows.map((v) => v.mobile_de_id), 200)) {
+      const { data } = await supabase
+        .from("vehicles")
+        .select("id, mobile_de_id, image_urls, modification_date, price, currency, manual_overrides")
+        .in("mobile_de_id", ids);
+      for (const v of data ?? []) {
+        existingMap.set(v.mobile_de_id, {
+          id: v.id,
+          image_urls: v.image_urls,
+          modification_date: v.modification_date,
+          price: v.price,
+          currency: v.currency,
+          manual_overrides: v.manual_overrides,
+        });
+      }
+    }
     const existingMobileDeIds = new Set<string>(existingMap.keys());
+
 
     const toEnrich = vehicleRows.filter((v) => {
       const existing = existingMap.get(v.mobile_de_id);
