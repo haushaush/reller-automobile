@@ -2,6 +2,7 @@
 
 
 ## Core
+Portal (vehicles) ist führend; Mobile.de wird gepusht, Pull-Sync ist nur Abgleich.
 React SPA, TypeScript, Tailwind, Supabase, TanStack Query.
 Client-side filtering/sorting for max performance. Mock data fallback.
 Match reller-automobile.de: Black/White (#FAF8F5) theme, Lora/Instrument Sans.
@@ -17,6 +18,7 @@ vehicle_category persisted in DB ('oldtimer'|'youngtimer'|'used'|'accident'|'com
 - [Company Details](mem://company/details) — Reller Automobile GmbH contact, location, and hours for Exposé/Maps
 - [Premium Extensions](mem://features/premium-extensions) — Compare 3 cars, PDF Exposé, alerts edge function, price history charts
 - [Vehicle Listing](mem://features/vehicle-listing) — Grid, 5-image carousel, sold vehicle styling and sorting, FilterBar
+- [Portal ist führendes System](mem://features/portal-leading-system) — vehicles ist Quelle der Wahrheit, Push zu Mobile.de, Pull-Sync nur Abgleich
 - [Mobile.de Sync](mem://integrations/mobile-de-sync) — 2-stage API sync, batching, soft-deletes (is_sold: true), triggers alerts. Two accounts: main (sync-vehicles) + accident (sync-accident-vehicles, ID prefix 'accident_', secrets MOBILE_DE_ACCIDENT_USERNAME/PASSWORD). Each sync only touches its own vehicle_category scope.
 - [Favorites System](mem://features/favorites-system) — LocalStorage, Heart icon animations, context, side drawer
 - [Categories & Hub](mem://features/categories-hub) — 4 UI buckets, CATEGORIES def in src/lib/categories.ts, hub page, useVehicleCounts hook
