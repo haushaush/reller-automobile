@@ -804,12 +804,25 @@ Deno.serve(async (req) => {
       console.error("[accident] Failed to trigger check-alerts:", e);
     }
 
+    try {
+      logQualityIssues = await runQualityScan(supabase);
+    } catch (e) {
+      console.error("[accident] Quality scan failed:", e);
+    }
+
     if (logStatus !== "success_with_warning") {
       logStatus = "success";
     }
     console.log(`=== [accident] Sync Complete (status=${logStatus}) ===`);
     return new Response(
-      JSON.stringify({ success: true, scope: "accident", synced: vehicleRows.length, totalImages }),
+      JSON.stringify({
+        success: true,
+        scope: "accident",
+        synced: vehicleRows.length,
+        totalImages,
+        priceChanges: logPriceChanges,
+        qualityIssues: logQualityIssues,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
