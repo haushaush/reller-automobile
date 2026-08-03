@@ -368,6 +368,47 @@ export default function SyncStatus() {
               </div>
             )}
           </Card>
+
+          <Card className="p-5">
+            <h2 className="text-lg font-semibold">Preisänderungen (24h)</h2>
+            <p className="text-xs text-muted-foreground mt-1 mb-4">
+              Neue Einträge in der Preishistorie aus den letzten 24 Stunden.
+            </p>
+            {priceChanges.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Keine Preisänderungen in den letzten 24 Stunden.</p>
+            ) : (
+              <div className="space-y-3 max-h-[240px] overflow-y-auto">
+                {priceChanges.map((p) => {
+                  const v = priceVehicles[p.vehicle_id];
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-start justify-between gap-3 pb-3 border-b border-border last:border-0"
+                    >
+                      <div className="min-w-0 flex-1">
+                        {v && <div className="text-xs uppercase text-muted-foreground">{v.brand}</div>}
+                        <div className="text-sm font-medium truncate">
+                          {v ? (
+                            <Link to={`/fahrzeug/${p.vehicle_id}`} className="hover:underline">
+                              {v.title}
+                            </Link>
+                          ) : (
+                            `Fahrzeug ${p.vehicle_id.slice(0, 8)}…`
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {formatDistanceToNow(new Date(p.recorded_at), { addSuffix: true, locale: de })}
+                        </div>
+                      </div>
+                      <div className="text-sm font-medium shrink-0">
+                        {p.price != null ? `${p.price.toLocaleString("de-DE")} ${p.currency ?? "EUR"}` : "—"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
         </div>
       </div>
     </div>
