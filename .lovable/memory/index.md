@@ -1,5 +1,6 @@
 # Project Memory
 
+
 ## Core
 React SPA, TypeScript, Tailwind, Supabase, TanStack Query.
 Client-side filtering/sorting for max performance. Mock data fallback.
