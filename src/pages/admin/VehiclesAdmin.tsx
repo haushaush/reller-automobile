@@ -81,10 +81,12 @@ interface AdminVehicleRow {
   custom_image_urls: string[] | null;
   hidden_image_urls: string[] | null;
   image_order: string[] | null;
+  publish_status: string | null;
+  mobile_ad_id: string | null;
 }
 
 const SELECT_COLUMNS =
-  "id,title,brand,model,vehicle_category,year,mileage,price,currency,source,is_sold,reserved_at,is_featured,synced_at,created_at,image_urls,custom_image_urls,hidden_image_urls,image_order";
+  "id,title,brand,model,vehicle_category,year,mileage,price,currency,source,is_sold,reserved_at,is_featured,synced_at,created_at,image_urls,custom_image_urls,hidden_image_urls,image_order,publish_status,mobile_ad_id";
 
 type SortKey = "price" | "year" | "mileage" | "created_at" | "synced_at";
 
@@ -119,6 +121,20 @@ function StatusBadge({ v }: { v: AdminVehicleRow }) {
       <Badge className="bg-amber-500 text-white hover:bg-amber-500">Reserviert</Badge>
     );
   return <Badge variant="secondary">Verfügbar</Badge>;
+}
+
+const PUBLISH_LABELS: Record<string, { label: string; className: string }> = {
+  draft: { label: "Entwurf", className: "bg-muted text-muted-foreground hover:bg-muted" },
+  publishing: { label: "Wird übertragen…", className: "bg-sky-500 text-white hover:bg-sky-500" },
+  published: { label: "Live bei Mobile.de", className: "bg-emerald-600 text-white hover:bg-emerald-600" },
+  out_of_sync: { label: "Änderung nicht übertragen", className: "bg-amber-500 text-white hover:bg-amber-500" },
+  publish_error: { label: "Fehler", className: "bg-destructive text-destructive-foreground hover:bg-destructive" },
+  unpublished: { label: "Zurückgezogen", className: "bg-muted text-muted-foreground hover:bg-muted" },
+};
+
+function PublishBadge({ v }: { v: AdminVehicleRow }) {
+  const cfg = PUBLISH_LABELS[v.publish_status ?? "draft"] ?? PUBLISH_LABELS.draft;
+  return <Badge className={cfg.className}>{cfg.label}</Badge>;
 }
 
 export default function VehiclesAdmin() {
@@ -298,7 +314,7 @@ export default function VehiclesAdmin() {
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link to="/admin/vehicles/new">Fahrzeug anlegen</Link>
+          <Link to="/admin/fahrzeuge/neu">Fahrzeug anlegen</Link>
         </Button>
       </div>
 
@@ -487,6 +503,7 @@ export default function VehiclesAdmin() {
               {sortableHead("price", "Preis")}
               <TableHead>Quelle</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Mobile.de</TableHead>
               <TableHead>Bilder</TableHead>
               {sortableHead("synced_at", "Letzter Sync")}
             </TableRow>
