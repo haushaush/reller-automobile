@@ -1,4 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  chunk,
+  deriveCategory,
+  normalizeField,
+  runQualityScan,
+  stripManualOverrides,
+} from "../_shared/mobile-de-normalize.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -77,6 +84,8 @@ interface VehicleRow {
   brand: string | null;
   model: string | null;
   body_type: string | null;
+  body_type_key: string | null;
+  body_type_label: string | null;
   year: string | null;
   mileage: number | null;
   price: number | null;
@@ -86,16 +95,30 @@ interface VehicleRow {
   image_urls: string[];
   description: string | null;
   exterior_color: string | null;
+  exterior_color_key: string | null;
+  exterior_color_label: string | null;
   fuel: string | null;
+  fuel_key: string | null;
+  fuel_label: string | null;
   power: number | null;
   gearbox: string | null;
+  gearbox_key: string | null;
+  gearbox_label: string | null;
   climatisation: string | null;
+  climatisation_key: string | null;
+  climatisation_label: string | null;
   num_seats: number | null;
   cubic_capacity: number | null;
   condition: string | null;
+  condition_key: string | null;
+  condition_label: string | null;
   usage_type: string | null;
+  usage_type_key: string | null;
+  usage_type_label: string | null;
   interior_color: string | null;
   interior_type: string | null;
+  interior_type_key: string | null;
+  interior_type_label: string | null;
   damage_unrepaired: boolean | null;
   detail_page_url: string | null;
   creation_date: string | null;
@@ -104,6 +127,12 @@ interface VehicleRow {
   seller_zipcode: string | null;
   synced_at: string;
   vehicle_category: string;
+}
+
+interface ParsedAd {
+  row: VehicleRow;
+  /** VIN wird NIE in vehicles gespeichert, sondern nur in vehicle_private_data. */
+  vin: string | null;
 }
 
 function getAdStatus(xml: string): string | null {
@@ -122,64 +151,21 @@ function isPubliclyVisible(adXml: string): boolean {
   return ["ACTIVE", "PUBLISHED", "ONLINE"].includes(status);
 }
 
-async function isUrlPubliclyAccessible(detailPageUrl: string): Promise<boolean> {
-  try {
-    const publicUrl = detailPageUrl.split("?")[0];
-    const response = await fetch(publicUrl, {
-      method: "HEAD",
-      redirect: "manual",
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; RellerSync/1.0)" },
-    });
-    if (response.status === 200) return true;
-    if (response.status === 404 || response.status === 410) return false;
-    if (response.status >= 300 && response.status < 400) {
-      const location = (response.headers.get("location") || "").toLowerCase();
-      if (location.includes("404") || location.includes("not-found") || location.includes("nicht-gefunden")) {
-        return false;
-      }
-      return true;
-    }
-    return true;
-  } catch (e) {
-    console.error(`[accident] URL check failed for ${detailPageUrl}:`, e);
-    return true;
-  }
+function extractVin(content: string): string | null {
+  const candidates = [
+    attr(content, "ad:vin", "value"),
+    attr(content, "ad:vehicle-identification-number", "value"),
+    attr(content, "ad:fin", "value"),
+    attr(content, "ad:chassis-number", "value"),
+    textContent(content, "ad:vin"),
+    textContent(content, "ad:fin"),
+  ];
+  const found = candidates.find((v) => !!v && v.trim().length >= 11);
+  return found ? found.trim().toUpperCase() : null;
 }
 
-async function validateVehiclesArePublic(
-  vehicles: VehicleRow[],
-  batchSize = 10,
-  delayMs = 200
-): Promise<VehicleRow[]> {
-  const validVehicles: VehicleRow[] = [];
-  let removedCount = 0;
-  for (let i = 0; i < vehicles.length; i += batchSize) {
-    const batch = vehicles.slice(i, i + batchSize);
-    const results = await Promise.all(
-      batch.map(async (v) => {
-        if (!v.detail_page_url) return { vehicle: v, isPublic: true };
-        const isPublic = await isUrlPubliclyAccessible(v.detail_page_url);
-        return { vehicle: v, isPublic };
-      })
-    );
-    for (const { vehicle, isPublic } of results) {
-      if (isPublic) {
-        validVehicles.push(vehicle);
-      } else {
-        removedCount++;
-        console.log(`[accident] Removed non-public vehicle: ${vehicle.mobile_de_id} - ${vehicle.title}`);
-      }
-    }
-    if (i + batchSize < vehicles.length) {
-      await new Promise((r) => setTimeout(r, delayMs));
-    }
-  }
-  console.log(`[accident] URL validation: ${validVehicles.length} public, ${removedCount} non-public removed`);
-  return validVehicles;
-}
-
-function parseAds(xmlText: string): VehicleRow[] {
-  const rows: VehicleRow[] = [];
+function parseAds(xmlText: string): ParsedAd[] {
+  const parsed: ParsedAd[] = [];
   const adRegex = /<ad:ad\b[^>]*>([\s\S]*?)<\/ad:ad>/gi;
   let adMatch;
   let skippedCount = 0;
@@ -194,7 +180,7 @@ function parseAds(xmlText: string): VehicleRow[] {
       continue;
     }
 
-    const rawId = attr(full, "ad:ad", "key") || `unknown-${rows.length}`;
+    const rawId = attr(full, "ad:ad", "key") || `unknown-${parsed.length}`;
     const mobileDeId = `${ID_PREFIX}${rawId}`;
 
     const makeName = localDesc(content, "ad:make");
@@ -214,48 +200,147 @@ function parseAds(xmlText: string): VehicleRow[] {
     const vatStr = attr(content, "ad:vatable", "value");
     const dmgStr = attr(content, "ad:damage-and-unrepaired", "value");
 
-    rows.push({
-      mobile_de_id: mobileDeId,
-      title,
-      model_description: modelDesc || null,
-      category: localDesc(content, "ad:category") || null,
-      brand: makeName || null,
-      model: modelName || null,
-      body_type: localDesc(content, "ad:body-type") || attr(content, "ad:category", "key") || null,
-      year: attr(content, "ad:first-registration", "value") || null,
-      mileage: mileageStr ? parseInt(mileageStr, 10) : null,
-      price: priceStr ? Math.round(parseFloat(priceStr)) : null,
-      currency: attr(content, "ad:price", "currency") || "EUR",
-      price_type: attr(content, "ad:price", "type") || null,
-      vatable: vatStr ? vatStr === "true" : null,
-      image_urls: parseImages(full),
-      description: textContent(content, "ad:description") || null,
-      exterior_color: localDesc(content, "ad:exterior-color") || null,
-      fuel: localDesc(content, "ad:fuel") || null,
-      power: powerStr ? parseInt(powerStr, 10) : null,
-      gearbox: localDesc(content, "ad:gearbox") || null,
-      climatisation: localDesc(content, "ad:climatisation") || null,
-      num_seats: seatsStr ? parseInt(seatsStr, 10) : null,
-      cubic_capacity: ccStr ? parseInt(ccStr, 10) : null,
-      condition: localDesc(content, "ad:condition") || null,
-      usage_type: localDesc(content, "ad:usage-type") || null,
-      interior_color: localDesc(content, "ad:interior-color") || null,
-      interior_type: localDesc(content, "ad:interior-type") || null,
-      damage_unrepaired: dmgStr ? dmgStr === "true" : null,
-      detail_page_url: attr(content, "ad:detail-page", "url") || null,
-      creation_date: attr(content, "ad:creation-date", "value") || null,
-      modification_date: attr(content, "ad:modification-date", "value") || null,
-      seller_city: textContent(content, "seller:city") || attr(content, "seller:city", "value") || null,
-      seller_zipcode: attr(content, "seller:zipcode", "value") || null,
-      synced_at: now,
-      vehicle_category: "accident",
+    const bodyType = normalizeField(
+      "body_type",
+      attr(content, "ad:body-type", "key") || attr(content, "ad:category", "key"),
+      localDesc(content, "ad:body-type") || localDesc(content, "ad:category"),
+    );
+    const fuel = normalizeField("fuel", attr(content, "ad:fuel", "key"), localDesc(content, "ad:fuel"));
+    const gearbox = normalizeField("gearbox", attr(content, "ad:gearbox", "key"), localDesc(content, "ad:gearbox"));
+    const condition = normalizeField("condition", attr(content, "ad:condition", "key"), localDesc(content, "ad:condition"));
+    const usageType = normalizeField("usage_type", attr(content, "ad:usage-type", "key"), localDesc(content, "ad:usage-type"));
+    const climatisation = normalizeField("climatisation", attr(content, "ad:climatisation", "key"), localDesc(content, "ad:climatisation"));
+    const interiorType = normalizeField("interior_type", attr(content, "ad:interior-type", "key"), localDesc(content, "ad:interior-type"));
+    const exteriorColor = normalizeField("exterior_color", attr(content, "ad:exterior-color", "key"), localDesc(content, "ad:exterior-color"));
+
+    const year = attr(content, "ad:first-registration", "value") || null;
+    const damageUnrepaired = dmgStr ? dmgStr === "true" : null;
+
+    parsed.push({
+      vin: extractVin(content),
+      row: {
+        mobile_de_id: mobileDeId,
+        title,
+        model_description: modelDesc || null,
+        category: localDesc(content, "ad:category") || null,
+        brand: makeName || null,
+        model: modelName || null,
+        body_type: bodyType.label,
+        body_type_key: bodyType.key,
+        body_type_label: bodyType.label,
+        year,
+        mileage: mileageStr ? parseInt(mileageStr, 10) : null,
+        price: priceStr ? Math.round(parseFloat(priceStr)) : null,
+        currency: attr(content, "ad:price", "currency") || "EUR",
+        price_type: attr(content, "ad:price", "type") || null,
+        vatable: vatStr ? vatStr === "true" : null,
+        image_urls: parseImages(full),
+        description: textContent(content, "ad:description") || null,
+        exterior_color: exteriorColor.label,
+        exterior_color_key: exteriorColor.key,
+        exterior_color_label: exteriorColor.label,
+        fuel: fuel.label,
+        fuel_key: fuel.key,
+        fuel_label: fuel.label,
+        power: powerStr ? parseInt(powerStr, 10) : null,
+        gearbox: gearbox.label,
+        gearbox_key: gearbox.key,
+        gearbox_label: gearbox.label,
+        climatisation: climatisation.label,
+        climatisation_key: climatisation.key,
+        climatisation_label: climatisation.label,
+        num_seats: seatsStr ? parseInt(seatsStr, 10) : null,
+        cubic_capacity: ccStr ? parseInt(ccStr, 10) : null,
+        condition: condition.label,
+        condition_key: condition.key,
+        condition_label: condition.label,
+        usage_type: usageType.label,
+        usage_type_key: usageType.key,
+        usage_type_label: usageType.label,
+        interior_color: localDesc(content, "ad:interior-color") || null,
+        interior_type: interiorType.label,
+        interior_type_key: interiorType.key,
+        interior_type_label: interiorType.label,
+        damage_unrepaired: damageUnrepaired,
+        detail_page_url: attr(content, "ad:detail-page", "url") || null,
+        creation_date: attr(content, "ad:creation-date", "value") || null,
+        modification_date: attr(content, "ad:modification-date", "value") || null,
+        seller_city: textContent(content, "seller:city") || attr(content, "seller:city", "value") || null,
+        seller_zipcode: attr(content, "seller:zipcode", "value") || null,
+        synced_at: now,
+        vehicle_category: deriveCategory({
+          bodyTypeKey: bodyType.key,
+          conditionKey: condition.key,
+          conditionLabel: condition.label,
+          usageTypeKey: usageType.key,
+          usageTypeLabel: usageType.label,
+          damageUnrepaired,
+          year,
+          isAccidentSync: true,
+        }),
+      },
     });
   }
 
   if (skippedCount > 0) {
-    console.log(`[accident] parseAds: kept ${rows.length} public ads, skipped ${skippedCount} non-public ads`);
+    console.log(`[accident] parseAds: kept ${parsed.length} public ads, skipped ${skippedCount} non-public ads`);
   }
-  return rows;
+  return parsed;
+}
+
+interface ExistingLite {
+  id: string;
+  price: number | null;
+  currency: string | null;
+}
+
+async function persistVinsAndPriceHistory(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  vehicleRows: VehicleRow[],
+  vinByMobileId: Map<string, string>,
+  existingMap: Map<string, ExistingLite>,
+  priceChanged: Array<{ mobile_de_id: string; price: number | null; currency: string }>,
+): Promise<void> {
+  const relevantIds = new Set<string>([
+    ...vinByMobileId.keys(),
+    ...priceChanged.map((p) => p.mobile_de_id),
+    ...vehicleRows.filter((v) => !existingMap.has(v.mobile_de_id)).map((v) => v.mobile_de_id),
+  ]);
+  if (relevantIds.size === 0) return;
+
+  const idMap = new Map<string, string>();
+  for (const c of chunk([...relevantIds], 200)) {
+    const { data } = await supabase.from("vehicles").select("id, mobile_de_id").in("mobile_de_id", c);
+    for (const r of data ?? []) idMap.set(r.mobile_de_id, r.id);
+  }
+
+  const vinRows = [...vinByMobileId.entries()]
+    .filter(([mid]) => idMap.has(mid))
+    .map(([mid, vin]) => ({ vehicle_id: idMap.get(mid)!, vin, updated_at: new Date().toISOString() }));
+  for (const c of chunk(vinRows, 200)) {
+    const { error } = await supabase.from("vehicle_private_data").upsert(c, { onConflict: "vehicle_id" });
+    if (error) console.error("[accident] vehicle_private_data upsert failed:", error);
+  }
+
+  const historyRows: Array<{ vehicle_id: string; price: number | null; currency: string }> = [];
+  for (const v of vehicleRows) {
+    const vid = idMap.get(v.mobile_de_id);
+    if (!vid) continue;
+    if (!existingMap.has(v.mobile_de_id)) {
+      historyRows.push({ vehicle_id: vid, price: v.price, currency: v.currency });
+    }
+  }
+  for (const p of priceChanged) {
+    const vid = idMap.get(p.mobile_de_id);
+    if (!vid) continue;
+    historyRows.push({ vehicle_id: vid, price: p.price, currency: p.currency });
+  }
+  for (const c of chunk(historyRows, 200)) {
+    const { error } = await supabase.from("vehicle_price_history").insert(c);
+    if (error) console.error("[accident] vehicle_price_history insert failed:", error);
+  }
+  console.log(`[accident] VIN-Rows: ${vinRows.length}, Preishistorie-Rows: ${historyRows.length}`);
 }
 
 async function fetchDetailImages(mobileDeIdRaw: string, authHeader: string): Promise<string[] | null> {
