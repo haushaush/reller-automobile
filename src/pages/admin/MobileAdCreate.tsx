@@ -1687,10 +1687,32 @@ export default function MobileAdCreate() {
             </AlertDialogContent>
           </AlertDialog>
         ) : (
-          <Button onClick={saveDraft} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {isEdit ? "Änderungen speichern" : "Als Entwurf speichern"}
-          </Button>
+          <>
+            <Button variant="outline" onClick={saveDraft} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {isEdit ? "Änderungen speichern" : "Nur speichern"}
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Speichern & bei Mobile.de veröffentlichen
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Jetzt bei Mobile.de veröffentlichen?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Das Fahrzeug wird im Portal gespeichert und anschließend als Inserat live bei Mobile.de erzeugt.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                  <AlertDialogAction onClick={saveAndPublish}>Ja, veröffentlichen</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
         )}
       </div>
     </div>
