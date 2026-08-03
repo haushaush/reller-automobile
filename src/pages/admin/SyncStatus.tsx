@@ -52,13 +52,21 @@ export default function SyncStatus() {
   const [logs, setLogs] = useState<SyncLog[]>([]);
   const [recentlyUpdated, setRecentlyUpdated] = useState<RecentVehicle[]>([]);
   const [newVehicles, setNewVehicles] = useState<RecentVehicle[]>([]);
-  const [stats, setStats] = useState({ added24h: 0, sold24h: 0, lastSync: null as string | null });
+  const [priceChanges, setPriceChanges] = useState<PriceChangeRow[]>([]);
+  const [priceVehicles, setPriceVehicles] = useState<Record<string, { title: string; brand: string | null }>>({});
+  const [stats, setStats] = useState({
+    added24h: 0,
+    sold24h: 0,
+    lastSync: null as string | null,
+    openIssues: 0,
+    errorIssues: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isTriggering, setIsTriggering] = useState(false);
 
   const loadData = useCallback(async () => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [logsRes, updatedRes, newRes, addedRes, soldRes] = await Promise.all([
+    const [logsRes, updatedRes, newRes, addedRes, soldRes, issuesRes, errorIssuesRes, priceRes] = await Promise.all([
       supabase.from("sync_logs").select("*").order("started_at", { ascending: false }).limit(20),
       supabase
         .from("vehicles")
@@ -79,15 +87,42 @@ export default function SyncStatus() {
         .select("*", { count: "exact", head: true })
         .eq("is_sold", true)
         .gte("sold_at", since),
+      supabase.from("vehicle_quality_issues").select("*", { count: "exact", head: true }).is("resolved_at", null),
+      supabase
+        .from("vehicle_quality_issues")
+        .select("*", { count: "exact", head: true })
+        .is("resolved_at", null)
+        .eq("severity", "error"),
+      supabase
+        .from("vehicle_price_history")
+        .select("id, vehicle_id, price, currency, recorded_at")
+        .gte("recorded_at", since)
+        .order("recorded_at", { ascending: false })
+        .limit(15),
     ]);
 
     setLogs((logsRes.data as SyncLog[]) || []);
     setRecentlyUpdated((updatedRes.data as RecentVehicle[]) || []);
     setNewVehicles((newRes.data as RecentVehicle[]) || []);
+
+    const priceRows = (priceRes.data as PriceChangeRow[]) || [];
+    setPriceChanges(priceRows);
+    const priceIds = [...new Set(priceRows.map((p) => p.vehicle_id))];
+    if (priceIds.length > 0) {
+      const { data: pv } = await supabase.from("vehicles").select("id, title, brand").in("id", priceIds);
+      const map: Record<string, { title: string; brand: string | null }> = {};
+      for (const v of pv || []) map[v.id] = { title: v.title, brand: v.brand };
+      setPriceVehicles(map);
+    } else {
+      setPriceVehicles({});
+    }
+
     setStats({
       added24h: addedRes.count || 0,
       sold24h: soldRes.count || 0,
       lastSync: logsRes.data?.[0]?.started_at ?? null,
+      openIssues: issuesRes.count || 0,
+      errorIssues: errorIssuesRes.count || 0,
     });
     setIsLoading(false);
   }, []);
