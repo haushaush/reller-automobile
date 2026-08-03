@@ -903,12 +903,27 @@ Deno.serve(async (req) => {
       console.error("Failed to trigger sync-accident-vehicles:", e);
     }
 
+    // === Datenqualitaets-Pruefung am Ende jedes Laufs ===
+    try {
+      logQualityIssues = await runQualityScan(supabase);
+    } catch (e) {
+      console.error("Quality scan failed:", e);
+    }
+
     if (logStatus !== "success_with_warning") {
       logStatus = "success";
     }
     console.log(`=== Sync Complete (status=${logStatus}) ===`);
     return new Response(
-      JSON.stringify({ success: true, synced: vehicleRows.length, totalImages, paginationConfident: paginationResult.paginationConfident, stopReason: paginationResult.stopReason }),
+      JSON.stringify({
+        success: true,
+        synced: vehicleRows.length,
+        totalImages,
+        priceChanges: logPriceChanges,
+        qualityIssues: logQualityIssues,
+        paginationConfident: paginationResult.paginationConfident,
+        stopReason: paginationResult.stopReason,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
