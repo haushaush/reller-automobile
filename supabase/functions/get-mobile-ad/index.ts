@@ -43,25 +43,25 @@ Deno.serve(async (req) => {
       .eq("user_id", userId).eq("role", "admin").maybeSingle();
     if (!roleRow) return json(403, { error: "Forbidden" });
 
-    let draftId: string | undefined;
+    let vehicleId: string | undefined;
     let mobileAdIdIn: string | undefined;
     try {
       const body = await req.json();
-      draftId = body?.draftId;
+      vehicleId = body?.vehicleId ?? body?.draftId;
       mobileAdIdIn = body?.mobileAdId;
     } catch { /* empty */ }
-    if (!draftId) return json(400, { error: "draftId required" });
+    if (!vehicleId) return json(400, { error: "vehicleId required" });
 
-    const { data: draft, error: dErr } = await admin
-      .from("mobile_ad_drafts")
-      .select("id, status, payload, mobile_ad_id, image_paths")
-      .eq("id", draftId).maybeSingle();
-    if (dErr || !draft) return json(404, { error: "Entwurf nicht gefunden" });
+    const { data: vehicle, error: dErr } = await admin
+      .from("vehicles")
+      .select("id, publish_status, mobile_payload, mobile_ad_id")
+      .eq("id", vehicleId).maybeSingle();
+    if (dErr || !vehicle) return json(404, { error: "Fahrzeug nicht gefunden" });
 
-    const mobileAdId = mobileAdIdIn || draft.mobile_ad_id;
+    const mobileAdId = mobileAdIdIn || vehicle.mobile_ad_id;
     if (!mobileAdId) return json(400, { error: "Keine Mobile.de-ID vorhanden" });
 
-    console.log(`get-mobile-ad draftId=${draftId} mobileAdId=${mobileAdId}`);
+    console.log(`get-mobile-ad vehicleId=${vehicleId} mobileAdId=${mobileAdId}`);
     const res = await fetch(`${API_BASE}/sellers/${SELLER_ID}/ads/${mobileAdId}`, {
       headers: { Authorization: basicAuth(), Accept: MOBILE_MIME },
     });
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     }
     let mobileAd: unknown;
     try { mobileAd = JSON.parse(text); } catch { mobileAd = null; }
-    return json(200, { success: true, draft, mobileAd });
+    return json(200, { success: true, vehicle, mobileAd });
   } catch (err) {
     console.error("get-mobile-ad fatal:", err);
     return new Response(JSON.stringify({ error: String((err as Error).message || err) }), {
