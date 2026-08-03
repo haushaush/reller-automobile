@@ -770,11 +770,20 @@ Deno.serve(async (req) => {
         const toMarkSold = allDbVehicles.filter((v) => !syncedSet.has(v.mobile_de_id) && !v.is_sold);
         const toMarkAvailable = allDbVehicles.filter((v) => syncedSet.has(v.mobile_de_id) && v.is_sold);
 
-        for (const v of toMarkSold) {
-          await supabase.from("vehicles").update({ is_sold: true, sold_at: new Date().toISOString() }).eq("id", v.id);
+        const soldAt = new Date().toISOString();
+        for (const ids of chunk(toMarkSold.map((v) => v.id), 200)) {
+          const { error } = await supabase
+            .from("vehicles")
+            .update({ is_sold: true, sold_at: soldAt })
+            .in("id", ids);
+          if (error) console.error("[accident] Bulk mark-sold failed:", error);
         }
-        for (const v of toMarkAvailable) {
-          await supabase.from("vehicles").update({ is_sold: false, sold_at: null }).eq("id", v.id);
+        for (const ids of chunk(toMarkAvailable.map((v) => v.id), 200)) {
+          const { error } = await supabase
+            .from("vehicles")
+            .update({ is_sold: false, sold_at: null })
+            .in("id", ids);
+          if (error) console.error("[accident] Bulk re-activate failed:", error);
         }
         logSold = toMarkSold.length;
         console.log(`[accident] Soft-delete: ${toMarkSold.length} marked sold, ${toMarkAvailable.length} re-activated`);
