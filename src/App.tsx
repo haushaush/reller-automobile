@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -32,15 +32,12 @@ const InquiryDetail = lazy(() => import("./pages/admin/InquiryDetail"));
 const AlertsAdmin = lazy(() => import("./pages/admin/AlertsAdmin"));
 const StoryArchive = lazy(() => import("./pages/admin/StoryArchive"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
-const VehicleCreate = lazy(() => import("./pages/admin/VehicleCreate"));
 const VehiclesAdmin = lazy(() => import("./pages/admin/VehiclesAdmin"));
 const VehicleAdminDetail = lazy(() => import("./pages/admin/VehicleAdminDetail"));
 const Accounts = lazy(() => import("./pages/admin/Accounts"));
 const ExposeArchive = lazy(() => import("./pages/admin/ExposeArchive"));
 const Collage = lazy(() => import("./pages/admin/Collage"));
 const MobileAdCreate = lazy(() => import("./pages/admin/MobileAdCreate"));
-const MobileAdDrafts = lazy(() => import("./pages/admin/MobileAdDrafts"));
-const MobileAdEditLive = lazy(() => import("./pages/admin/MobileAdEditLive"));
 const EmailLogs = lazy(() => import("./pages/admin/EmailLogs"));
 
 const queryClient = new QueryClient({
