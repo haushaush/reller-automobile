@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     finalExtra = { pages_fetched: pages, vehicles_total: ads.length };
     if (ads.length === 0) {
       finalStatus = "skipped";
-      finalError = error ?? `Keine Unfall-Inserate gelesen (Root-Keys: ${rootKeys.join(", ") || "keine"})`;
+      finalError = `Keine Unfall-Inserate gelesen (Root-Keys: ${rootKeys.join(", ") || "keine"})${error ? `; ${error}` : ""}`;
       return json(200, { ok: true, skipped: true, error: finalError });
     }
 

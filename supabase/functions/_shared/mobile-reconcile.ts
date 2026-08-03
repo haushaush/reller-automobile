@@ -78,6 +78,15 @@ export async function fetchSellerAds(
     if (!res.ok) {
       return { ads, pages: page - 1, rootKeys, error: `Seller-API ${res.status}: ${text.slice(0, 300)}` };
     }
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("json")) {
+      return {
+        ads,
+        pages: page - 1,
+        rootKeys,
+        error: `Unerwarteter Seller-API Content-Type auf Seite ${page}: ${contentType || "unbekannt"}`,
+      };
+    }
     let json: Record<string, unknown> = {};
     try { json = JSON.parse(text); } catch { return { ads, pages: page - 1, rootKeys, error: "Ungültige Seller-API-Antwort" }; }
     if (page === 1) {

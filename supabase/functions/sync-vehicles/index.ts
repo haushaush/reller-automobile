@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     finalExtra = { pages_fetched: pages, vehicles_total: ads.length, stop_reason: error ? `partial: ${error}` : "complete" };
     if (ads.length === 0) {
       finalStatus = "skipped";
-      finalError = error ?? `Keine Inserate aus Seller-API gelesen (Root-Keys: ${rootKeys.join(", ") || "keine"})`;
+    finalError = `Keine Inserate aus Seller-API gelesen (Root-Keys: ${rootKeys.join(", ") || "keine"})${error ? `; ${error}` : ""}`;
       return json(200, { ok: true, skipped: true, error: finalError });
     }
 
