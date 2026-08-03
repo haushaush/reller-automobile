@@ -498,24 +498,60 @@ Deno.serve(async (req) => {
     if (!roleRow) return json(403, { error: "Forbidden" });
 
     // ── Input ─────────────────────────────────────────────────
-    let draftId: string | undefined;
+    let vehicleId: string | undefined;
     try {
       const body = await req.json();
-      draftId = body?.draftId;
+      vehicleId = body?.vehicleId;
     } catch { /* empty body */ }
-    if (!draftId) return json(400, { error: "draftId required" });
+    if (!vehicleId) return json(400, { error: "vehicleId required" });
 
-    const { data: draft, error: draftErr } = await admin
-      .from("mobile_ad_drafts")
-      .select("id, status, payload, image_paths")
-      .eq("id", draftId)
+    const { data: vehicle, error: vehErr } = await admin
+      .from("vehicles")
+      .select("id, publish_status, mobile_ad_id, mobile_payload")
+      .eq("id", vehicleId)
       .maybeSingle();
-    if (draftErr || !draft) return json(404, { error: "Draft not found" });
-    if (draft.status === "published") return json(400, { error: "Entwurf ist bereits veröffentlicht" });
+    if (vehErr || !vehicle) return json(404, { error: "Fahrzeug nicht gefunden" });
+    if (vehicle.mobile_ad_id && vehicle.publish_status === "published") {
+      return json(400, { error: "Fahrzeug ist bereits veröffentlicht" });
+    }
 
-    const payload = (draft.payload ?? {}) as Record<string, unknown>;
-    const imagePaths = (draft.image_paths ?? []) as string[];
-    console.log(`Publishing draft ${draftId}, ${imagePaths.length} image(s)`);
+    const payload = (vehicle.mobile_payload ?? {}) as Record<string, unknown>;
+    const imagePaths = Array.isArray(payload._imagePaths) ? (payload._imagePaths as string[]) : [];
+    console.log(`Publishing vehicle ${vehicleId}, ${imagePaths.length} image(s)`);
+
+    const logPush = async (
+      action: string,
+      requestBody: unknown,
+      responseStatus: number | null,
+      responseBody: string,
+    ) => {
+      try {
+        await admin.from("mobile_push_log").insert({
+          vehicle_id: vehicleId,
+          action,
+          request_body: (requestBody ?? null) as never,
+          response_status: responseStatus,
+          response_body: responseBody.slice(0, 5000),
+        });
+      } catch (e) {
+        console.warn("mobile_push_log insert failed:", (e as Error).message);
+      }
+    };
+    const failVehicle = async (msg: string) => {
+      await admin
+        .from("vehicles")
+        .update({
+          publish_status: "publish_error",
+          publish_error: msg.slice(0, 2000),
+          last_pushed_at: new Date().toISOString(),
+        } as never)
+        .eq("id", vehicleId);
+    };
+
+    await admin
+      .from("vehicles")
+      .update({ publish_status: "publishing", publish_error: null } as never)
+      .eq("id", vehicleId);
 
     // ── Build flat Mobile.de payload — tolerate flat or nested drafts ──
     const { adBody: mobilePayload, missing, warnings } = buildMobileAdPayload(payload, []);
@@ -525,10 +561,8 @@ Deno.serve(async (req) => {
     if (missing.length) {
       const msg = `Pflichtfelder fehlen oder ungültig: ${missing.join(", ")}`;
       console.error(msg);
-      await admin
-        .from("mobile_ad_drafts")
-        .update({ status: "error", error_message: msg })
-        .eq("id", draftId);
+      await failVehicle(msg);
+      await logPush("publish", mobilePayload, null, msg);
       return json(400, { error: msg, missing, warnings });
     }
 
@@ -568,10 +602,8 @@ Deno.serve(async (req) => {
     if (imagePaths.length > 0 && refs.length === 0) {
       const msg = `Kein Bild konnte zu Mobile.de hochgeladen werden. ${skipped.map((s) => `#${s.index}: ${s.reason}`).join("; ")}`;
       console.error(msg);
-      await admin
-        .from("mobile_ad_drafts")
-        .update({ status: "error", error_message: msg.slice(0, 2000) })
-        .eq("id", draftId);
+      await failVehicle(msg);
+      await logPush("publish", { imagePaths }, null, msg);
       return json(400, { error: "Kein Bild konnte zu Mobile.de hochgeladen werden", skipped });
     }
 
@@ -643,10 +675,8 @@ Deno.serve(async (req) => {
           ? JSON.stringify((parsed as Record<string, unknown>).errors)
           : createText.slice(0, 500);
       console.error(`Create ad failed ${createRes.status}: ${createText.slice(0, 800)}`);
-      await admin
-        .from("mobile_ad_drafts")
-        .update({ status: "error", error_message: human.slice(0, 2000) })
-        .eq("id", draftId);
+      await failVehicle(human);
+      await logPush("publish", adBody, createRes.status, createText);
       return json(createRes.status, {
         error: "Mobile.de hat das Inserat abgelehnt",
         status: createRes.status,
@@ -695,17 +725,21 @@ Deno.serve(async (req) => {
       ? `Hinweis: ${skipped.length} Bild(er) übersprungen: ${skipped.map((s) => `#${s.index} (${s.reason})`).join("; ")}`
       : null;
 
+    await logPush("publish", adBody, createRes.status, createText);
+    const nowIso = new Date().toISOString();
+
     if (!mobileAdId) {
-      const warnMsg = "Inserat wurde vermutlich erstellt, aber Mobile.de-ID konnte nicht aus der Antwort gelesen werden. Bitte im Adminbereich nachträglich mit synchronisiertem Fahrzeug verknüpfen.";
+      const warnMsg = "Inserat wurde vermutlich erstellt, aber Mobile.de-ID konnte nicht aus der Antwort gelesen werden. Bitte im Adminbereich über die Bestandsübernahme zuordnen.";
       console.warn(`extractMobileAdId failed. location=${createRes.headers.get("Location") ?? "(none)"} bodyPreview=${createText.slice(0, 300)}`);
       await admin
-        .from("mobile_ad_drafts")
+        .from("vehicles")
         .update({
-          status: "published_with_warning",
-          mobile_ad_id: null,
-          error_message: [warnMsg, skippedNote].filter(Boolean).join(" "),
-        })
-        .eq("id", draftId);
+          publish_status: "published",
+          published_at: nowIso,
+          last_pushed_at: nowIso,
+          publish_error: [warnMsg, skippedNote].filter(Boolean).join(" ").slice(0, 2000),
+        } as never)
+        .eq("id", vehicleId);
       return json(200, {
         ok: true,
         warning: true,
@@ -718,19 +752,28 @@ Deno.serve(async (req) => {
     }
 
     await admin
-      .from("mobile_ad_drafts")
+      .from("vehicles")
       .update({
-        status: "published",
+        publish_status: "published",
         mobile_ad_id: mobileAdId,
-        error_message: skippedNote,
-        // Hinweis: Mailbenachrichtigung ist NICHT mehr an mobile_ad_drafts
-        // gekoppelt. Die neue automatische Mail wird ausgelöst, sobald ein
-        // wirklich neues Fahrzeug per Mobile.de Search-Sync in vehicles
-        // angelegt wurde (notify-new-synced-vehicle).
-      })
-      .eq("id", draftId);
-    console.log(`publish-mobile-ad: draft=${draftId} mobileAdId=${mobileAdId} published (sync-mail wird vom Sync-Trigger übernommen)`);
+        published_at: nowIso,
+        last_pushed_at: nowIso,
+        publish_error: skippedNote,
+        detail_page_url: detailPageUrl ?? null,
+        is_sold: false,
+      } as never)
+      .eq("id", vehicleId);
+    console.log(`publish-mobile-ad: vehicle=${vehicleId} mobileAdId=${mobileAdId} published`);
 
+    // Benachrichtigung wird jetzt direkt beim Veröffentlichen ausgelöst
+    // (nicht mehr über den Pull-Sync).
+    try {
+      await admin.functions.invoke("notify-new-synced-vehicle", {
+        body: { vehicleId, trigger: "portal-publish" },
+      });
+    } catch (e) {
+      console.warn("notify-new-synced-vehicle failed:", (e as Error).message);
+    }
 
     return json(200, {
       ok: true,
