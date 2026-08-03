@@ -292,8 +292,26 @@ export default function SyncStatus() {
                           <span className="text-green-600">{log.vehicles_added ?? 0} neu</span>
                           <span>·</span>
                           <span>{log.vehicles_updated ?? 0} aktualisiert</span>
+                          {log.vehicles_unchanged != null && (
+                            <>
+                              <span>·</span>
+                              <span>{log.vehicles_unchanged} unverändert</span>
+                            </>
+                          )}
                           <span>·</span>
                           <span className="text-destructive">{log.vehicles_marked_sold ?? 0} verkauft</span>
+                          {log.price_changes != null && (
+                            <>
+                              <span>·</span>
+                              <span>{log.price_changes} Preisänderung{log.price_changes === 1 ? "" : "en"}</span>
+                            </>
+                          )}
+                          {log.quality_issues_found != null && (
+                            <>
+                              <span>·</span>
+                              <span>{log.quality_issues_found} Qualitätsprobleme</span>
+                            </>
+                          )}
                         </div>
                       )}
                       {log.stop_reason && (
