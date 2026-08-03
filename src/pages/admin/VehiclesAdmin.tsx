@@ -511,13 +511,13 @@ export default function VehiclesAdmin() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-10">
+                <TableCell colSpan={13} className="text-center py-10">
                   <Loader2 className="h-5 w-5 animate-spin inline" />
                 </TableCell>
               </TableRow>
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={13} className="text-center py-10 text-muted-foreground">
                   Keine Fahrzeuge gefunden
                 </TableCell>
               </TableRow>
@@ -566,10 +566,13 @@ export default function VehiclesAdmin() {
                     </TableCell>
                     <TableCell>{formatPrice(v.price, v.currency)}</TableCell>
                     <TableCell className="text-xs">
-                      {v.source === "manual" ? "Manuell" : "Mobile.de"}
+                      {v.source === "portal" ? "Portal" : v.source === "manual" ? "Manuell" : v.source === "adopted" ? "Übernommen" : "Mobile.de"}
                     </TableCell>
                     <TableCell>
                       <StatusBadge v={v} />
+                    </TableCell>
+                    <TableCell>
+                      <PublishBadge v={v} />
                     </TableCell>
                     <TableCell>{resolveVehicleImages(v).length}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
