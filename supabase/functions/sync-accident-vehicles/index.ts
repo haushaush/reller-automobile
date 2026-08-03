@@ -774,7 +774,7 @@ Deno.serve(async (req) => {
         for (const ids of chunk(toMarkSold.map((v) => v.id), 200)) {
           const { error } = await supabase
             .from("vehicles")
-            .update({ is_sold: true, sold_at: soldAt })
+            .update({ is_sold: true, sold_at: soldAt, reserved_at: null, reserved_note: null })
             .in("id", ids);
           if (error) console.error("[accident] Bulk mark-sold failed:", error);
         }

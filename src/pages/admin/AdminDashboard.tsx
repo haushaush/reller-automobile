@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Car, Image as ImageIcon, Mail, Bell } from "lucide-react";
+import { Car, Image as ImageIcon, Mail, Bell, BookmarkCheck, ImageOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import SalesStats from "@/components/admin/SalesStats";
@@ -11,6 +11,8 @@ interface Stats {
   totalStories: number;
   pendingInquiries: number;
   activeAlerts: number;
+  reservedVehicles: number;
+  vehiclesWithoutImages: number;
 }
 
 export default function AdminDashboard() {
@@ -20,16 +22,28 @@ export default function AdminDashboard() {
     totalStories: 0,
     pendingInquiries: 0,
     activeAlerts: 0,
+    reservedVehicles: 0,
+    vehiclesWithoutImages: 0,
   });
 
   useEffect(() => {
     const load = async () => {
-      const [vehicles, sold, stories, inquiries, alerts] = await Promise.all([
+      const [vehicles, sold, stories, inquiries, alerts, reserved, noImages] = await Promise.all([
         supabase.from("vehicles").select("*", { count: "exact", head: true }).eq("is_sold", false),
         supabase.from("vehicles").select("*", { count: "exact", head: true }).eq("is_sold", true),
         supabase.from("vehicle_stories").select("*", { count: "exact", head: true }),
         supabase.from("inquiries").select("*", { count: "exact", head: true }).eq("status", "new"),
         supabase.from("vehicle_alerts").select("*", { count: "exact", head: true }).eq("is_active", true),
+        supabase
+          .from("vehicles")
+          .select("*", { count: "exact", head: true })
+          .eq("is_sold", false)
+          .not("reserved_at", "is", null),
+        supabase
+          .from("vehicles")
+          .select("*", { count: "exact", head: true })
+          .eq("is_sold", false)
+          .or("image_urls.is.null,image_urls.eq.{}"),
       ]);
       setStats({
         activeVehicles: vehicles.count ?? 0,
@@ -37,14 +51,28 @@ export default function AdminDashboard() {
         totalStories: stories.count ?? 0,
         pendingInquiries: inquiries.count ?? 0,
         activeAlerts: alerts.count ?? 0,
+        reservedVehicles: reserved.count ?? 0,
+        vehiclesWithoutImages: noImages.count ?? 0,
       });
     };
     load();
   }, []);
 
   const cards = [
-    { label: "Aktive Fahrzeuge", value: stats.activeVehicles, icon: Car, to: "/admin/sync" },
-    { label: "Verkaufte Fahrzeuge", value: stats.soldVehicles, icon: Car, to: "/admin/sync" },
+    { label: "Aktive Fahrzeuge", value: stats.activeVehicles, icon: Car, to: "/admin/fahrzeuge?status=available" },
+    { label: "Verkaufte Fahrzeuge", value: stats.soldVehicles, icon: Car, to: "/admin/fahrzeuge?status=sold" },
+    {
+      label: "Reservierte Fahrzeuge",
+      value: stats.reservedVehicles,
+      icon: BookmarkCheck,
+      to: "/admin/fahrzeuge?status=reserved",
+    },
+    {
+      label: "Fahrzeuge ohne Bilder",
+      value: stats.vehiclesWithoutImages,
+      icon: ImageOff,
+      to: "/admin/fahrzeuge?noImages=1",
+    },
     { label: "Generierte Stories", value: stats.totalStories, icon: ImageIcon, to: "/admin/story-archive" },
     { label: "Offene Anfragen", value: stats.pendingInquiries, icon: Mail, to: "/admin/inquiries" },
     { label: "Aktive Suchaufträge", value: stats.activeAlerts, icon: Bell, to: "/admin/alerts" },

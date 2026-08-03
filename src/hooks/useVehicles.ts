@@ -39,6 +39,11 @@ export interface Vehicle {
   sold_at: string | null;
   synced_at: string;
   vehicle_category: string | null;
+  custom_image_urls?: string[] | null;
+  hidden_image_urls?: string[] | null;
+  image_order?: string[] | null;
+  reserved_at?: string | null;
+  is_featured?: boolean | null;
 }
 
 // Explicit column list — avoid select("*") so payload size is predictable
@@ -81,6 +86,11 @@ const VEHICLE_COLUMNS = [
   "sold_at",
   "synced_at",
   "vehicle_category",
+  "custom_image_urls",
+  "hidden_image_urls",
+  "image_order",
+  "reserved_at",
+  "is_featured",
 ].join(",");
 
 async function fetchVehicles(): Promise<Vehicle[]> {

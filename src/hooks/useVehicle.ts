@@ -40,6 +40,11 @@ const VEHICLE_COLUMNS = [
   "sold_at",
   "synced_at",
   "vehicle_category",
+  "custom_image_urls",
+  "hidden_image_urls",
+  "image_order",
+  "reserved_at",
+  "is_featured",
 ].join(",");
 
 async function fetchVehicle(id: string): Promise<Vehicle> {
