@@ -17,13 +17,24 @@ interface SyncLog {
   vehicles_total: number | null;
   vehicles_added: number | null;
   vehicles_updated: number | null;
+  vehicles_unchanged: number | null;
   vehicles_marked_sold: number | null;
   pages_fetched: number | null;
   page_size: number | null;
   mobile_total_results: number | null;
+  quality_issues_found: number | null;
+  price_changes: number | null;
   stop_reason: string | null;
   status: string | null;
   error_message: string | null;
+}
+
+interface PriceChangeRow {
+  id: string;
+  vehicle_id: string;
+  price: number | null;
+  currency: string | null;
+  recorded_at: string;
 }
 
 interface RecentVehicle {
