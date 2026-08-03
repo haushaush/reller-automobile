@@ -1,7 +1,7 @@
 // Einmalige Bestandsübernahme: liest alle aktiven Mobile.de-Inserate (Seller-API)
 // und übernimmt sie als vehicles-Zeilen. Zweistufig: dryRun → apply. Admin-only.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { corsHeaders } from "../_shared/cors.ts";
 import { basicAuth, fetchSellerAds, SellerAd } from "../_shared/mobile-reconcile.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
