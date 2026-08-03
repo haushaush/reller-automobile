@@ -569,14 +569,18 @@ Deno.serve(async (req) => {
     logStopReason = paginationResult.stopReason;
     paginationConfident = paginationResult.paginationConfident;
 
-    const rawVehicleRows: VehicleRow[] = [];
+    const parsedAds: ParsedAd[] = [];
     for (const xmlText of allXmlPages) {
-      rawVehicleRows.push(...parseAds(xmlText));
+      parsedAds.push(...parseAds(xmlText));
     }
-    console.log(`[accident] After XML status filter: ${rawVehicleRows.length} vehicles across ${allXmlPages.length} pages`);
+    console.log(`[accident] After XML status filter: ${parsedAds.length} vehicles across ${allXmlPages.length} pages`);
 
     // URL HEAD-validation deactivated for cron performance.
-    const vehicleRows = rawVehicleRows;
+    const vehicleRows: VehicleRow[] = parsedAds.map((p) => p.row);
+    const vinByMobileId = new Map<string, string>();
+    for (const p of parsedAds) {
+      if (p.vin) vinByMobileId.set(p.row.mobile_de_id, p.vin);
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
