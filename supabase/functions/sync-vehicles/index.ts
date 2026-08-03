@@ -511,12 +511,15 @@ Deno.serve(async (req) => {
   let logTotal = 0;
   let logAdded = 0;
   let logUpdated = 0;
+  let logUnchanged = 0;
   let logSold = 0;
   let logSkippedManual = 0;
   let logPagesFetched = 0;
   let logPageSize = 100;
   let logMobileTotal: number | null = null;
   let logStopReason: string | null = null;
+  let logPriceChanges = 0;
+  let logQualityIssues = 0;
 
   try {
     const hasSearchUser = !!Deno.env.get("MOBILE_DE_SEARCH_USERNAME");
