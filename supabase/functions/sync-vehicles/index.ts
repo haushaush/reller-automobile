@@ -465,6 +465,69 @@ async function fetchAllAdsPages(authHeader: string, pageSize: number = 100): Pro
   };
 }
 
+interface ExistingLite {
+  id: string;
+  price: number | null;
+  currency: string | null;
+}
+
+/**
+ * Schreibt VINs in die geschuetzte Tabelle vehicle_private_data und
+ * protokolliert Preisaenderungen in vehicle_price_history.
+ * Neue Fahrzeuge bekommen eine Startzeile mit ihrem ersten Preis.
+ */
+async function persistVinsAndPriceHistory(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  vehicleRows: VehicleRow[],
+  vinByMobileId: Map<string, string>,
+  existingMap: Map<string, ExistingLite>,
+  priceChanged: Array<{ mobile_de_id: string; price: number | null; currency: string }>,
+): Promise<void> {
+  // IDs aller betroffenen Fahrzeuge nach dem Upsert holen (chunked)
+  const relevantIds = new Set<string>([
+    ...vinByMobileId.keys(),
+    ...priceChanged.map((p) => p.mobile_de_id),
+    ...vehicleRows.filter((v) => !existingMap.has(v.mobile_de_id)).map((v) => v.mobile_de_id),
+  ]);
+  if (relevantIds.size === 0) return;
+
+  const idMap = new Map<string, string>();
+  for (const c of chunk([...relevantIds], 200)) {
+    const { data } = await supabase.from("vehicles").select("id, mobile_de_id").in("mobile_de_id", c);
+    for (const r of data ?? []) idMap.set(r.mobile_de_id, r.id);
+  }
+
+  // VINs
+  const vinRows = [...vinByMobileId.entries()]
+    .filter(([mid]) => idMap.has(mid))
+    .map(([mid, vin]) => ({ vehicle_id: idMap.get(mid)!, vin, updated_at: new Date().toISOString() }));
+  for (const c of chunk(vinRows, 200)) {
+    const { error } = await supabase.from("vehicle_private_data").upsert(c, { onConflict: "vehicle_id" });
+    if (error) console.error("vehicle_private_data upsert failed:", error);
+  }
+
+  // Preishistorie: Startzeile fuer neue Fahrzeuge + Zeile bei jeder Aenderung
+  const historyRows: Array<{ vehicle_id: string; price: number | null; currency: string }> = [];
+  for (const v of vehicleRows) {
+    const vid = idMap.get(v.mobile_de_id);
+    if (!vid) continue;
+    if (!existingMap.has(v.mobile_de_id)) {
+      historyRows.push({ vehicle_id: vid, price: v.price, currency: v.currency });
+    }
+  }
+  for (const p of priceChanged) {
+    const vid = idMap.get(p.mobile_de_id);
+    if (!vid) continue;
+    historyRows.push({ vehicle_id: vid, price: p.price, currency: p.currency });
+  }
+  for (const c of chunk(historyRows, 200)) {
+    const { error } = await supabase.from("vehicle_price_history").insert(c);
+    if (error) console.error("vehicle_price_history insert failed:", error);
+  }
+  console.log(`VIN-Rows: ${vinRows.length}, Preishistorie-Rows: ${historyRows.length}`);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
