@@ -44,7 +44,7 @@ const navItems: NavItem[] = [
   { label: "Story-Archiv", path: "/admin/story-archive", icon: Archive },
   { label: "Exposé-Archiv", path: "/admin/expose-archive", icon: FileText },
   { label: "Collage", path: "/admin/collage", icon: Images },
-  { label: "Mobile.de Inserat", path: "/admin/mobile-ad", icon: Upload },
+  
   { label: "Mail-Verlauf", path: "/admin/email-logs", icon: Mail },
   { label: "Einstellungen", path: "/admin/settings", icon: Settings },
 ];
