@@ -541,14 +541,14 @@ export default function MobileAdCreate() {
   }, [form.make]);
 
   useEffect(() => {
-    if (!draftId) return;
+    if (!vehicleId) return;
     if (isLive) {
       (async () => {
         try {
           const { data, error } = await supabase.functions.invoke("get-mobile-ad", {
-            body: { draftId },
+            body: { vehicleId },
           });
-          const d = data as { success?: boolean; error?: string; draft?: Record<string, unknown>; mobileAd?: Record<string, unknown> | null } | null;
+          const d = data as { success?: boolean; error?: string; vehicle?: Record<string, unknown>; draft?: Record<string, unknown>; mobileAd?: Record<string, unknown> | null } | null;
           if (error || !d?.success) {
             const msg = d?.error || error?.message || "Live-Daten konnten nicht geladen werden";
             setLiveLoadError(msg);
@@ -556,13 +556,12 @@ export default function MobileAdCreate() {
             return;
           }
           const ad = d.mobileAd ?? null;
-          const draft = d.draft ?? {};
-          const mobileAdId = String((draft as { mobile_ad_id?: string }).mobile_ad_id ?? "");
-          setLiveMobileAdId(mobileAdId);
+          const rec = (d.vehicle ?? d.draft ?? {}) as Record<string, unknown>;
+          setLiveMobileAdId(String(rec.mobile_ad_id ?? ""));
           const imgs = ad && Array.isArray((ad as Record<string, unknown>).images)
             ? ((ad as { images: unknown[] }).images).length : 0;
           setLiveImageCount(imgs);
-          setForm(mobileAdToFormFlat(ad, (draft as { payload?: Record<string, unknown> }).payload ?? null));
+          setForm(mobileAdToFormFlat(ad, (rec.mobile_payload ?? rec.payload ?? null) as Record<string, unknown> | null));
           setDraftStatus("published");
         } catch (e) {
           console.error(e);
@@ -576,23 +575,20 @@ export default function MobileAdCreate() {
     (async () => {
       try {
         const { data, error } = await supabase
-          .from("mobile_ad_drafts")
-          .select("status, payload, image_paths")
-          .eq("id", draftId)
+          .from("vehicles")
+          .select("publish_status, mobile_payload")
+          .eq("id", vehicleId)
           .maybeSingle();
         if (error || !data) {
-          toast.error("Entwurf nicht gefunden");
-          navigate("/admin/mobile-ad");
+          toast.error("Fahrzeug nicht gefunden");
+          navigate("/admin/fahrzeuge");
           return;
         }
-        if (data.status === "published") {
-          toast.error("Bereits veröffentlichte Inserate können hier nicht bearbeitet werden");
-          navigate("/admin/mobile-ad");
-          return;
-        }
-        setDraftStatus(data.status);
-        setForm(payloadToForm(data.payload as Record<string, unknown> | null));
-        const paths = (data.image_paths ?? []) as string[];
+        const rec = data as unknown as { publish_status?: string | null; mobile_payload?: Record<string, unknown> | null };
+        setDraftStatus(rec.publish_status ?? "draft");
+        const payload = (rec.mobile_payload ?? null) as Record<string, unknown> | null;
+        setForm(payloadToForm(payload));
+        const paths = Array.isArray(payload?._imagePaths) ? (payload!._imagePaths as string[]) : [];
         setImagePaths(paths);
         const previews: Record<string, string> = {};
         await Promise.all(
@@ -606,12 +602,13 @@ export default function MobileAdCreate() {
         setImagePreviews(previews);
       } catch (e) {
         console.error(e);
-        toast.error("Entwurf konnte nicht geladen werden");
+        toast.error("Fahrzeug konnte nicht geladen werden");
       } finally {
         setLoadingDraft(false);
       }
     })();
-  }, [draftId, isLive, navigate]);
+  }, [vehicleId, isLive, navigate]);
+
 
 
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
