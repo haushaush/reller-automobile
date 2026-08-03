@@ -213,7 +213,7 @@ export default function SyncStatus() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="p-5">
           <div className="text-sm text-muted-foreground">Letzter Sync</div>
           <div className="text-lg font-semibold mt-2">
@@ -231,6 +231,16 @@ export default function SyncStatus() {
           <div className="text-sm text-muted-foreground">Verkauft markiert (24h)</div>
           <div className="text-2xl font-semibold mt-2">{stats.sold24h}</div>
           <div className="text-xs text-muted-foreground mt-1">nach sold_at</div>
+        </Card>
+        <Card className="p-5">
+          <div className="text-sm text-muted-foreground">Offene Datenqualitäts-Probleme</div>
+          <div className="text-2xl font-semibold mt-2">{stats.openIssues}</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            davon {stats.errorIssues} Fehler ·{" "}
+            <Link to="/admin/data-quality" className="underline">
+              Details
+            </Link>
+          </div>
         </Card>
       </div>
 
