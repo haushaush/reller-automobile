@@ -8,6 +8,7 @@ import { RefreshCw, CheckCircle2, XCircle, Clock, Loader2, SkipForward } from "l
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
+import ReconciliationPanel from "@/components/admin/ReconciliationPanel";
 
 interface SyncLog {
   id: string;
@@ -213,6 +214,8 @@ export default function SyncStatus() {
           Sync jetzt starten
         </Button>
       </div>
+
+      <ReconciliationPanel />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="p-5">
