@@ -11,6 +11,7 @@ import { ArrowLeft, Send, Check, ChevronLeft, ChevronRight } from "lucide-react"
 import { useInquiry, MAX_INQUIRY_ITEMS } from "@/contexts/InquiryContext";
 import { toast } from "sonner";
 import {
+import { resolveVehicleImages } from "@/lib/vehicleImages";
   getBodyTypeLabel,
   getFuelLabel,
   getGearboxLabel,
@@ -59,7 +60,9 @@ const VehicleDetail = () => {
     );
   }
 
-  const images = vehicle.image_urls?.length ? vehicle.image_urls : ["/placeholder.svg"];
+  const resolvedImages = resolveVehicleImages(vehicle);
+  const images = resolvedImages.length ? resolvedImages : ["/placeholder.svg"];
+  const isReserved = !vehicle.is_sold && !!vehicle.reserved_at;
   const ps = vehicle.power ? Math.round(vehicle.power * 1.36) : null;
   const formattedPrice = vehicle.price
     ? vehicle.price.toLocaleString("de-DE") + " " + (vehicle.currency || "€")
@@ -233,6 +236,11 @@ const VehicleDetail = () => {
                 <h1 className="text-2xl font-bold text-foreground leading-tight">
                   {vehicle.title}
                 </h1>
+                {isReserved && (
+                  <span className="inline-block rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
+                    Reserviert
+                  </span>
+                )}
                 {formattedPrice ? (
                   <p className="text-3xl font-bold text-primary">{formattedPrice}</p>
                 ) : (

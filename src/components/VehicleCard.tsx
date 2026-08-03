@@ -8,6 +8,7 @@ import { Scale, Heart, ArrowRight, Plus, Check } from "lucide-react";
 import ImageCarousel from "@/components/ImageCarousel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { decodeHtml } from "@/lib/decodeHtml";
+import { resolveVehicleImages } from "@/lib/vehicleImages";
 import { toast } from "sonner";
 
 interface VehicleCardProps {
@@ -34,8 +35,10 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
   const inInquiry = isInInquiry(vehicle.id);
   const isSold = vehicle.is_sold;
 
-  const images = vehicle.image_urls && vehicle.image_urls.length > 0
-    ? vehicle.image_urls
+  const resolvedImages = resolveVehicleImages(vehicle);
+  const isReserved = !isSold && !!vehicle.reserved_at;
+  const images = resolvedImages.length > 0
+    ? resolvedImages
     : ["https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&h=450&fit=crop"];
 
   const currencySymbol = !vehicle.currency || vehicle.currency.toUpperCase() === "EUR" ? "€" : vehicle.currency;
@@ -100,7 +103,16 @@ const VehicleCard = memo(({ vehicle }: VehicleCardProps) => {
       }}
     >
       <div className="relative">
-        <ImageCarousel images={images} alt={vehicle.title} vehicleId={vehicle.id} totalImages={vehicle.image_urls?.length} />
+        <ImageCarousel images={images} alt={vehicle.title} vehicleId={vehicle.id} totalImages={resolvedImages.length} />
+
+        {/* Reserviert-Badge */}
+        {isReserved && (
+          <div className="absolute bottom-3 left-3 z-20 pointer-events-none">
+            <span className="rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow">
+              Reserviert
+            </span>
+          </div>
+        )}
 
         {/* Sold overlay */}
         {isSold && (

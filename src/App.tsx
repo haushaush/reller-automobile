@@ -33,6 +33,8 @@ const AlertsAdmin = lazy(() => import("./pages/admin/AlertsAdmin"));
 const StoryArchive = lazy(() => import("./pages/admin/StoryArchive"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const VehicleCreate = lazy(() => import("./pages/admin/VehicleCreate"));
+const VehiclesAdmin = lazy(() => import("./pages/admin/VehiclesAdmin"));
+const VehicleAdminDetail = lazy(() => import("./pages/admin/VehicleAdminDetail"));
 const Accounts = lazy(() => import("./pages/admin/Accounts"));
 const ExposeArchive = lazy(() => import("./pages/admin/ExposeArchive"));
 const Collage = lazy(() => import("./pages/admin/Collage"));
@@ -99,6 +101,8 @@ const App = () => (
                       <Route path="mobile-ad/:draftId/live-edit" element={<MobileAdEditLive />} />
                       <Route path="settings" element={<Settings />} />
                       <Route path="email-logs" element={<EmailLogs />} />
+                      <Route path="fahrzeuge" element={<VehiclesAdmin />} />
+                      <Route path="fahrzeuge/:id" element={<VehicleAdminDetail />} />
                       <Route path="vehicles/new" element={<VehicleCreate />} />
                       <Route path="accounts" element={<Accounts />} />
                     </Route>
