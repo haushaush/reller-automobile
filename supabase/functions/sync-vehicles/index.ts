@@ -562,11 +562,19 @@ Deno.serve(async (req) => {
     logMobileTotal = paginationResult.totalCount;
     logStopReason = paginationResult.stopReason;
 
-    const rawVehicleRows: VehicleRow[] = [];
+    const parsedAds: ParsedAd[] = [];
     for (const xmlText of allXmlPages) {
-      rawVehicleRows.push(...parseAds(xmlText));
+      parsedAds.push(...parseAds(xmlText));
     }
+    // VIN wird ausschliesslich in der admin-only Tabelle vehicle_private_data
+    // gehalten und niemals in der oeffentlich lesbaren vehicles-Tabelle.
+    const vinByMobileId = new Map<string, string>();
+    for (const p of parsedAds) {
+      if (p.vin) vinByMobileId.set(p.row.mobile_de_id, p.vin);
+    }
+    const rawVehicleRows: VehicleRow[] = parsedAds.map((p) => p.row);
     console.log(`After XML status filter: ${rawVehicleRows.length} vehicles across ${allXmlPages.length} pages`);
+    console.log(`VIN vorhanden für ${vinByMobileId.size} von ${rawVehicleRows.length} Fahrzeugen`);
 
     // NOTE: URL HEAD-validation deactivated for 5-min cron performance.
     // The XML status filter (isPubliclyVisible) is reliable enough.
@@ -588,14 +596,37 @@ Deno.serve(async (req) => {
     }
 
     // === DIFF-SYNC: only enrich NEW / changed / image-less vehicles ===
-    const { data: existingVehicles } = await supabase
-      .from("vehicles")
-      .select("mobile_de_id, image_urls, modification_date")
-      .in("mobile_de_id", vehicleRows.map((v) => v.mobile_de_id));
-
-    const existingMap = new Map<string, { image_urls: string[] | null; modification_date: string | null }>(
-      (existingVehicles || []).map((v) => [v.mobile_de_id, { image_urls: v.image_urls, modification_date: v.modification_date }])
-    );
+    // Die ID-Liste wird in 200er-Bloecke gechunkt, damit die URL nicht
+    // unkontrolliert wächst.
+    interface ExistingRow {
+      id: string;
+      image_urls: string[] | null;
+      modification_date: string | null;
+      price: number | null;
+      currency: string | null;
+      manual_overrides: Record<string, unknown> | null;
+    }
+    const existingMap = new Map<string, ExistingRow>();
+    for (const idChunk of chunk(vehicleRows.map((v) => v.mobile_de_id), 200)) {
+      const { data: existingVehicles, error: existingError } = await supabase
+        .from("vehicles")
+        .select("id, mobile_de_id, image_urls, modification_date, price, currency, manual_overrides")
+        .in("mobile_de_id", idChunk);
+      if (existingError) {
+        console.error("Existing lookup failed:", existingError);
+        continue;
+      }
+      for (const v of existingVehicles ?? []) {
+        existingMap.set(v.mobile_de_id, {
+          id: v.id,
+          image_urls: v.image_urls,
+          modification_date: v.modification_date,
+          price: v.price,
+          currency: v.currency,
+          manual_overrides: v.manual_overrides,
+        });
+      }
+    }
     // Snapshot der mobile_de_ids, die VOR diesem Sync schon existierten.
     // Wird unten zur Erkennung wirklich neuer Fahrzeuge verwendet.
     const existingMobileDeIds = new Set<string>(existingMap.keys());
@@ -625,9 +656,32 @@ Deno.serve(async (req) => {
     const totalImages = vehicleRows.reduce((sum, v) => sum + v.image_urls.length, 0);
     console.log(`Total images: ${totalImages}`);
 
+    // === Echte Aenderungen zaehlen (modification_date ODER Preis) ===
+    const priceChangedIds: Array<{ mobile_de_id: string; price: number | null; currency: string }> = [];
+    for (const v of vehicleRows) {
+      const existing = existingMap.get(v.mobile_de_id);
+      if (!existing) continue;
+      const modChanged = existing.modification_date !== v.modification_date;
+      const priceChanged = (existing.price ?? null) !== (v.price ?? null);
+      if (priceChanged) {
+        priceChangedIds.push({ mobile_de_id: v.mobile_de_id, price: v.price, currency: v.currency });
+      }
+      if (modChanged || priceChanged) logUpdated++;
+      else logUnchanged++;
+    }
+    logPriceChanges = priceChangedIds.length;
+
+    // === Manuelle Overrides schuetzen ===
+    // Felder, die ein Admin manuell gepflegt hat, werden vom Sync nicht
+    // mehr ueberschrieben (z. B. vehicle_category, title, description, price).
+    const upsertRows = vehicleRows.map((v) => {
+      const existing = existingMap.get(v.mobile_de_id);
+      return existing ? stripManualOverrides(v, existing.manual_overrides) : v;
+    });
+
     const { error: upsertError } = await supabase
       .from("vehicles")
-      .upsert(vehicleRows, { onConflict: "mobile_de_id" });
+      .upsert(upsertRows, { onConflict: "mobile_de_id" });
 
     if (upsertError) {
       console.error("Upsert error:", upsertError);
@@ -640,7 +694,9 @@ Deno.serve(async (req) => {
     console.log(`Upserted ${vehicleRows.length} vehicles`);
     logTotal = vehicleRows.length;
     logAdded = vehicleRows.filter((v) => !existingMobileDeIds.has(v.mobile_de_id)).length;
-    logUpdated = vehicleRows.length - logAdded;
+
+    // === VIN + Preishistorie persistieren ===
+    await persistVinsAndPriceHistory(supabase, vehicleRows, vinByMobileId, existingMap, priceChangedIds);
 
     // === Neue Fahrzeuge erkennen und Sync-Mail auslösen ===
     // Ein Fahrzeug gilt als "neu", wenn dessen mobile_de_id VOR diesem
