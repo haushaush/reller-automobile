@@ -565,6 +565,50 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          field: string | null
+          id: string
+          new_value: string | null
+          old_value: string | null
+          user_email: string | null
+          user_id: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          field?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          user_email?: string | null
+          user_id?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          field?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          user_email?: string | null
+          user_id?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_audit_log_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicle_exposes: {
         Row: {
           created_at: string
@@ -738,6 +782,7 @@ export type Database = {
           creation_date: string | null
           cubic_capacity: number | null
           currency: string | null
+          custom_image_urls: string[] | null
           damage_unrepaired: boolean | null
           description: string | null
           detail_page_url: string | null
@@ -750,12 +795,15 @@ export type Database = {
           gearbox: string | null
           gearbox_key: string | null
           gearbox_label: string | null
+          hidden_image_urls: string[] | null
           id: string
+          image_order: string[] | null
           image_urls: string[] | null
           interior_color: string | null
           interior_type: string | null
           interior_type_key: string | null
           interior_type_label: string | null
+          is_featured: boolean
           is_sold: boolean
           manual_overrides: Json
           mileage: number | null
@@ -771,6 +819,8 @@ export type Database = {
           power: number | null
           price: number | null
           price_type: string | null
+          reserved_at: string | null
+          reserved_note: string | null
           seller_city: string | null
           seller_zipcode: string | null
           sold_at: string | null
@@ -801,6 +851,7 @@ export type Database = {
           creation_date?: string | null
           cubic_capacity?: number | null
           currency?: string | null
+          custom_image_urls?: string[] | null
           damage_unrepaired?: boolean | null
           description?: string | null
           detail_page_url?: string | null
@@ -813,12 +864,15 @@ export type Database = {
           gearbox?: string | null
           gearbox_key?: string | null
           gearbox_label?: string | null
+          hidden_image_urls?: string[] | null
           id?: string
+          image_order?: string[] | null
           image_urls?: string[] | null
           interior_color?: string | null
           interior_type?: string | null
           interior_type_key?: string | null
           interior_type_label?: string | null
+          is_featured?: boolean
           is_sold?: boolean
           manual_overrides?: Json
           mileage?: number | null
@@ -834,6 +888,8 @@ export type Database = {
           power?: number | null
           price?: number | null
           price_type?: string | null
+          reserved_at?: string | null
+          reserved_note?: string | null
           seller_city?: string | null
           seller_zipcode?: string | null
           sold_at?: string | null
@@ -864,6 +920,7 @@ export type Database = {
           creation_date?: string | null
           cubic_capacity?: number | null
           currency?: string | null
+          custom_image_urls?: string[] | null
           damage_unrepaired?: boolean | null
           description?: string | null
           detail_page_url?: string | null
@@ -876,12 +933,15 @@ export type Database = {
           gearbox?: string | null
           gearbox_key?: string | null
           gearbox_label?: string | null
+          hidden_image_urls?: string[] | null
           id?: string
+          image_order?: string[] | null
           image_urls?: string[] | null
           interior_color?: string | null
           interior_type?: string | null
           interior_type_key?: string | null
           interior_type_label?: string | null
+          is_featured?: boolean
           is_sold?: boolean
           manual_overrides?: Json
           mileage?: number | null
@@ -897,6 +957,8 @@ export type Database = {
           power?: number | null
           price?: number | null
           price_type?: string | null
+          reserved_at?: string | null
+          reserved_note?: string | null
           seller_city?: string | null
           seller_zipcode?: string | null
           sold_at?: string | null
