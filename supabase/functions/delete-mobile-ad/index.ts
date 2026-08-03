@@ -42,30 +42,51 @@ Deno.serve(async (req) => {
       .eq("user_id", userId).eq("role", "admin").maybeSingle();
     if (!roleRow) return json(403, { error: "Forbidden" });
 
-    let draftId: string | undefined;
+    let vehicleId: string | undefined;
     let mobileAdIdIn: string | undefined;
+    let markSold = false;
     try {
       const body = await req.json();
-      draftId = body?.draftId;
+      vehicleId = body?.vehicleId;
       mobileAdIdIn = body?.mobileAdId;
+      markSold = body?.markSold === true;
     } catch { /* empty */ }
-    if (!draftId) return json(400, { error: "draftId required" });
+    if (!vehicleId) return json(400, { error: "vehicleId required" });
 
-    const { data: draft, error: dErr } = await admin
-      .from("mobile_ad_drafts")
-      .select("id, status, mobile_ad_id, payload")
-      .eq("id", draftId).maybeSingle();
-    if (dErr || !draft) return json(404, { error: "Entwurf nicht gefunden" });
-    if (draft.status !== "published" && draft.status !== "published_with_warning") {
-      return json(400, { error: `Status ist "${draft.status}" – nur veröffentlichte Inserate können live gelöscht werden.` });
-    }
+    const { data: vehicle, error: dErr } = await admin
+      .from("vehicles")
+      .select("id, publish_status, mobile_ad_id")
+      .eq("id", vehicleId).maybeSingle();
+    if (dErr || !vehicle) return json(404, { error: "Fahrzeug nicht gefunden" });
 
-    const mobileAdId = String(draft.mobile_ad_id || mobileAdIdIn || "");
+    const mobileAdId = String(vehicle.mobile_ad_id || mobileAdIdIn || "");
+    const logPush = async (status: number | null, responseBody: string) => {
+      try {
+        await admin.from("mobile_push_log").insert({
+          vehicle_id: vehicleId, action: markSold ? "delete-sold" : "delete",
+          request_body: { mobileAdId } as never,
+          response_status: status, response_body: responseBody.slice(0, 5000),
+        });
+      } catch (e) { console.warn("mobile_push_log insert failed:", (e as Error).message); }
+    };
+
+    const soldPatch = markSold
+      ? { is_sold: true, sold_at: new Date().toISOString(), reserved_at: null, reserved_note: null }
+      : {};
+
     if (!mobileAdId) {
-      return json(400, { error: "Keine Mobile.de-ID vorhanden" });
+      // Nie veröffentlicht: nur lokalen Status setzen
+      await admin.from("vehicles").update({
+        publish_status: "unpublished", publish_error: null, ...soldPatch,
+      } as never).eq("id", vehicleId);
+      await logPush(null, "kein Mobile.de-Inserat vorhanden");
+      return json(200, {
+        success: true, mobileAdId: null, alreadyGone: true,
+        message: "Es existierte kein Mobile.de-Inserat – Fahrzeug wurde lokal auf „zurückgezogen“ gesetzt.",
+      });
     }
 
-    console.log(`delete-mobile-ad draftId=${draftId} mobileAdId=${mobileAdId}`);
+    console.log(`delete-mobile-ad vehicleId=${vehicleId} mobileAdId=${mobileAdId}`);
 
     const delRes = await fetch(`${API_BASE}/sellers/${SELLER_ID}/ads/${mobileAdId}`, {
       method: "DELETE",
@@ -74,6 +95,7 @@ Deno.serve(async (req) => {
     const delText = await delRes.text();
     const status = delRes.status;
     console.log(`Mobile.de DELETE status=${status}`);
+    await logPush(status, delText);
 
     const ok = status === 200 || status === 204;
     const alreadyGone = status === 404;
@@ -84,56 +106,34 @@ Deno.serve(async (req) => {
         : status === 403
         ? "Mobile.de hat das Löschen verweigert"
         : `Mobile.de Fehler beim Löschen (${status})`;
-      await admin.from("mobile_ad_drafts")
-        .update({ error_message: msg.slice(0, 2000) })
-        .eq("id", draftId);
+      await admin.from("vehicles")
+        .update({ publish_error: msg.slice(0, 2000) } as never)
+        .eq("id", vehicleId);
       return json(status, { error: msg, status, details: delText.slice(0, 500) });
     }
 
-    // Lokal als gelöscht markieren
-    const { error: updErr } = await admin.from("mobile_ad_drafts")
+    const { error: updErr } = await admin.from("vehicles")
       .update({
-        status: "deleted",
-        deleted_at: new Date().toISOString(),
-        error_message: null,
-      })
-      .eq("id", draftId);
+        publish_status: "unpublished",
+        publish_error: null,
+        published_at: null,
+        last_pushed_at: new Date().toISOString(),
+        ...soldPatch,
+      } as never)
+      .eq("id", vehicleId);
     if (updErr) {
-      console.error("Local mark-deleted failed:", updErr.message);
+      console.error("Local status update failed:", updErr.message);
       return json(500, { error: `Mobile.de gelöscht, lokal jedoch fehlgeschlagen: ${updErr.message}` });
     }
-    console.log(`local draftId=${draftId} marked status=deleted`);
-
-    // Optional: verknüpftes Vehicle weich als verkauft markieren (nur bei sicherem Match)
-    try {
-      const payload = (draft.payload && typeof draft.payload === "object") ? draft.payload as Record<string, unknown> : {};
-      const linkedVehicleId = typeof payload._linkedVehicleId === "string" ? payload._linkedVehicleId : null;
-      let vehicleSoftMarked = false;
-      if (linkedVehicleId) {
-        const { error: vErr } = await admin.from("vehicles")
-          .update({ is_sold: true, sold_at: new Date().toISOString() })
-          .eq("id", linkedVehicleId);
-        if (!vErr) vehicleSoftMarked = true;
-        else console.warn("vehicle soft-mark by id failed:", vErr.message);
-      } else if (mobileAdId) {
-        const { error: vErr } = await admin.from("vehicles")
-          .update({ is_sold: true, sold_at: new Date().toISOString() })
-          .eq("mobile_de_id", mobileAdId);
-        if (!vErr) vehicleSoftMarked = true;
-        else console.warn("vehicle soft-mark by mobile_de_id failed:", vErr.message);
-      }
-      console.log(`vehicle soft-marked=${vehicleSoftMarked}`);
-    } catch (e) {
-      console.warn("vehicle soft-mark error:", (e as Error).message);
-    }
+    console.log(`vehicle=${vehicleId} publish_status=unpublished markSold=${markSold}`);
 
     return json(200, {
       success: true,
       mobileAdId,
       alreadyGone,
       message: alreadyGone
-        ? "Inserat war bei Mobile.de bereits gelöscht – lokal als gelöscht markiert."
-        : "Inserat wurde bei Mobile.de gelöscht.",
+        ? "Inserat war bei Mobile.de bereits gelöscht – Fahrzeug im Portal auf „zurückgezogen“ gesetzt."
+        : "Inserat wurde bei Mobile.de gelöscht. Das Fahrzeug bleibt im Portal erhalten.",
     });
   } catch (err) {
     console.error("delete-mobile-ad fatal:", err);

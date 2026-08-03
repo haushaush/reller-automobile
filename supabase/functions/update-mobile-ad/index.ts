@@ -253,26 +253,48 @@ Deno.serve(async (req) => {
       .from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
     if (!roleRow) return json(403, { error: "Forbidden" });
 
-    let draftId: string | undefined;
+    let vehicleId: string | undefined;
     let mobileAdIdIn: string | undefined;
     let formPayload: AdPayload | undefined;
     try {
       const body = await req.json();
-      draftId = body?.draftId;
+      vehicleId = body?.vehicleId;
       mobileAdIdIn = body?.mobileAdId;
       formPayload = body?.formPayload;
     } catch { /* empty */ }
-    if (!draftId) return json(400, { error: "draftId required" });
-    if (!formPayload || typeof formPayload !== "object") return json(400, { error: "formPayload required" });
+    if (!vehicleId) return json(400, { error: "vehicleId required" });
 
-    const { data: draft, error: dErr } = await admin
-      .from("mobile_ad_drafts").select("id, status, payload, mobile_ad_id")
-      .eq("id", draftId).maybeSingle();
-    if (dErr || !draft) return json(404, { error: "Entwurf nicht gefunden" });
-    const mobileAdId = mobileAdIdIn || draft.mobile_ad_id;
+    const { data: vehicle, error: dErr } = await admin
+      .from("vehicles").select("id, publish_status, mobile_payload, mobile_ad_id")
+      .eq("id", vehicleId).maybeSingle();
+    if (dErr || !vehicle) return json(404, { error: "Fahrzeug nicht gefunden" });
+    if (!formPayload || typeof formPayload !== "object") {
+      formPayload = (vehicle.mobile_payload ?? {}) as AdPayload;
+    }
+    const mobileAdId = mobileAdIdIn || vehicle.mobile_ad_id;
     if (!mobileAdId) return json(400, { error: "Keine Mobile.de-ID vorhanden" });
 
-    console.log(`update-mobile-ad draftId=${draftId} mobileAdId=${mobileAdId}`);
+    const logPush = async (
+      action: string, requestBody: unknown, responseStatus: number | null, responseBody: string,
+    ) => {
+      try {
+        await admin.from("mobile_push_log").insert({
+          vehicle_id: vehicleId, action,
+          request_body: (requestBody ?? null) as never,
+          response_status: responseStatus,
+          response_body: responseBody.slice(0, 5000),
+        });
+      } catch (e) { console.warn("mobile_push_log insert failed:", (e as Error).message); }
+    };
+    const failVehicle = async (msg: string) => {
+      await admin.from("vehicles").update({
+        publish_status: "out_of_sync",
+        publish_error: msg.slice(0, 2000),
+        last_pushed_at: new Date().toISOString(),
+      } as never).eq("id", vehicleId);
+    };
+
+    console.log(`update-mobile-ad vehicleId=${vehicleId} mobileAdId=${mobileAdId}`);
 
     // 1) Aktuellen Live-Stand holen
     const getRes = await fetch(`${API_BASE}/sellers/${SELLER_ID}/ads/${mobileAdId}`, {
@@ -283,7 +305,8 @@ Deno.serve(async (req) => {
     if (!getRes.ok) {
       console.warn(`pre-GET body=${getText.slice(0, 300)}`);
       const msg = `Aktuellen Live-Stand konnte nicht geladen werden (${getRes.status})`;
-      await admin.from("mobile_ad_drafts").update({ error_message: msg.slice(0, 2000) }).eq("id", draftId);
+      await failVehicle(msg);
+      await logPush("update-preget", null, getRes.status, getText);
       return json(getRes.status, { error: msg, details: getText.slice(0, 500) });
     }
     let currentMobileAd: AdPayload = {};
@@ -295,7 +318,8 @@ Deno.serve(async (req) => {
     if (warnings.length) console.warn("warnings:", warnings);
     if (missing.length) {
       const msg = `Pflichtfelder fehlen oder ungültig: ${missing.join(", ")}`;
-      await admin.from("mobile_ad_drafts").update({ error_message: msg.slice(0, 2000) }).eq("id", draftId);
+      await failVehicle(msg);
+      await logPush("update", mapped, null, msg);
       return json(400, { error: msg, missing, warnings });
     }
 
@@ -316,7 +340,7 @@ Deno.serve(async (req) => {
     );
     if (!normalizedPrice || !normalizedPrice.consumerPriceGross) {
       const msg = "Preis fehlt: consumerPriceGross konnte nicht ermittelt werden.";
-      await admin.from("mobile_ad_drafts").update({ error_message: msg }).eq("id", draftId);
+      await failVehicle(msg);
       return json(400, { error: msg });
     }
     const hadConsumerValue =
@@ -359,9 +383,8 @@ Deno.serve(async (req) => {
       try { parsed = JSON.parse(putText); } catch { /* keep text */ }
       const human = typeof parsed === "object" && parsed && "errors" in (parsed as Record<string, unknown>)
         ? JSON.stringify((parsed as Record<string, unknown>).errors) : putText.slice(0, 500);
-      await admin.from("mobile_ad_drafts")
-        .update({ error_message: human.slice(0, 2000) })
-        .eq("id", draftId);
+      await failVehicle(human);
+      await logPush("update", finalBody, putRes.status, putText);
       return json(putRes.status, { error: "Mobile.de hat das Update abgelehnt", status: putRes.status, details: parsed });
     }
 
@@ -378,22 +401,26 @@ Deno.serve(async (req) => {
       console.warn("verify error:", (e as Error).message);
     }
 
-    // Interne Felder (Underscore-prefixed) aus altem Draft-Payload bewahren
-    const prevPayload = (draft.payload && typeof draft.payload === "object") ? draft.payload as Record<string, unknown> : {};
+    // Interne Felder (Underscore-prefixed, z.B. _imagePaths) bewahren
+    const prevPayload = (vehicle.mobile_payload && typeof vehicle.mobile_payload === "object")
+      ? vehicle.mobile_payload as Record<string, unknown> : {};
     const internalFields: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(prevPayload)) {
       if (k.startsWith("_")) internalFields[k] = v;
     }
     const persistedPayload: Record<string, unknown> = {
-      ...(verifiedAd ?? finalBody),
+      ...(formPayload as Record<string, unknown>),
       ...internalFields,
     };
 
-    await admin.from("mobile_ad_drafts").update({
-      status: "published",
-      payload: persistedPayload,
-      error_message: null,
-    }).eq("id", draftId);
+    const nowIso = new Date().toISOString();
+    await admin.from("vehicles").update({
+      publish_status: "published",
+      mobile_payload: persistedPayload as never,
+      publish_error: null,
+      last_pushed_at: nowIso,
+    } as never).eq("id", vehicleId);
+    await logPush("update", finalBody, putRes.status, putText);
 
     return json(200, {
       success: true,

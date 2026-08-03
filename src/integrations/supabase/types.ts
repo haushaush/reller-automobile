@@ -356,6 +356,88 @@ export type Database = {
         }
         Relationships: []
       }
+      mobile_push_log: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          request_body: Json | null
+          response_body: string | null
+          response_status: number | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          request_body?: Json | null
+          response_body?: string | null
+          response_status?: number | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          request_body?: Json | null
+          response_body?: string | null
+          response_status?: number | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mobile_push_log_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mobile_reconciliation_issues: {
+        Row: {
+          detail: string | null
+          detected_at: string
+          id: string
+          issue_type: string
+          mobile_ad_id: string | null
+          resolved_at: string | null
+          scope: string
+          severity: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          detail?: string | null
+          detected_at?: string
+          id?: string
+          issue_type: string
+          mobile_ad_id?: string | null
+          resolved_at?: string | null
+          scope?: string
+          severity?: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          detail?: string | null
+          detected_at?: string
+          id?: string
+          issue_type?: string
+          mobile_ad_id?: string | null
+          resolved_at?: string | null
+          scope?: string
+          severity?: string
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mobile_reconciliation_issues_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       price_history: {
         Row: {
           id: string
@@ -805,9 +887,12 @@ export type Database = {
           interior_type_label: string | null
           is_featured: boolean
           is_sold: boolean
+          last_pushed_at: string | null
           manual_overrides: Json
           mileage: number | null
+          mobile_ad_id: string | null
           mobile_de_id: string
+          mobile_payload: Json | null
           model: string | null
           model_description: string | null
           modification_date: string | null
@@ -819,6 +904,9 @@ export type Database = {
           power: number | null
           price: number | null
           price_type: string | null
+          publish_error: string | null
+          publish_status: Database["public"]["Enums"]["publish_status"] | null
+          published_at: string | null
           reserved_at: string | null
           reserved_note: string | null
           seller_city: string | null
@@ -874,9 +962,12 @@ export type Database = {
           interior_type_label?: string | null
           is_featured?: boolean
           is_sold?: boolean
+          last_pushed_at?: string | null
           manual_overrides?: Json
           mileage?: number | null
+          mobile_ad_id?: string | null
           mobile_de_id: string
+          mobile_payload?: Json | null
           model?: string | null
           model_description?: string | null
           modification_date?: string | null
@@ -888,6 +979,9 @@ export type Database = {
           power?: number | null
           price?: number | null
           price_type?: string | null
+          publish_error?: string | null
+          publish_status?: Database["public"]["Enums"]["publish_status"] | null
+          published_at?: string | null
           reserved_at?: string | null
           reserved_note?: string | null
           seller_city?: string | null
@@ -943,9 +1037,12 @@ export type Database = {
           interior_type_label?: string | null
           is_featured?: boolean
           is_sold?: boolean
+          last_pushed_at?: string | null
           manual_overrides?: Json
           mileage?: number | null
+          mobile_ad_id?: string | null
           mobile_de_id?: string
+          mobile_payload?: Json | null
           model?: string | null
           model_description?: string | null
           modification_date?: string | null
@@ -957,6 +1054,9 @@ export type Database = {
           power?: number | null
           price?: number | null
           price_type?: string | null
+          publish_error?: string | null
+          publish_status?: Database["public"]["Enums"]["publish_status"] | null
+          published_at?: string | null
           reserved_at?: string | null
           reserved_note?: string | null
           seller_city?: string | null
@@ -1025,6 +1125,13 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "editor" | "viewer" | "seller"
+      publish_status:
+        | "draft"
+        | "publishing"
+        | "published"
+        | "publish_error"
+        | "unpublished"
+        | "out_of_sync"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1153,6 +1260,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "editor", "viewer", "seller"],
+      publish_status: [
+        "draft",
+        "publishing",
+        "published",
+        "publish_error",
+        "unpublished",
+        "out_of_sync",
+      ],
     },
   },
 } as const
