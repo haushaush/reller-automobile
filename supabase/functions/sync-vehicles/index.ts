@@ -8,9 +8,13 @@ import {
 
 const SELLER_ID = "451040";
 const MOBILE_USER =
-  Deno.env.get("MOBILE_DE_SELLER_USERNAME") || Deno.env.get("MOBILE_DE_USERNAME") || "";
+  Deno.env.get("MOBILE_DE_SEARCH_USERNAME") ||
+  Deno.env.get("MOBILE_DE_SELLER_USERNAME") ||
+  Deno.env.get("MOBILE_DE_USERNAME") || "";
 const MOBILE_PASS =
-  Deno.env.get("MOBILE_DE_SELLER_PASSWORD") || Deno.env.get("MOBILE_DE_PASSWORD") || "";
+  Deno.env.get("MOBILE_DE_SEARCH_PASSWORD") ||
+  Deno.env.get("MOBILE_DE_SELLER_PASSWORD") ||
+  Deno.env.get("MOBILE_DE_PASSWORD") || "";
 const LOCK_NAME = "mobile-de-reconcile";
 
 Deno.serve(async (req) => {
