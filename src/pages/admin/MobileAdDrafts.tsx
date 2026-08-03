@@ -385,25 +385,37 @@ export default function MobileAdDrafts() {
     try {
       const d = getDraftIdentity(draft.payload);
 
-      // VIN-first exact match
+      // VIN-first exact match (FIN liegt in der geschützten Tabelle vehicle_private_data)
       if (d.vin) {
-        const { data } = await supabase
-          .from("vehicles")
-          .select("id, mobile_de_id, brand, model, model_description, title, price, mileage, vin, year")
+        const { data: privRows } = await supabase
+          .from("vehicle_private_data")
+          .select("vehicle_id, vin")
           .ilike("vin", d.vin)
           .limit(10);
-        if (data && data.length) {
-          const scored = data.map((v) => ({ ...(v as VehicleMatch), _score: scoreMatch(d, v as VehicleMatch) }));
-          scored.sort((a, b) => b._score - a._score);
-          setLinkMatches(scored);
-          return;
+        const vehicleIds = (privRows ?? []).map((p) => p.vehicle_id);
+        if (vehicleIds.length) {
+          const { data } = await supabase
+            .from("vehicles")
+            .select("id, mobile_de_id, brand, model, model_description, title, price, mileage, year")
+            .in("id", vehicleIds)
+            .limit(10);
+          if (data && data.length) {
+            const vinById = new Map((privRows ?? []).map((p) => [p.vehicle_id, p.vin]));
+            const scored = data.map((row) => {
+              const v: VehicleMatch = { ...row, vin: vinById.get(row.id) ?? null };
+              return { ...v, _score: scoreMatch(d, v) };
+            });
+            scored.sort((a, b) => b._score - a._score);
+            setLinkMatches(scored);
+            return;
+          }
         }
       }
 
       // Fallback: brand+model, optional price window
       let q = supabase
         .from("vehicles")
-        .select("id, mobile_de_id, brand, model, model_description, title, price, mileage, vin, year")
+        .select("id, mobile_de_id, brand, model, model_description, title, price, mileage, year")
         .not("mobile_de_id", "is", null);
       if (d.make) q = q.ilike("brand", d.make);
       if (d.model) q = q.ilike("model", d.model);
@@ -418,7 +430,10 @@ export default function MobileAdDrafts() {
         return;
       }
       const scored = (data ?? [])
-        .map((v) => ({ ...(v as VehicleMatch), _score: scoreMatch(d, v as VehicleMatch) }))
+        .map((row) => {
+          const v: VehicleMatch = { ...row, vin: null };
+          return { ...v, _score: scoreMatch(d, v) };
+        })
         .filter((v) => v._score > 0)
         .sort((a, b) => b._score - a._score)
         .slice(0, 10);

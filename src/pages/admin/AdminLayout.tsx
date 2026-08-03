@@ -15,6 +15,7 @@ import {
   FileText,
   Images,
   Upload,
+  ShieldAlert,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +35,7 @@ const navItems: NavItem[] = [
   { label: "Übersicht", path: "/admin", icon: LayoutDashboard, exact: true },
   { label: "Accounts", path: "/admin/accounts", icon: Users, adminOnly: true },
   { label: "Sync-Status", path: "/admin/sync", icon: RefreshCw },
+  { label: "Datenqualität", path: "/admin/data-quality", icon: ShieldAlert },
   { label: "Anfragen", path: "/admin/inquiries", icon: Mail, badgeKey: "inquiries" },
   { label: "Suchaufträge", path: "/admin/alerts", icon: Bell },
   { label: "Story-Generator", path: "/admin/stories", icon: ImageIcon },

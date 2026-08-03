@@ -155,7 +155,6 @@ export default function VehicleCreate() {
       const payload = {
         mobile_de_id: `vin_${v}`,
         source: "manual",
-        vin: v,
         title: form.title.trim(),
         brand: form.brand.trim() || null,
         model: form.model.trim() || null,
@@ -177,11 +176,19 @@ export default function VehicleCreate() {
         is_sold: false,
         synced_at: new Date().toISOString(),
       };
-      const { error } = await supabase.from("vehicles").insert(payload);
+      const { data: inserted, error } = await supabase
+        .from("vehicles")
+        .insert(payload)
+        .select("id")
+        .single();
       if (error) {
         console.error(error);
         toast.error(error.message.includes("duplicate") ? "Diese FIN existiert bereits." : `Speichern fehlgeschlagen: ${error.message}`);
         return;
+      }
+      if (inserted?.id) {
+        // FIN wird bewusst nur in der geschützten, admin-only Tabelle gespeichert.
+        await supabase.from("vehicle_private_data").upsert({ vehicle_id: inserted.id, vin: v });
       }
       toast.success("Fahrzeug gespeichert");
       navigate("/admin");

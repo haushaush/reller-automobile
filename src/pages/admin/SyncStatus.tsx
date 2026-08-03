@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,13 +18,24 @@ interface SyncLog {
   vehicles_total: number | null;
   vehicles_added: number | null;
   vehicles_updated: number | null;
+  vehicles_unchanged: number | null;
   vehicles_marked_sold: number | null;
   pages_fetched: number | null;
   page_size: number | null;
   mobile_total_results: number | null;
+  quality_issues_found: number | null;
+  price_changes: number | null;
   stop_reason: string | null;
   status: string | null;
   error_message: string | null;
+}
+
+interface PriceChangeRow {
+  id: string;
+  vehicle_id: string;
+  price: number | null;
+  currency: string | null;
+  recorded_at: string;
 }
 
 interface RecentVehicle {
@@ -41,13 +53,21 @@ export default function SyncStatus() {
   const [logs, setLogs] = useState<SyncLog[]>([]);
   const [recentlyUpdated, setRecentlyUpdated] = useState<RecentVehicle[]>([]);
   const [newVehicles, setNewVehicles] = useState<RecentVehicle[]>([]);
-  const [stats, setStats] = useState({ added24h: 0, sold24h: 0, lastSync: null as string | null });
+  const [priceChanges, setPriceChanges] = useState<PriceChangeRow[]>([]);
+  const [priceVehicles, setPriceVehicles] = useState<Record<string, { title: string; brand: string | null }>>({});
+  const [stats, setStats] = useState({
+    added24h: 0,
+    sold24h: 0,
+    lastSync: null as string | null,
+    openIssues: 0,
+    errorIssues: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isTriggering, setIsTriggering] = useState(false);
 
   const loadData = useCallback(async () => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [logsRes, updatedRes, newRes, addedRes, soldRes] = await Promise.all([
+    const [logsRes, updatedRes, newRes, addedRes, soldRes, issuesRes, errorIssuesRes, priceRes] = await Promise.all([
       supabase.from("sync_logs").select("*").order("started_at", { ascending: false }).limit(20),
       supabase
         .from("vehicles")
@@ -68,15 +88,42 @@ export default function SyncStatus() {
         .select("*", { count: "exact", head: true })
         .eq("is_sold", true)
         .gte("sold_at", since),
+      supabase.from("vehicle_quality_issues").select("*", { count: "exact", head: true }).is("resolved_at", null),
+      supabase
+        .from("vehicle_quality_issues")
+        .select("*", { count: "exact", head: true })
+        .is("resolved_at", null)
+        .eq("severity", "error"),
+      supabase
+        .from("vehicle_price_history")
+        .select("id, vehicle_id, price, currency, recorded_at")
+        .gte("recorded_at", since)
+        .order("recorded_at", { ascending: false })
+        .limit(15),
     ]);
 
     setLogs((logsRes.data as SyncLog[]) || []);
     setRecentlyUpdated((updatedRes.data as RecentVehicle[]) || []);
     setNewVehicles((newRes.data as RecentVehicle[]) || []);
+
+    const priceRows = (priceRes.data as PriceChangeRow[]) || [];
+    setPriceChanges(priceRows);
+    const priceIds = [...new Set(priceRows.map((p) => p.vehicle_id))];
+    if (priceIds.length > 0) {
+      const { data: pv } = await supabase.from("vehicles").select("id, title, brand").in("id", priceIds);
+      const map: Record<string, { title: string; brand: string | null }> = {};
+      for (const v of pv || []) map[v.id] = { title: v.title, brand: v.brand };
+      setPriceVehicles(map);
+    } else {
+      setPriceVehicles({});
+    }
+
     setStats({
       added24h: addedRes.count || 0,
       sold24h: soldRes.count || 0,
       lastSync: logsRes.data?.[0]?.started_at ?? null,
+      openIssues: issuesRes.count || 0,
+      errorIssues: errorIssuesRes.count || 0,
     });
     setIsLoading(false);
   }, []);
@@ -167,7 +214,7 @@ export default function SyncStatus() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="p-5">
           <div className="text-sm text-muted-foreground">Letzter Sync</div>
           <div className="text-lg font-semibold mt-2">
@@ -185,6 +232,16 @@ export default function SyncStatus() {
           <div className="text-sm text-muted-foreground">Verkauft markiert (24h)</div>
           <div className="text-2xl font-semibold mt-2">{stats.sold24h}</div>
           <div className="text-xs text-muted-foreground mt-1">nach sold_at</div>
+        </Card>
+        <Card className="p-5">
+          <div className="text-sm text-muted-foreground">Offene Datenqualitäts-Probleme</div>
+          <div className="text-2xl font-semibold mt-2">{stats.openIssues}</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            davon {stats.errorIssues} Fehler ·{" "}
+            <Link to="/admin/data-quality" className="underline">
+              Details
+            </Link>
+          </div>
         </Card>
       </div>
 
@@ -235,8 +292,26 @@ export default function SyncStatus() {
                           <span className="text-green-600">{log.vehicles_added ?? 0} neu</span>
                           <span>·</span>
                           <span>{log.vehicles_updated ?? 0} aktualisiert</span>
+                          {log.vehicles_unchanged != null && (
+                            <>
+                              <span>·</span>
+                              <span>{log.vehicles_unchanged} unverändert</span>
+                            </>
+                          )}
                           <span>·</span>
                           <span className="text-destructive">{log.vehicles_marked_sold ?? 0} verkauft</span>
+                          {log.price_changes != null && (
+                            <>
+                              <span>·</span>
+                              <span>{log.price_changes} Preisänderung{log.price_changes === 1 ? "" : "en"}</span>
+                            </>
+                          )}
+                          {log.quality_issues_found != null && (
+                            <>
+                              <span>·</span>
+                              <span>{log.quality_issues_found} Qualitätsprobleme</span>
+                            </>
+                          )}
                         </div>
                       )}
                       {log.stop_reason && (
@@ -290,6 +365,47 @@ export default function SyncStatus() {
             ) : (
               <div className="space-y-3 max-h-[240px] overflow-y-auto">
                 {recentlyUpdated.map((v) => renderVehicle(v, v.synced_at))}
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="text-lg font-semibold">Preisänderungen (24h)</h2>
+            <p className="text-xs text-muted-foreground mt-1 mb-4">
+              Neue Einträge in der Preishistorie aus den letzten 24 Stunden.
+            </p>
+            {priceChanges.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Keine Preisänderungen in den letzten 24 Stunden.</p>
+            ) : (
+              <div className="space-y-3 max-h-[240px] overflow-y-auto">
+                {priceChanges.map((p) => {
+                  const v = priceVehicles[p.vehicle_id];
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-start justify-between gap-3 pb-3 border-b border-border last:border-0"
+                    >
+                      <div className="min-w-0 flex-1">
+                        {v && <div className="text-xs uppercase text-muted-foreground">{v.brand}</div>}
+                        <div className="text-sm font-medium truncate">
+                          {v ? (
+                            <Link to={`/fahrzeug/${p.vehicle_id}`} className="hover:underline">
+                              {v.title}
+                            </Link>
+                          ) : (
+                            `Fahrzeug ${p.vehicle_id.slice(0, 8)}…`
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {formatDistanceToNow(new Date(p.recorded_at), { addSuffix: true, locale: de })}
+                        </div>
+                      </div>
+                      <div className="text-sm font-medium shrink-0">
+                        {p.price != null ? `${p.price.toLocaleString("de-DE")} ${p.currency ?? "EUR"}` : "—"}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </Card>

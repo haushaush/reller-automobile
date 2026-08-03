@@ -335,6 +335,27 @@ export type Database = {
         }
         Relationships: []
       }
+      mobile_de_label_map: {
+        Row: {
+          field: string
+          key: string
+          label: string
+          prio: number
+        }
+        Insert: {
+          field: string
+          key: string
+          label: string
+          prio?: number
+        }
+        Update: {
+          field?: string
+          key?: string
+          label?: string
+          prio?: number
+        }
+        Relationships: []
+      }
       price_history: {
         Row: {
           id: string
@@ -416,6 +437,8 @@ export type Database = {
           mobile_total_results: number | null
           page_size: number | null
           pages_fetched: number | null
+          price_changes: number | null
+          quality_issues_found: number | null
           started_at: string
           status: string | null
           stop_reason: string | null
@@ -423,6 +446,7 @@ export type Database = {
           vehicles_added: number | null
           vehicles_marked_sold: number | null
           vehicles_total: number | null
+          vehicles_unchanged: number | null
           vehicles_updated: number | null
         }
         Insert: {
@@ -434,6 +458,8 @@ export type Database = {
           mobile_total_results?: number | null
           page_size?: number | null
           pages_fetched?: number | null
+          price_changes?: number | null
+          quality_issues_found?: number | null
           started_at?: string
           status?: string | null
           stop_reason?: string | null
@@ -441,6 +467,7 @@ export type Database = {
           vehicles_added?: number | null
           vehicles_marked_sold?: number | null
           vehicles_total?: number | null
+          vehicles_unchanged?: number | null
           vehicles_updated?: number | null
         }
         Update: {
@@ -452,6 +479,8 @@ export type Database = {
           mobile_total_results?: number | null
           page_size?: number | null
           pages_fetched?: number | null
+          price_changes?: number | null
+          quality_issues_found?: number | null
           started_at?: string
           status?: string | null
           stop_reason?: string | null
@@ -459,6 +488,7 @@ export type Database = {
           vehicles_added?: number | null
           vehicles_marked_sold?: number | null
           vehicles_total?: number | null
+          vehicles_unchanged?: number | null
           vehicles_updated?: number | null
         }
         Relationships: []
@@ -562,6 +592,102 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_price_history: {
+        Row: {
+          currency: string
+          id: string
+          price: number | null
+          recorded_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          currency?: string
+          id?: string
+          price?: number | null
+          recorded_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          currency?: string
+          id?: string
+          price?: number | null
+          recorded_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_price_history_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_private_data: {
+        Row: {
+          updated_at: string
+          vehicle_id: string
+          vin: string | null
+        }
+        Insert: {
+          updated_at?: string
+          vehicle_id: string
+          vin?: string | null
+        }
+        Update: {
+          updated_at?: string
+          vehicle_id?: string
+          vin?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_private_data_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: true
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_quality_issues: {
+        Row: {
+          detail: string | null
+          detected_at: string
+          id: string
+          issue_type: string
+          resolved_at: string | null
+          severity: string
+          vehicle_id: string
+        }
+        Insert: {
+          detail?: string | null
+          detected_at?: string
+          id?: string
+          issue_type: string
+          resolved_at?: string | null
+          severity?: string
+          vehicle_id: string
+        }
+        Update: {
+          detail?: string | null
+          detected_at?: string
+          id?: string
+          issue_type?: string
+          resolved_at?: string | null
+          severity?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_quality_issues_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicle_stories: {
         Row: {
           created_at: string
@@ -598,10 +724,16 @@ export type Database = {
       vehicles: {
         Row: {
           body_type: string | null
+          body_type_key: string | null
+          body_type_label: string | null
           brand: string | null
           category: string | null
           climatisation: string | null
+          climatisation_key: string | null
+          climatisation_label: string | null
           condition: string | null
+          condition_key: string | null
+          condition_label: string | null
           created_at: string
           creation_date: string | null
           cubic_capacity: number | null
@@ -610,13 +742,22 @@ export type Database = {
           description: string | null
           detail_page_url: string | null
           exterior_color: string | null
+          exterior_color_key: string | null
+          exterior_color_label: string | null
           fuel: string | null
+          fuel_key: string | null
+          fuel_label: string | null
           gearbox: string | null
+          gearbox_key: string | null
+          gearbox_label: string | null
           id: string
           image_urls: string[] | null
           interior_color: string | null
           interior_type: string | null
+          interior_type_key: string | null
+          interior_type_label: string | null
           is_sold: boolean
+          manual_overrides: Json
           mileage: number | null
           mobile_de_id: string
           model: string | null
@@ -638,17 +779,24 @@ export type Database = {
           title: string
           updated_at: string
           usage_type: string | null
+          usage_type_key: string | null
+          usage_type_label: string | null
           vatable: boolean | null
           vehicle_category: string | null
-          vin: string | null
           year: string | null
         }
         Insert: {
           body_type?: string | null
+          body_type_key?: string | null
+          body_type_label?: string | null
           brand?: string | null
           category?: string | null
           climatisation?: string | null
+          climatisation_key?: string | null
+          climatisation_label?: string | null
           condition?: string | null
+          condition_key?: string | null
+          condition_label?: string | null
           created_at?: string
           creation_date?: string | null
           cubic_capacity?: number | null
@@ -657,13 +805,22 @@ export type Database = {
           description?: string | null
           detail_page_url?: string | null
           exterior_color?: string | null
+          exterior_color_key?: string | null
+          exterior_color_label?: string | null
           fuel?: string | null
+          fuel_key?: string | null
+          fuel_label?: string | null
           gearbox?: string | null
+          gearbox_key?: string | null
+          gearbox_label?: string | null
           id?: string
           image_urls?: string[] | null
           interior_color?: string | null
           interior_type?: string | null
+          interior_type_key?: string | null
+          interior_type_label?: string | null
           is_sold?: boolean
+          manual_overrides?: Json
           mileage?: number | null
           mobile_de_id: string
           model?: string | null
@@ -685,17 +842,24 @@ export type Database = {
           title: string
           updated_at?: string
           usage_type?: string | null
+          usage_type_key?: string | null
+          usage_type_label?: string | null
           vatable?: boolean | null
           vehicle_category?: string | null
-          vin?: string | null
           year?: string | null
         }
         Update: {
           body_type?: string | null
+          body_type_key?: string | null
+          body_type_label?: string | null
           brand?: string | null
           category?: string | null
           climatisation?: string | null
+          climatisation_key?: string | null
+          climatisation_label?: string | null
           condition?: string | null
+          condition_key?: string | null
+          condition_label?: string | null
           created_at?: string
           creation_date?: string | null
           cubic_capacity?: number | null
@@ -704,13 +868,22 @@ export type Database = {
           description?: string | null
           detail_page_url?: string | null
           exterior_color?: string | null
+          exterior_color_key?: string | null
+          exterior_color_label?: string | null
           fuel?: string | null
+          fuel_key?: string | null
+          fuel_label?: string | null
           gearbox?: string | null
+          gearbox_key?: string | null
+          gearbox_label?: string | null
           id?: string
           image_urls?: string[] | null
           interior_color?: string | null
           interior_type?: string | null
+          interior_type_key?: string | null
+          interior_type_label?: string | null
           is_sold?: boolean
+          manual_overrides?: Json
           mileage?: number | null
           mobile_de_id?: string
           model?: string | null
@@ -732,9 +905,10 @@ export type Database = {
           title?: string
           updated_at?: string
           usage_type?: string | null
+          usage_type_key?: string | null
+          usage_type_label?: string | null
           vatable?: boolean | null
           vehicle_category?: string | null
-          vin?: string | null
           year?: string | null
         }
         Relationships: []
@@ -760,6 +934,14 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      mobile_de_resolve_key: {
+        Args: { _field: string; _value: string }
+        Returns: string
+      }
+      mobile_de_resolve_label: {
+        Args: { _field: string; _value: string }
+        Returns: string
       }
       move_to_dlq: {
         Args: {
