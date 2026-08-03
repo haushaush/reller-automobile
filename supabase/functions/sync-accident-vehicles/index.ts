@@ -652,9 +652,24 @@ Deno.serve(async (req) => {
     const totalImages = vehicleRows.reduce((sum, v) => sum + v.image_urls.length, 0);
     console.log(`[accident] Total images: ${totalImages}`);
 
+    // Preisänderungen erkennen (vor dem Upsert) + manuelle Overrides schützen.
+    const priceChanged: Array<{ mobile_de_id: string; price: number | null; currency: string }> = [];
+    for (const v of vehicleRows) {
+      const existing = existingMap.get(v.mobile_de_id);
+      if (existing && existing.price !== v.price) {
+        priceChanged.push({ mobile_de_id: v.mobile_de_id, price: v.price, currency: v.currency });
+      }
+    }
+    logPriceChanges = priceChanged.length;
+
+    const upsertRows = vehicleRows.map((v) => {
+      const existing = existingMap.get(v.mobile_de_id);
+      return existing ? stripManualOverrides(v, existing.manual_overrides) : v;
+    });
+
     const { error: upsertError } = await supabase
       .from("vehicles")
-      .upsert(vehicleRows, { onConflict: "mobile_de_id" });
+      .upsert(upsertRows, { onConflict: "mobile_de_id" });
 
     if (upsertError) {
       console.error("[accident] Upsert error:", upsertError);
@@ -667,7 +682,15 @@ Deno.serve(async (req) => {
     console.log(`[accident] Upserted ${vehicleRows.length} vehicles`);
     logTotal = vehicleRows.length;
     logAdded = vehicleRows.filter((v) => !existingMobileDeIds.has(v.mobile_de_id)).length;
-    logUpdated = vehicleRows.length - logAdded;
+    logUpdated = vehicleRows.filter((v) => {
+      const existing = existingMap.get(v.mobile_de_id);
+      if (!existing) return false;
+      return existing.modification_date !== v.modification_date || existing.price !== v.price;
+    }).length;
+    logUnchanged = vehicleRows.length - logAdded - logUpdated;
+
+    await persistVinsAndPriceHistory(supabase, vehicleRows, vinByMobileId, existingMap, priceChanged);
+
 
     // Sync-Mail nur für wirklich neue Unfallwagen auslösen.
     // Die include_accident_vehicles-Einstellung wird in notify-new-synced-vehicle geprüft.
