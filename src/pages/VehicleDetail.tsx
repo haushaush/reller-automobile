@@ -10,8 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Send, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useInquiry, MAX_INQUIRY_ITEMS } from "@/contexts/InquiryContext";
 import { toast } from "sonner";
-import {
 import { resolveVehicleImages } from "@/lib/vehicleImages";
+import {
   getBodyTypeLabel,
   getFuelLabel,
   getGearboxLabel,
