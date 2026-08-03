@@ -26,6 +26,7 @@ const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const StoryGenerator = lazy(() => import("./pages/admin/StoryGenerator"));
 const SyncStatus = lazy(() => import("./pages/admin/SyncStatus"));
+const DataQuality = lazy(() => import("./pages/admin/DataQuality"));
 const InquiriesAdmin = lazy(() => import("./pages/admin/InquiriesAdmin"));
 const InquiryDetail = lazy(() => import("./pages/admin/InquiryDetail"));
 const AlertsAdmin = lazy(() => import("./pages/admin/AlertsAdmin"));
