@@ -314,7 +314,7 @@ export default function VehiclesAdmin() {
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link to="/admin/fahrzeuge/neu">Fahrzeug anlegen</Link>
+          <Link to="/admin/fahrzeug-anlegen">Fahrzeug anlegen</Link>
         </Button>
       </div>
 

@@ -210,7 +210,7 @@ async function getOrCreateStory(
     return { url: existing.url, storyId: existing.id, reused: true };
   }
 
-  // 2) Invoke shared generator (same logic as /admin/stories)
+  // 2) Invoke shared generator (same logic as /admin/storys)
   console.log(`story generate start vehicle=${vehicleId}`);
   try {
     const { data, error } = await admin.functions.invoke("generate-story", {

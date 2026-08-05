@@ -73,9 +73,9 @@ export default function AdminDashboard() {
       icon: ImageOff,
       to: "/admin/fahrzeuge?noImages=1",
     },
-    { label: "Generierte Stories", value: stats.totalStories, icon: ImageIcon, to: "/admin/story-archive" },
-    { label: "Offene Anfragen", value: stats.pendingInquiries, icon: Mail, to: "/admin/inquiries" },
-    { label: "Aktive Suchaufträge", value: stats.activeAlerts, icon: Bell, to: "/admin/alerts" },
+    { label: "Generierte Stories", value: stats.totalStories, icon: ImageIcon, to: "/admin/storys?tab=archiv" },
+    { label: "Offene Anfragen", value: stats.pendingInquiries, icon: Mail, to: "/admin/anfragen" },
+    { label: "Aktive Suchaufträge", value: stats.activeAlerts, icon: Bell, to: "/admin/suchauftraege" },
   ];
 
   return (

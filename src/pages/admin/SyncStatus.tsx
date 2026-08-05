@@ -243,7 +243,7 @@ export default function SyncStatus() {
           <div className="text-2xl font-semibold mt-2">{stats.openIssues}</div>
           <div className="text-xs text-muted-foreground mt-1">
             davon {stats.errorIssues} Fehler ·{" "}
-            <Link to="/admin/data-quality" className="underline">
+            <Link to="/admin/einstellungen/datenqualitaet" className="underline">
               Details
             </Link>
           </div>
