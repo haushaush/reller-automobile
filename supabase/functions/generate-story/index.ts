@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resvg, initWasm } from "https://esm.sh/@resvg/resvg-wasm@2.6.2";
 import { Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { emitNotificationEvent } from "../_shared/emit-event.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -622,6 +623,11 @@ Deno.serve(async (req) => {
         }).select("id").single();
         if (inserted?.id) {
           storyIds.push(inserted.id);
+          await emitNotificationEvent(admin, "story_generated", {
+            vehicleId: v.id,
+            title: (v as { title?: string }).title ?? "Fahrzeug",
+            storyUrl: publicUrl,
+          });
           if (sendDealer) {
             await sendDealerEmail(admin, v, inserted.id, publicUrl, recipients);
           }

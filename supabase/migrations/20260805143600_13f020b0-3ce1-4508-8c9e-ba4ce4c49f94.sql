@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.notify_vehicle_sold() FROM PUBLIC, anon, authenticated;

@@ -2,9 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const RESEND_GATEWAY = "https://connector-gateway.lovable.dev/resend";
-const FROM = "Reller Portal <noreply@updates.haushhaush.de>";
-const DEALER_EMAIL_PRIMARY = Deno.env.get("DEALER_EMAIL_PRIMARY") || "dennis@haushhaush.de";
-const DEALER_EMAIL_SECONDARY = Deno.env.get("DEALER_EMAIL_SECONDARY") || "admin@haushhaush.de";
+import { loadMailSettings, formatFrom, assertSendableAddresses, serviceClient } from "../_shared/mail-config.ts";
+import { loadRecipients } from "../_shared/internal-mail.ts";
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://reller-automobile.lovable.app";
 
 interface ContactInput {
@@ -233,6 +232,14 @@ async function sendResendMail(args: {
   replyTo?: string;
   bcc?: string[];
 }): Promise<{ ok: boolean; error?: string }> {
+  const admin = serviceClient();
+  const settings = await loadMailSettings(admin);
+  const FROM = formatFrom(settings);
+  const guard = await assertSendableAddresses(admin, "send-inquiry", {
+    from: FROM,
+    replyTo: args.replyTo ?? null,
+  });
+  if (!guard.ok) return { ok: false, error: guard.error };
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   const resendKey = Deno.env.get("RESEND_API_KEY");
   if (!lovableKey) return { ok: false, error: "LOVABLE_API_KEY not configured" };
@@ -377,10 +384,14 @@ Deno.serve(async (req) => {
   const dealerHtml = dealerEmailHtml(contact, vehicles as VehicleRow[], message ?? null, inquiry.id);
   const customerHtml = customerEmailHtml(contact, vehicles as VehicleRow[]);
 
-  const SALES_EMAIL = "verkauf@reller-automobile.de";
+  const admin = serviceClient();
+  const settings = await loadMailSettings(admin);
+  const configured = await loadRecipients(admin, "inquiry_received");
   const dealerRecipients = Array.from(
     new Set(
-      [DEALER_EMAIL_PRIMARY, DEALER_EMAIL_SECONDARY, SALES_EMAIL].filter(Boolean) as string[],
+      (configured.length > 0 ? configured : [settings.inquiry_inbox])
+        .map((m) => m.trim().toLowerCase())
+        .filter(Boolean),
     ),
   );
 
@@ -395,6 +406,7 @@ Deno.serve(async (req) => {
       to: contact.email,
       subject: "Ihre Anfrage bei Reller Automobile",
       html: customerHtml,
+      replyTo: settings.reply_to_customer,
     }),
   ]);
 

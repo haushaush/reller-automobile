@@ -98,6 +98,12 @@ export const SETTINGS_NAV: AdminNavEntry[] = [
     description: "Alle versendeten E-Mails nachlesen und erneut verschicken",
   },
   {
+    label: "Benachrichtigungen",
+    path: "/admin/einstellungen/benachrichtigungen",
+    icon: Bell,
+    description: "Absenderadresse festlegen und einstellen, wer welche Mail bekommt",
+  },
+  {
     label: "Allgemeine Einstellungen",
     path: "/admin/einstellungen",
     icon: SettingsIcon,
