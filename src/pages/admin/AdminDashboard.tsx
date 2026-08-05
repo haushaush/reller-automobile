@@ -15,6 +15,7 @@ interface Stats {
   soldThisMonth: number;
   openInquiries: number;
   drafts: number;
+  openTasks: number;
 }
 
 interface RecentInquiry {
@@ -45,6 +46,7 @@ export default function AdminDashboard() {
     soldThisMonth: 0,
     openInquiries: 0,
     drafts: 0,
+    openTasks: 0,
   });
   const [recent, setRecent] = useState<RecentInquiry[]>([]);
 
