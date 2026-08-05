@@ -11,6 +11,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { corsHeaders } from "../_shared/cors.ts";
+import { emitNotificationEvent } from "../_shared/emit-event.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -394,6 +395,11 @@ Deno.serve(async (req) => {
         { onConflict: "vehicle_id" },
       );
       if (dbErr) console.warn(`ensure-vehicle-expose: db upsert failed ${vehicleId}: ${dbErr.message}`);
+
+      await emitNotificationEvent(admin, "expose_created", {
+        vehicleId,
+        title: (vehicle as { title?: string } | null)?.title ?? "Fahrzeug",
+      });
     }
 
     // 3) Signed URL (7d)
