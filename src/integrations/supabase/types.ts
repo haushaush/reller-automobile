@@ -34,10 +34,12 @@ export type Database = {
       }
       email_logs: {
         Row: {
+          audience: string
           bounced_at: string | null
           created_at: string
           delivered_at: string | null
           error_message: string | null
+          event_type: string | null
           expose_path: string | null
           id: string
           mail_type: string
@@ -57,10 +59,12 @@ export type Database = {
           vehicle_id: string | null
         }
         Insert: {
+          audience?: string
           bounced_at?: string | null
           created_at?: string
           delivered_at?: string | null
           error_message?: string | null
+          event_type?: string | null
           expose_path?: string | null
           id?: string
           mail_type: string
@@ -80,10 +84,12 @@ export type Database = {
           vehicle_id?: string | null
         }
         Update: {
+          audience?: string
           bounced_at?: string | null
           created_at?: string
           delivered_at?: string | null
           error_message?: string | null
+          event_type?: string | null
           expose_path?: string | null
           id?: string
           mail_type?: string
@@ -424,6 +430,66 @@ export type Database = {
           },
         ]
       }
+      mail_guard_log: {
+        Row: {
+          context: string
+          created_at: string
+          detail: string | null
+          id: string
+          offending_field: string
+          offending_value: string
+        }
+        Insert: {
+          context: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          offending_field: string
+          offending_value: string
+        }
+        Update: {
+          context?: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          offending_field?: string
+          offending_value?: string
+        }
+        Relationships: []
+      }
+      mail_settings: {
+        Row: {
+          id: number
+          inquiry_inbox: string
+          reply_to_customer: string
+          reply_to_internal: string | null
+          sender_address: string
+          sender_name: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          inquiry_inbox?: string
+          reply_to_customer?: string
+          reply_to_internal?: string | null
+          sender_address?: string
+          sender_name?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          inquiry_inbox?: string
+          reply_to_customer?: string
+          reply_to_internal?: string | null
+          sender_address?: string
+          sender_name?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       mobile_ad_drafts: {
         Row: {
           created_at: string
@@ -580,6 +646,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_events: {
+        Row: {
+          created_at: string
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          id: string
+          payload: Json
+          send_error: string | null
+          sent_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          id?: string
+          payload?: Json
+          send_error?: string | null
+          sent_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["notification_event_type"]
+          id?: string
+          payload?: Json
+          send_error?: string | null
+          sent_at?: string | null
+        }
+        Relationships: []
+      }
+      notification_recipients: {
+        Row: {
+          created_at: string
+          email: string
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          id: string
+          is_active: boolean
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          id?: string
+          is_active?: boolean
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          event_type?: Database["public"]["Enums"]["notification_event_type"]
+          id?: string
+          is_active?: boolean
+        }
+        Relationships: []
+      }
+      notification_settings: {
+        Row: {
+          digest_mode: Database["public"]["Enums"]["digest_mode"]
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          is_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          digest_mode?: Database["public"]["Enums"]["digest_mode"]
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          is_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          digest_mode?: Database["public"]["Enums"]["digest_mode"]
+          event_type?: Database["public"]["Enums"]["notification_event_type"]
+          is_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
       }
       platform_accounts: {
         Row: {
@@ -1329,6 +1467,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "editor" | "viewer" | "seller"
+      digest_mode: "immediate" | "daily"
       listing_platform: "mobile_de" | "autoscout24" | "kleinanzeigen"
       listing_status:
         | "not_listed"
@@ -1343,6 +1482,15 @@ export type Database = {
         | "update_price"
         | "mark_reserved"
         | "reactivate"
+      notification_event_type:
+        | "inquiry_received"
+        | "vehicle_sold"
+        | "vehicle_published"
+        | "publish_failed"
+        | "story_generated"
+        | "expose_created"
+        | "quality_report"
+        | "open_tasks_reminder"
       publish_status:
         | "draft"
         | "publishing"
@@ -1478,6 +1626,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "editor", "viewer", "seller"],
+      digest_mode: ["immediate", "daily"],
       listing_platform: ["mobile_de", "autoscout24", "kleinanzeigen"],
       listing_status: [
         "not_listed",
@@ -1493,6 +1642,16 @@ export const Constants = {
         "update_price",
         "mark_reserved",
         "reactivate",
+      ],
+      notification_event_type: [
+        "inquiry_received",
+        "vehicle_sold",
+        "vehicle_published",
+        "publish_failed",
+        "story_generated",
+        "expose_created",
+        "quality_report",
+        "open_tasks_reminder",
       ],
       publish_status: [
         "draft",
