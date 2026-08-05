@@ -1,52 +1,12 @@
 import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import {
-  LayoutDashboard,
-  ImageIcon,
-  RefreshCw,
-  Mail,
-  Bell,
-  Archive,
-  LogOut,
-  ArrowLeft,
-  Menu,
-  Settings,
-  Users,
-  FileText,
-  Images,
-  ShieldAlert,
-  Car,
-} from "lucide-react";
+import { LogOut, ArrowLeft, Menu, Settings as SettingsIcon, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-
-interface NavItem {
-  label: string;
-  path: string;
-  icon: typeof LayoutDashboard;
-  exact?: boolean;
-  badgeKey?: "inquiries";
-  adminOnly?: boolean;
-}
-
-const navItems: NavItem[] = [
-  { label: "Übersicht", path: "/admin", icon: LayoutDashboard, exact: true },
-  { label: "Accounts", path: "/admin/accounts", icon: Users, adminOnly: true },
-  { label: "Fahrzeuge", path: "/admin/fahrzeuge", icon: Car },
-  { label: "Sync-Status", path: "/admin/sync", icon: RefreshCw },
-  { label: "Datenqualität", path: "/admin/data-quality", icon: ShieldAlert },
-  { label: "Anfragen", path: "/admin/inquiries", icon: Mail, badgeKey: "inquiries" },
-  { label: "Suchaufträge", path: "/admin/alerts", icon: Bell },
-  { label: "Story-Generator", path: "/admin/stories", icon: ImageIcon },
-  { label: "Story-Archiv", path: "/admin/story-archive", icon: Archive },
-  { label: "Exposé-Archiv", path: "/admin/expose-archive", icon: FileText },
-  { label: "Collage", path: "/admin/collage", icon: Images },
-  
-  { label: "Mail-Verlauf", path: "/admin/email-logs", icon: Mail },
-  { label: "Einstellungen", path: "/admin/settings", icon: Settings },
-];
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { MAIN_NAV, SETTINGS_NAV, type AdminNavEntry } from "@/lib/adminNav";
 
 export default function AdminLayout() {
   const { user, isAdmin, signOut } = useAuth();
@@ -54,6 +14,12 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const [counts, setCounts] = useState<{ inquiries: number }>({ inquiries: 0 });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const inSettings = location.pathname.startsWith("/admin/einstellungen");
+  const [settingsOpen, setSettingsOpen] = useState(inSettings);
+
+  useEffect(() => {
+    if (inSettings) setSettingsOpen(true);
+  }, [inSettings]);
 
   useEffect(() => {
     const loadCounts = async () => {
@@ -77,52 +43,76 @@ export default function AdminLayout() {
     navigate("/");
   };
 
+  const isActive = (item: AdminNavEntry) =>
+    item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path);
+
+  const NavLinkItem = ({ item, nested = false }: { item: AdminNavEntry; nested?: boolean }) => {
+    const active = isActive(item);
+    const Icon = item.icon;
+    const badge = item.badgeKey ? counts[item.badgeKey] : 0;
+    return (
+      <Link
+        to={item.path}
+        className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+          nested ? "ml-3" : ""
+        } ${active ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-secondary"}`}
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="flex-1">{item.label}</span>
+        {badge > 0 && (
+          <span
+            className={`min-w-[20px] rounded-full px-2 py-0.5 text-center text-xs font-semibold ${
+              active
+                ? "bg-primary-foreground/20 text-primary-foreground"
+                : "bg-destructive text-destructive-foreground"
+            }`}
+          >
+            {badge}
+          </span>
+        )}
+      </Link>
+    );
+  };
+
   const NavContent = () => (
     <>
-      <div className="p-6 border-b border-border">
-        <h2 className="text-lg font-semibold">Admin Backend</h2>
-        <p className="text-xs text-muted-foreground mt-1 truncate">{user?.email}</p>
+      <div className="border-b border-border p-6">
+        <h2 className="text-lg font-semibold">Verwaltung</h2>
+        <p className="mt-1 truncate text-xs text-muted-foreground">{user?.email}</p>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
-          const isActive = item.exact
-            ? location.pathname === item.path
-            : location.pathname.startsWith(item.path);
-          const Icon = item.icon;
-          const badge = item.badgeKey ? counts[item.badgeKey] : 0;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-foreground hover:bg-secondary"
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        {MAIN_NAV.map((item) => (
+          <NavLinkItem key={item.path} item={item} />
+        ))}
+
+        <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                inSettings ? "bg-secondary text-foreground" : "text-foreground hover:bg-secondary"
               }`}
             >
-              <Icon className="h-4 w-4" />
-              <span className="flex-1">{item.label}</span>
-              {badge > 0 && (
-                <span
-                  className={`text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center ${
-                    isActive
-                      ? "bg-primary-foreground/20 text-primary-foreground"
-                      : "bg-destructive text-destructive-foreground"
-                  }`}
-                >
-                  {badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+              <SettingsIcon className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Einstellungen</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${settingsOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-1 space-y-1">
+            {SETTINGS_NAV.filter((i) => !i.adminOnly || isAdmin).map((item) => (
+              <NavLinkItem key={item.path} item={item} nested />
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
       </nav>
 
-      <div className="p-3 border-t border-border space-y-1">
+      <div className="space-y-1 border-t border-border p-3">
         <Link
           to="/"
-          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:bg-secondary transition-colors"
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary"
         >
           <ArrowLeft className="h-4 w-4" />
           Zum Portal
@@ -141,27 +131,27 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-background lg:flex">
-      <aside className="hidden lg:flex w-64 border-r border-border bg-card flex-col">
+      <aside className="hidden w-64 flex-col border-r border-border bg-card lg:flex">
         <NavContent />
       </aside>
 
-      <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border bg-card px-4 h-14">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-card px-4 lg:hidden">
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Menü öffnen">
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="p-0 w-72 flex flex-col bg-card">
+          <SheetContent side="left" className="flex w-72 flex-col bg-card p-0">
             <NavContent />
           </SheetContent>
         </Sheet>
-        <h2 className="text-sm font-semibold">Admin Backend</h2>
+        <h2 className="text-sm font-semibold">Verwaltung</h2>
         <div className="w-9" />
       </header>
 
-      <main className="flex-1 overflow-auto min-w-0">
-        <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="min-w-0 flex-1 overflow-auto">
+        <div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
           <Outlet />
         </div>
       </main>
