@@ -25,10 +25,14 @@ type MailSettings = {
   inquiry_inbox: string;
 };
 
-type Recipient = { id: string; event_type: string; email: string; is_active: boolean };
-type Setting = { event_type: string; is_enabled: boolean; digest_mode: "immediate" | "daily" };
+type EventType =
+  | "inquiry_received" | "vehicle_sold" | "vehicle_published" | "publish_failed"
+  | "story_generated" | "expose_created" | "quality_report" | "open_tasks_reminder";
 
-const EVENTS: { type: string; label: string; hint: string }[] = [
+type Recipient = { id: string; event_type: EventType; email: string; is_active: boolean };
+type Setting = { event_type: EventType; is_enabled: boolean; digest_mode: "immediate" | "daily" };
+
+const EVENTS: { type: EventType; label: string; hint: string }[] = [
   { type: "inquiry_received", label: "Neue Kundenanfrage", hint: "Sobald ein Kunde das Anfrageformular abschickt." },
   { type: "vehicle_sold", label: "Fahrzeug verkauft", hint: "Sobald ein Fahrzeug als verkauft markiert wird — mit Hinweis, welche Inserate noch beendet werden müssen." },
   { type: "vehicle_published", label: "Fahrzeug veröffentlicht", hint: "Sobald ein Inserat erfolgreich online gegangen ist." },
@@ -116,7 +120,7 @@ export default function NotificationSettings() {
   }
 
   const toggleEvent = useMutation({
-    mutationFn: async (args: { eventType: string; patch: Partial<Setting> }) => {
+    mutationFn: async (args: { eventType: EventType; patch: Partial<Setting> }) => {
       const { error } = await supabase
         .from("notification_settings")
         .update(args.patch)
@@ -128,7 +132,7 @@ export default function NotificationSettings() {
   });
 
   const addRecipient = useMutation({
-    mutationFn: async (args: { eventType: string; email: string }) => {
+    mutationFn: async (args: { eventType: EventType; email: string }) => {
       const email = args.email.trim().toLowerCase();
       if (!isEmail(email)) throw new Error("Bitte eine gültige E-Mail-Adresse eingeben.");
       const { error } = await supabase
@@ -153,7 +157,7 @@ export default function NotificationSettings() {
   });
 
   const sendTest = useMutation({
-    mutationFn: async (eventType: string) => {
+    mutationFn: async (eventType: EventType) => {
       const { data: res, error } = await supabase.functions.invoke("notify-event", {
         body: { eventType, test: true },
       });
@@ -168,7 +172,7 @@ export default function NotificationSettings() {
   });
 
   const byEvent = useMemo(() => {
-    const map = new Map<string, { setting?: Setting; recipients: Recipient[] }>();
+    const map = new Map<EventType, { setting?: Setting; recipients: Recipient[] }>();
     for (const e of EVENTS) map.set(e.type, { recipients: [] });
     for (const s of data?.settings ?? []) {
       const entry = map.get(s.event_type);
@@ -356,7 +360,7 @@ function EventRow({
   event, enabled, digest, recipients, busy, testing,
   onToggle, onDigest, onAdd, onRemove, onTest,
 }: {
-  event: { type: string; label: string; hint: string };
+  event: { type: EventType; label: string; hint: string };
   enabled: boolean;
   digest: "immediate" | "daily";
   recipients: Recipient[];
