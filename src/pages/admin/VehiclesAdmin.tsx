@@ -902,9 +902,9 @@ export default function VehiclesAdmin() {
               </TableHead>
               <TableHead className="w-[72px]">Bild</TableHead>
               <TableHead>Fahrzeug</TableHead>
-              <TableHead className="text-right w-[150px]">Preis</TableHead>
+              <TableHead className="text-right w-[190px]">Preis</TableHead>
               <TableHead className="w-[120px]">Status</TableHead>
-              <TableHead className="w-[120px]">Inserate</TableHead>
+              <TableHead className="w-[140px]">Inserate</TableHead>
               {OPTIONAL_COLUMNS.filter((c) => cols.includes(c.key)).map((c) => (
                 <TableHead key={c.key} className="whitespace-nowrap">
                   {c.label}
@@ -984,7 +984,7 @@ export default function VehiclesAdmin() {
                       <span className="text-base font-semibold">
                         {formatPrice(v.price, v.currency)}
                       </span>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground truncate">
                         {categoryLabel(v.vehicle_category)}
                       </p>
                     </TableCell>
@@ -992,7 +992,7 @@ export default function VehiclesAdmin() {
                       <StatusBadge v={v} />
                     </TableCell>
                     <TableCell>
-                      <PlatformBadges listings={listingMap?.get(v.id)} />
+                      <PlatformBadges listings={listingMap?.get(v.id)} className="flex-nowrap" />
                     </TableCell>
                     {OPTIONAL_COLUMNS.filter((c) => cols.includes(c.key)).map((c) => (
                       <TableCell key={c.key} className="text-xs text-muted-foreground whitespace-nowrap">
@@ -1067,7 +1067,7 @@ export default function VehiclesAdmin() {
                   <div className="mt-2 flex items-end justify-between gap-2">
                     <div>
                       <p className="text-lg font-semibold">{formatPrice(v.price, v.currency)}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground truncate">
                         {categoryLabel(v.vehicle_category)}
                       </p>
                     </div>
