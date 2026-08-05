@@ -83,25 +83,45 @@ const App = () => (
                       }
                     >
                       <Route index element={<AdminDashboard />} />
-                      <Route path="sync" element={<SyncStatus />} />
-                      <Route path="data-quality" element={<DataQuality />} />
-                      <Route path="inquiries" element={<InquiriesAdmin />} />
-                      <Route path="inquiries/:id" element={<InquiryDetail />} />
-                      <Route path="alerts" element={<AlertsAdmin />} />
-                      <Route path="stories" element={<StoryGenerator />} />
-                      <Route path="story-archive" element={<StoryArchive />} />
-                      <Route path="expose-archive" element={<ExposeArchive />} />
-                      <Route path="collage" element={<Collage />} />
-                      <Route path="mobile-ad" element={<Navigate to="/admin/fahrzeuge" replace />} />
-                      <Route path="settings" element={<Settings />} />
-                      <Route path="email-logs" element={<EmailLogs />} />
+
+                      {/* Hauptbereiche */}
                       <Route path="fahrzeuge" element={<VehiclesAdmin />} />
-                      <Route path="fahrzeuge/neu" element={<MobileAdCreate />} />
+                      <Route path="fahrzeug-anlegen" element={<MobileAdCreate />} />
                       <Route path="fahrzeuge/:vehicleId/inserat" element={<MobileAdCreate />} />
                       <Route path="fahrzeuge/:vehicleId/live-edit" element={<MobileAdCreate />} />
                       <Route path="fahrzeuge/:id" element={<VehicleAdminDetail />} />
-                      <Route path="vehicles/new" element={<Navigate to="/admin/fahrzeuge/neu" replace />} />
-                      <Route path="accounts" element={<Accounts />} />
+                      <Route path="anfragen" element={<InquiriesAdmin />} />
+                      <Route path="anfragen/:id" element={<InquiryDetail />} />
+                      <Route path="storys" element={<Storys />} />
+
+                      {/* Einstellungen */}
+                      <Route path="einstellungen" element={<Settings />} />
+                      <Route path="einstellungen/accounts" element={<Accounts />} />
+                      <Route path="einstellungen/status-log" element={<SyncStatus />} />
+                      <Route path="einstellungen/datenqualitaet" element={<DataQuality />} />
+                      <Route path="einstellungen/mail-verlauf" element={<EmailLogs />} />
+
+                      {/* Weitere Werkzeuge */}
+                      <Route path="suchauftraege" element={<AlertsAdmin />} />
+                      <Route path="expose-archiv" element={<ExposeArchive />} />
+                      <Route path="collage" element={<Collage />} />
+
+                      {/* Alte Pfade bleiben als Weiterleitung bestehen */}
+                      <Route path="sync" element={<Navigate to="/admin/einstellungen/status-log" replace />} />
+                      <Route path="data-quality" element={<Navigate to="/admin/einstellungen/datenqualitaet" replace />} />
+                      <Route path="email-logs" element={<Navigate to="/admin/einstellungen/mail-verlauf" replace />} />
+                      <Route path="accounts" element={<Navigate to="/admin/einstellungen/accounts" replace />} />
+                      <Route path="settings" element={<Navigate to="/admin/einstellungen" replace />} />
+                      <Route path="inquiries" element={<Navigate to="/admin/anfragen" replace />} />
+                      <Route path="inquiries/:id" element={<LegacyInquiryRedirect />} />
+                      <Route path="alerts" element={<Navigate to="/admin/suchauftraege" replace />} />
+                      <Route path="stories" element={<Navigate to="/admin/storys" replace />} />
+                      <Route path="story-archive" element={<Navigate to="/admin/storys?tab=archiv" replace />} />
+                      <Route path="expose-archive" element={<Navigate to="/admin/expose-archiv" replace />} />
+                      <Route path="mobile-ad" element={<Navigate to="/admin/fahrzeuge" replace />} />
+                      <Route path="fahrzeuge/neu" element={<Navigate to="/admin/fahrzeug-anlegen" replace />} />
+                      <Route path="vehicles/new" element={<Navigate to="/admin/fahrzeug-anlegen" replace />} />
+
                     </Route>
                     <Route path="*" element={<NotFound />} />
                   </Routes>
