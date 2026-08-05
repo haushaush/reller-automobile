@@ -474,10 +474,10 @@ export default function Settings() {
             <p className="text-sm text-muted-foreground">
               Verschickt einmal täglich einen kompakten Tagesreport mit
               Kennzahlen zum Fahrzeugbestand (neue/verkaufte Fahrzeuge,
-              Bestand, Bestandswert, Sync-Status).
+              Bestand, Bestandswert, Ergebnis des Abgleichs).
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Hinweis: Einzelne neue Fahrzeuge werden separat per Sync-Mail verschickt.
+              Hinweis: Einzelne neue Fahrzeuge werden separat per Mail gemeldet.
               Dieser Bericht fasst die Kennzahlen des Tages zusammen.
             </p>
           </div>
@@ -566,7 +566,7 @@ export default function Settings() {
               onCheckedChange={(v) => setReportIncludeSync(v === true)}
             />
             <Label htmlFor="report-sync" className="cursor-pointer">
-              Sync-Status anzeigen
+              Ergebnis des Abgleichs anzeigen
             </Label>
           </div>
         </div>
@@ -596,10 +596,10 @@ export default function Settings() {
         <div className="flex items-start gap-3">
           <Send className="h-5 w-5 text-muted-foreground mt-0.5" />
           <div className="flex-1">
-            <h2 className="text-lg font-semibold">Neue Sync-Fahrzeuge</h2>
+            <h2 className="text-lg font-semibold">Neu eingetroffene Fahrzeuge</h2>
             <p className="text-sm text-muted-foreground">
               Automatische Mail, wenn der Mobile.de-Sync ein neues Fahrzeug im Bestand anlegt.
-              Wird nicht bei normalen Sync-Updates verschickt.
+              Wird nicht bei einfachen Aktualisierungen verschickt.
             </p>
           </div>
         </div>
@@ -669,7 +669,7 @@ export default function Settings() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Hinweis: Die Mail wird nur bei neu angelegten Fahrzeugen versendet, nicht bei normalen Sync-Updates.
+          Hinweis: Die Mail wird nur bei neu angelegten Fahrzeugen versendet, nicht bei einfachen Aktualisierungen.
         </p>
 
 
