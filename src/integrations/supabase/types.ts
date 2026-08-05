@@ -191,6 +191,33 @@ export type Database = {
         }
         Relationships: []
       }
+      expose_generation_failures: {
+        Row: {
+          context: string | null
+          created_at: string
+          error_message: string
+          id: string
+          vehicle_id: string | null
+          vehicle_title: string | null
+        }
+        Insert: {
+          context?: string | null
+          created_at?: string
+          error_message: string
+          id?: string
+          vehicle_id?: string | null
+          vehicle_title?: string | null
+        }
+        Update: {
+          context?: string | null
+          created_at?: string
+          error_message?: string
+          id?: string
+          vehicle_id?: string | null
+          vehicle_title?: string | null
+        }
+        Relationships: []
+      }
       inquiries: {
         Row: {
           created_at: string
