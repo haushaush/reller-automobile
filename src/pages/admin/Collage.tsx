@@ -5,10 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ChevronDown,
   ChevronUp,
   Download,
   FileText,
+  Image as ImageIcon,
   Images as ImagesIcon,
   Loader2,
   Share2,
@@ -24,6 +31,7 @@ import {
 } from "@/lib/mobileDeLabels";
 import { useFuzzySearch } from "@/hooks/useFuzzySearch";
 import { calculateRelevanceScore } from "@/lib/relevanceScore";
+
 
 interface VehicleRow {
   id: string;
