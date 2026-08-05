@@ -25,10 +25,10 @@ export default function Storys() {
           <TabsTrigger value="archiv">Gespeicherte Storys</TabsTrigger>
         </TabsList>
         <TabsContent value="erstellen" className="mt-6">
-          <StoryGenerator />
+          <StoryGenerator embedded />
         </TabsContent>
         <TabsContent value="archiv" className="mt-6">
-          <StoryArchive />
+          <StoryArchive embedded />
         </TabsContent>
       </Tabs>
     </div>
