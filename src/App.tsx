@@ -39,6 +39,13 @@ const ExposeArchive = lazy(() => import("./pages/admin/ExposeArchive"));
 const Collage = lazy(() => import("./pages/admin/Collage"));
 const MobileAdCreate = lazy(() => import("./pages/admin/MobileAdCreate"));
 const EmailLogs = lazy(() => import("./pages/admin/EmailLogs"));
+const Storys = lazy(() => import("./pages/admin/Storys"));
+
+/** Alte Anfragen-Detaillinks auf den neuen Pfad umleiten */
+const LegacyInquiryRedirect = () => {
+  const { id } = useParams();
+  return <Navigate to={`/admin/anfragen/${id}`} replace />;
+};
 
 const queryClient = new QueryClient({
   defaultOptions: {
