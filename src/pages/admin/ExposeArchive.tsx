@@ -186,11 +186,8 @@ export default function ExposeArchive() {
         return;
       }
 
-      const [{ pdf }, { default: VehicleExpose }] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("@/components/VehicleExpose"),
-      ]);
-      const blob = await pdf(<VehicleExpose vehicle={full as unknown as Vehicle} />).toBlob();
+      const blob = await generateExposeBlob(full as unknown as Vehicle);
+
 
       const path = `exposes/${v.id}.pdf`;
       const { error: uploadError } = await supabase.storage
