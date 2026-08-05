@@ -46,7 +46,7 @@ function parseRefdataXml(xml: string): RefItem[] {
   return items;
 }
 
-async function fetchRef(path: string): Promise<RefItem[]> {
+async function fetchRef(path: string, optional = false): Promise<RefItem[] | null> {
   const url = `${REFDATA_BASE}${path}`;
   const auth = btoa(`${MOBILE_USER}:${MOBILE_PASS}`);
   const res = await fetch(url, {
@@ -57,12 +57,53 @@ async function fetchRef(path: string): Promise<RefItem[]> {
   });
   if (!res.ok) {
     const body = await res.text();
+    if (optional && (res.status === 404 || res.status === 403)) {
+      console.warn(`Refdata ${res.status} for ${url} — using local fallback list`);
+      return null;
+    }
     console.error(`Refdata ${res.status} for ${url}: ${body.slice(0, 300)}`);
     throw new Error(`Refdata ${res.status} for ${url}: ${body.slice(0, 300)}`);
   }
   const xml = await res.text();
-  return parseRefdataXml(xml);
+  const items = parseRefdataXml(xml);
+  if (optional && items.length === 0) return null;
+  return items;
 }
+
+// Mobile.de bietet für diese Listen keinen öffentlichen Refdata-Endpunkt.
+// Feste, mit der Seller-API kompatible Schlüssel als Fallback.
+const FALLBACK_LISTS: Record<string, RefItem[]> = {
+  "emission-classes": [
+    { key: "EURO1", name: "Euro 1" },
+    { key: "EURO2", name: "Euro 2" },
+    { key: "EURO3", name: "Euro 3" },
+    { key: "EURO4", name: "Euro 4" },
+    { key: "EURO5", name: "Euro 5" },
+    { key: "EURO6", name: "Euro 6" },
+    { key: "EURO6C", name: "Euro 6c" },
+    { key: "EURO6D_TEMP", name: "Euro 6d-TEMP" },
+    { key: "EURO6D", name: "Euro 6d" },
+    { key: "EURO6E", name: "Euro 6e" },
+  ],
+  "emission-stickers": [
+    { key: "NONE", name: "Keine Plakette" },
+    { key: "RED", name: "Rot (Schadstoffklasse 2)" },
+    { key: "YELLOW", name: "Gelb (Schadstoffklasse 3)" },
+    { key: "GREEN", name: "Grün (Schadstoffklasse 4)" },
+  ],
+  "drive-types": [
+    { key: "FRONT", name: "Frontantrieb" },
+    { key: "REAR", name: "Heckantrieb" },
+    { key: "ALL_WHEEL", name: "Allradantrieb" },
+  ],
+  "parking-assistants": [
+    { key: "FRONT_SENSORS", name: "Sensoren vorne" },
+    { key: "REAR_SENSORS", name: "Sensoren hinten" },
+    { key: "CAM", name: "Rückfahrkamera" },
+    { key: "CAM_360", name: "360°-Kamera" },
+    { key: "AUTOMATIC_PARKING", name: "Automatisches Einparken" },
+  ],
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
