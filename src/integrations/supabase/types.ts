@@ -314,6 +314,122 @@ export type Database = {
           },
         ]
       }
+      lead_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          event_type: string
+          id: string
+          lead_id: string
+          occurred_at: string
+          payload: Json
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          event_type: string
+          id?: string
+          lead_id: string
+          occurred_at?: string
+          payload?: Json
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          event_type?: string
+          id?: string
+          lead_id?: string
+          occurred_at?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          assigned_to: string | null
+          buyer_email: string | null
+          buyer_identifier: string | null
+          buyer_name: string | null
+          buyer_phone: string | null
+          created_at: string
+          first_event_at: string
+          id: string
+          internal_note: string | null
+          last_event_at: string
+          lead_id: string | null
+          lead_type: string
+          mobile_ad_id: string | null
+          platform_account_id: string | null
+          source: string
+          status: string
+          updated_at: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          buyer_email?: string | null
+          buyer_identifier?: string | null
+          buyer_name?: string | null
+          buyer_phone?: string | null
+          created_at?: string
+          first_event_at?: string
+          id?: string
+          internal_note?: string | null
+          last_event_at?: string
+          lead_id?: string | null
+          lead_type?: string
+          mobile_ad_id?: string | null
+          platform_account_id?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          buyer_email?: string | null
+          buyer_identifier?: string | null
+          buyer_name?: string | null
+          buyer_phone?: string | null
+          created_at?: string
+          first_event_at?: string
+          id?: string
+          internal_note?: string | null
+          last_event_at?: string
+          lead_id?: string | null
+          lead_type?: string
+          mobile_ad_id?: string | null
+          platform_account_id?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_platform_account_id_fkey"
+            columns: ["platform_account_id"]
+            isOneToOne: false
+            referencedRelation: "platform_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       listing_tasks: {
         Row: {
           action: Database["public"]["Enums"]["listing_task_action"]
@@ -727,6 +843,10 @@ export type Database = {
           id: string
           is_active: boolean
           label: string
+          lead_api_enabled: boolean
+          lead_cursor: string | null
+          lead_password_secret_name: string | null
+          lead_username_secret_name: string | null
           password_secret_name: string | null
           platform: Database["public"]["Enums"]["listing_platform"]
           seller_id: string | null
@@ -741,6 +861,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           label: string
+          lead_api_enabled?: boolean
+          lead_cursor?: string | null
+          lead_password_secret_name?: string | null
+          lead_username_secret_name?: string | null
           password_secret_name?: string | null
           platform: Database["public"]["Enums"]["listing_platform"]
           seller_id?: string | null
@@ -755,6 +879,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           label?: string
+          lead_api_enabled?: boolean
+          lead_cursor?: string | null
+          lead_password_secret_name?: string | null
+          lead_username_secret_name?: string | null
           password_secret_name?: string | null
           platform?: Database["public"]["Enums"]["listing_platform"]
           seller_id?: string | null
@@ -1456,6 +1584,7 @@ export type Database = {
         }
         Returns: number
       }
+      purge_old_leads: { Args: never; Returns: number }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -1491,6 +1620,7 @@ export type Database = {
         | "expose_created"
         | "quality_report"
         | "open_tasks_reminder"
+        | "missed_call"
       publish_status:
         | "draft"
         | "publishing"
@@ -1652,6 +1782,7 @@ export const Constants = {
         "expose_created",
         "quality_report",
         "open_tasks_reminder",
+        "missed_call",
       ],
       publish_status: [
         "draft",

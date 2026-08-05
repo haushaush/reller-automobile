@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   PLATFORM_LABELS,
   SALE_STATUS_LABELS,
@@ -42,6 +43,8 @@ export default function VehicleStatusDialog({
   const [target, setTarget] = useState<VehicleSaleStatus>(current);
   const [listings, setListings] = useState<ListingRow[]>([]);
   const [running, setRunning] = useState(false);
+  const [openLeads, setOpenLeads] = useState<{ id: string; buyer_name: string | null }[]>([]);
+  const [closeLeads, setCloseLeads] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -51,6 +54,13 @@ export default function VehicleStatusDialog({
       .select("*")
       .eq("vehicle_id", vehicleId)
       .then(({ data }) => setListings((data ?? []) as ListingRow[]));
+    setCloseLeads(false);
+    supabase
+      .from("leads")
+      .select("id, buyer_name")
+      .eq("vehicle_id", vehicleId)
+      .eq("status", "IN_PROGRESS")
+      .then(({ data }) => setOpenLeads((data ?? []) as { id: string; buyer_name: string | null }[]));
   }, [open, current, vehicleId]);
 
   const mobile = listings.find((l) => l.platform === "mobile_de");
@@ -134,7 +144,15 @@ export default function VehicleStatusDialog({
         },
       ]);
 
-      // 3) Aufgaben für manuelle Plattformen
+      // 3) Offene Anfragen auf Wunsch ebenfalls schließen
+      if (target === "sold" && closeLeads && openLeads.length > 0) {
+        const { error: leadError } = await supabase.functions.invoke("update-lead-status", {
+          body: { leadIds: openLeads.map((l) => l.id), newStatus: "SOLD" },
+        });
+        if (leadError) toast.warning(`Anfragen konnten nicht alle gemeldet werden: ${leadError.message}`);
+      }
+
+      // 4) Aufgaben für manuelle Plattformen
       const action =
         target === "sold" ? "end_listing" : target === "reserved" ? "mark_reserved" : "reactivate";
       const count = await createTasksForManualListings(
@@ -190,6 +208,26 @@ export default function VehicleStatusDialog({
             ))}
           </ul>
         </div>
+
+        {target === "sold" && openLeads.length > 0 && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="close-leads"
+                checked={closeLeads}
+                onCheckedChange={(v) => setCloseLeads(v === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="close-leads" className="cursor-pointer text-xs font-normal leading-relaxed">
+                Zu diesem Fahrzeug {openLeads.length === 1 ? "gibt es 1 offene Anfrage" : `gibt es ${openLeads.length} offene Anfragen`}.
+                Ebenfalls auf „Verkauft" setzen und an Mobile.de melden?
+                <span className="mt-1 block text-muted-foreground">
+                  Nur ankreuzen, wenn das Fahrzeug an diese Interessenten oder gar nicht mehr verfügbar ist.
+                </span>
+              </Label>
+            </div>
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={running}>
