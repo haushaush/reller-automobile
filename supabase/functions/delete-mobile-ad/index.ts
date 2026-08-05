@@ -149,6 +149,10 @@ Deno.serve((req) => withAccountLock(async () => {
       console.error("Local status update failed:", updErr.message);
       return json(500, { error: `Mobile.de gelöscht, lokal jedoch fehlgeschlagen: ${updErr.message}` });
     }
+    await syncMobileListing(admin, vehicleId, {
+      status: "ended", external_ad_id: mobileAdId || null, error_message: null,
+      account_key: ACCOUNT.account_key,
+    });
     console.log(`vehicle=${vehicleId} publish_status=unpublished markSold=${markSold}`);
 
     return json(200, {
