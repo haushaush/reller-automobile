@@ -636,7 +636,90 @@ export default function Collage() {
     }
   };
 
+  /**
+   * Renders the selected images as one collage image and offers it to the
+   * user. On iOS/Android the Web Share sheet is the only way into the photo
+   * gallery ("In Fotos sichern"); on desktop we fall back to a blob download.
+   */
+  const saveCollageImage = async (format: "png" | "jpeg") => {
+    const items = collectSelectedImages();
+    if (items.length === 0) {
+      toast.error("Keine Bilder ausgewählt");
+      return;
+    }
+    setBusy("image");
+    setProgress({ done: 0, total: items.length });
+    try {
+      const loaded: HTMLImageElement[] = [];
+      let failed = 0;
+      let done = 0;
+      for (const item of items) {
+        try {
+          const blob = await loadImage(item.url);
+          loaded.push(await blobToImageBitmapSource(blob));
+        } catch (e) {
+          console.warn("Collage image failed", item.url, e);
+          failed++;
+        }
+        done++;
+        setProgress({ done, total: items.length });
+      }
+      if (loaded.length === 0) {
+        toast.error("Kein Bild konnte geladen werden");
+        return;
+      }
+
+      const isJpeg = format === "jpeg";
+      // JPEG has no transparency — always paint a white background.
+      const canvas = drawCollage(loaded, isJpeg ? "#ffffff" : null);
+      const mime = isJpeg ? "image/jpeg" : "image/png";
+      const ext = isJpeg ? "jpg" : "png";
+      const blob = await canvasToBlob(canvas, mime, isJpeg ? 0.92 : undefined);
+
+      const firstVehicle = vehicles.find((v) => v.id === items[0].vehicleId);
+      const base = firstVehicle ? safeName(firstVehicle) : "Collage";
+      const filename = `${base}-${todayStamp()}.${ext}`.replace(/[^a-zA-Z0-9._-]/g, "-");
+
+      const file = new File([blob], filename, { type: mime });
+      const nav = navigator as Navigator & {
+        canShare?: (data: { files: File[] }) => boolean;
+        share?: (data: { files?: File[]; title?: string }) => Promise<void>;
+      };
+
+      if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
+        try {
+          await nav.share({ files: [file], title: filename });
+          toast.success("Bild geteilt — über „In Fotos sichern“ landet es in der Galerie");
+        } catch (e) {
+          if (e instanceof Error && e.name === "AbortError") return;
+          throw e;
+        }
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success(`Bild gespeichert (${filename})`);
+      }
+
+      if (failed > 0) toast.warning(`${failed} Bild(er) konnten nicht geladen werden`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Bild konnte nicht gespeichert werden", {
+        description: e instanceof Error ? e.message : "Unbekannter Fehler",
+      });
+    } finally {
+      setBusy(null);
+      setProgress({ done: 0, total: 0 });
+    }
+  };
+
   const downloadSingle = async () => {
+
     const items = collectSelectedImages();
     if (items.length !== 1) return;
     const item = items[0];
