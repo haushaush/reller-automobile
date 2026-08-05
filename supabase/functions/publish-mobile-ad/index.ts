@@ -4,22 +4,42 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // imagescript: pure-TS image lib that runs in Deno without native deps
 import { decode as decodeImage, Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  resolveMobileAccount,
+  syncMobileListing,
+  type PlatformAccount,
+} from "../_shared/platform-accounts.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const HAS_SELLER_SPECIFIC =
-  !!Deno.env.get("MOBILE_DE_SELLER_USERNAME") && !!Deno.env.get("MOBILE_DE_SELLER_PASSWORD");
-const MOBILE_USER =
-  Deno.env.get("MOBILE_DE_SELLER_USERNAME") || Deno.env.get("MOBILE_DE_USERNAME") || "";
-const MOBILE_PASS =
-  Deno.env.get("MOBILE_DE_SELLER_PASSWORD") || Deno.env.get("MOBILE_DE_PASSWORD") || "";
+// Zugangsdaten und Verkäufer-ID stammen aus platform_accounts (Standard- bzw.
+// Unfall-Konto). Sie werden pro Anfrage gesetzt; ein Mutex verhindert, dass sich
+// parallele Anfragen im selben Isolate gegenseitig überschreiben.
+let ACCOUNT: PlatformAccount = {
+  account_key: "standard",
+  label: "Mobile.de",
+  seller_id: "451040",
+  username: "",
+  password: "",
+};
+let MOBILE_USER = "";
+let MOBILE_PASS = "";
+let SELLER_ID = "451040";
 
-console.log(
-  `Seller-API secrets: seller-specific=${HAS_SELLER_SPECIFIC ? "yes" : "no"}, fallback-used=${HAS_SELLER_SPECIFIC ? "no" : "yes"}`
-);
+let requestChain: Promise<unknown> = Promise.resolve();
+function withAccountLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = requestChain.then(fn, fn);
+  requestChain = run.catch(() => undefined);
+  return run;
+}
 
-const SELLER_ID = "451040";
+function applyAccount(account: PlatformAccount) {
+  ACCOUNT = account;
+  MOBILE_USER = account.username;
+  MOBILE_PASS = account.password;
+  SELLER_ID = account.seller_id;
+}
 const API_BASE = "https://services.mobile.de/seller-api";
 const MOBILE_MIME = "application/vnd.de.mobile.api+json";
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2 MiB cap per Mobile.de
