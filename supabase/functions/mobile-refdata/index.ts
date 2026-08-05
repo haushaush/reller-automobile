@@ -225,7 +225,8 @@ Deno.serve(async (req) => {
         });
     }
 
-    let items = await fetchRef(path);
+    const optional = kind in FALLBACK_LISTS;
+    let items = (await fetchRef(path, optional)) ?? FALLBACK_LISTS[kind] ?? [];
 
     if (kind === "vatrates") {
       // vatrates haben nur key (z.B. "19.00"), keine local-description.
