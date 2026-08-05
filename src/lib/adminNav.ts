@@ -12,6 +12,7 @@ import {
   Bell,
   FileText,
   Images,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,7 +23,7 @@ export interface AdminNavEntry {
   /** Kurzer erklärender Halbsatz für die Werkzeug-Übersicht */
   description: string;
   exact?: boolean;
-  badgeKey?: "inquiries";
+  badgeKey?: "inquiries" | "tasks";
   adminOnly?: boolean;
 }
 
@@ -53,6 +54,13 @@ export const MAIN_NAV: AdminNavEntry[] = [
     icon: Mail,
     badgeKey: "inquiries",
     description: "Kundenanfragen lesen und deren Bearbeitungsstand pflegen",
+  },
+  {
+    label: "Zu erledigen",
+    path: "/admin/zu-erledigen",
+    icon: ListChecks,
+    badgeKey: "tasks",
+    description: "Handgriffe, die Sie auf AutoScout24 oder Kleinanzeigen selbst machen müssen",
   },
   {
     label: "Storys",

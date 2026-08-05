@@ -12,7 +12,7 @@ export default function AdminLayout() {
   const { user, isAdmin, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [counts, setCounts] = useState<{ inquiries: number }>({ inquiries: 0 });
+  const [counts, setCounts] = useState<{ inquiries: number; tasks: number }>({ inquiries: 0, tasks: 0 });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const inSettings = location.pathname.startsWith("/admin/einstellungen");
   const [settingsOpen, setSettingsOpen] = useState(inSettings);
@@ -23,11 +23,18 @@ export default function AdminLayout() {
 
   useEffect(() => {
     const loadCounts = async () => {
-      const { count } = await supabase
-        .from("inquiries")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "new");
-      setCounts({ inquiries: count || 0 });
+      const [{ count }, { count: taskCount }] = await Promise.all([
+        supabase
+          .from("inquiries")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "new"),
+        supabase
+          .from("listing_tasks")
+          .select("*", { count: "exact", head: true })
+          .is("done_at", null)
+          .is("dismissed_at", null),
+      ]);
+      setCounts({ inquiries: count || 0, tasks: taskCount || 0 });
     };
     loadCounts();
     const i = setInterval(loadCounts, 60000);
