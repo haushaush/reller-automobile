@@ -32,6 +32,7 @@ const InquiryDetail = lazy(() => import("./pages/admin/InquiryDetail"));
 const AlertsAdmin = lazy(() => import("./pages/admin/AlertsAdmin"));
 const StoryArchive = lazy(() => import("./pages/admin/StoryArchive"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
+const NotificationSettings = lazy(() => import("./pages/admin/NotificationSettings"));
 const VehiclesAdmin = lazy(() => import("./pages/admin/VehiclesAdmin"));
 const VehicleAdminDetail = lazy(() => import("./pages/admin/VehicleAdminDetail"));
 const Accounts = lazy(() => import("./pages/admin/Accounts"));
@@ -107,6 +108,7 @@ const App = () => (
 
                       {/* Einstellungen */}
                       <Route path="einstellungen" element={<Settings />} />
+                      <Route path="einstellungen/benachrichtigungen" element={<NotificationSettings />} />
                       <Route path="einstellungen/accounts" element={<Accounts />} />
                       <Route path="einstellungen/status-log" element={<SyncStatus />} />
                       <Route path="einstellungen/datenqualitaet" element={<DataQuality />} />
