@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Vehicle } from "@/hooks/useVehicles";
 
@@ -41,7 +42,7 @@ export async function generateExposeBlob(vehicle: Vehicle): Promise<Blob> {
     import("@react-pdf/renderer"),
     import("@/components/VehicleExpose"),
   ]);
-  const blob = await pdf(VehicleExpose({ vehicle }) as never).toBlob();
+  const blob = await pdf(createElement(VehicleExpose, { vehicle }) as never).toBlob();
   if (!blob || blob.size === 0) {
     throw new Error("Das erzeugte PDF war leer.");
   }
