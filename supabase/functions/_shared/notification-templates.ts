@@ -10,6 +10,7 @@ export const EVENT_LABELS: Record<string, string> = {
   expose_created: "Exposé erstellt",
   quality_report: "Wöchentliche Datenqualität",
   open_tasks_reminder: "Offene Handgriffe",
+  missed_call: "Verpasster Anruf",
 };
 
 export const EVENT_DESCRIPTIONS: Record<string, string> = {
@@ -21,6 +22,7 @@ export const EVENT_DESCRIPTIONS: Record<string, string> = {
   expose_created: "Sobald ein Fahrzeug-PDF erstellt wurde.",
   quality_report: "Jeden Montag: Fahrzeuge mit fehlenden oder unsauberen Angaben.",
   open_tasks_reminder: "Täglich, wenn Handgriffe länger als 7 Tage offen sind.",
+  missed_call: "Sofort, wenn ein Anruf über Mobile.de nicht angenommen wurde.",
 };
 
 function esc(value: unknown): string {
@@ -94,6 +96,12 @@ function renderEvent(eventType: string, p: Payload): string {
       return card(p.title || "Fahrzeug", rows([
         ["Exposé", p.exposeUrl ? `<a href="${esc(p.exposeUrl)}" style="color:#111;">PDF öffnen</a>` : "erstellt"],
       ]));
+    case "missed_call":
+      return card(`${p.name ?? "Anrufer"} — verpasster Anruf`, rows([
+        ["Telefon", esc(p.phone ?? "—")],
+        ["Fahrzeug", list(p.vehicles ?? [])],
+        ["Herkunft", esc(p.source ?? "Mobile.de")],
+      ]));
     case "inquiry_received":
       return card(`${p.name ?? "Anfrage"}`, rows([
         ["E-Mail", esc(p.email ?? "—")],
@@ -166,6 +174,7 @@ export function renderNotificationEmail(
 function defaultCtaPath(eventType: string): string {
   switch (eventType) {
     case "inquiry_received": return "/admin/anfragen";
+    case "missed_call": return "/admin/anfragen?filter=missed";
     case "open_tasks_reminder": return "/admin/zu-erledigen";
     case "quality_report": return "/admin/einstellungen/datenqualitaet";
     case "story_generated": return "/admin/storys";
@@ -182,5 +191,6 @@ export const SAMPLE_PAYLOADS: Record<string, Payload> = {
   story_generated: { title: "BMW 320d Touring", storyUrl: PORTAL_BASE + "/admin/storys" },
   expose_created: { title: "BMW 320d Touring", exposeUrl: PORTAL_BASE + "/admin/expose-archiv" },
   quality_report: { total: 3, issues: [{ label: "Fotos fehlen", count: 2 }, { label: "Preis fehlt", count: 1 }] },
+  missed_call: { name: "Max Mustermann", phone: "0170 1234567", vehicles: ["BMW 320d Touring"], source: "MOBILE" },
   open_tasks_reminder: { tasks: [{ vehicle: "BMW 320d Touring", platform: "AutoScout24", action: "Inserat beenden", ageDays: 9 }] },
 };

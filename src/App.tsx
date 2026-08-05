@@ -29,6 +29,7 @@ const SyncStatus = lazy(() => import("./pages/admin/SyncStatus"));
 const DataQuality = lazy(() => import("./pages/admin/DataQuality"));
 const InquiriesAdmin = lazy(() => import("./pages/admin/InquiriesAdmin"));
 const InquiryDetail = lazy(() => import("./pages/admin/InquiryDetail"));
+const LeadDetail = lazy(() => import("./pages/admin/LeadDetail"));
 const AlertsAdmin = lazy(() => import("./pages/admin/AlertsAdmin"));
 const StoryArchive = lazy(() => import("./pages/admin/StoryArchive"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
@@ -103,7 +104,9 @@ const App = () => (
                       <Route path="fahrzeuge/:vehicleId/live-edit" element={<MobileAdCreate />} />
                       <Route path="fahrzeuge/:id" element={<VehicleAdminDetail />} />
                       <Route path="anfragen" element={<InquiriesAdmin />} />
+                      <Route path="anfragen/lead/:id" element={<LeadDetail />} />
                       <Route path="anfragen/:id" element={<InquiryDetail />} />
+
                       <Route path="storys" element={<Storys />} />
 
                       {/* Einstellungen */}

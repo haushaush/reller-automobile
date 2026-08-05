@@ -27,13 +27,15 @@ type MailSettings = {
 
 type EventType =
   | "inquiry_received" | "vehicle_sold" | "vehicle_published" | "publish_failed"
-  | "story_generated" | "expose_created" | "quality_report" | "open_tasks_reminder";
+  | "story_generated" | "expose_created" | "quality_report" | "open_tasks_reminder"
+  | "missed_call";
 
 type Recipient = { id: string; event_type: EventType; email: string; is_active: boolean };
 type Setting = { event_type: EventType; is_enabled: boolean; digest_mode: "immediate" | "daily" };
 
 const EVENTS: { type: EventType; label: string; hint: string }[] = [
   { type: "inquiry_received", label: "Neue Kundenanfrage", hint: "Sobald ein Kunde das Anfrageformular abschickt." },
+  { type: "missed_call", label: "Verpasster Anruf", hint: "Sofort, wenn ein Anruf über Mobile.de nicht angenommen wurde — nie als Tageszusammenfassung." },
   { type: "vehicle_sold", label: "Fahrzeug verkauft", hint: "Sobald ein Fahrzeug als verkauft markiert wird — mit Hinweis, welche Inserate noch beendet werden müssen." },
   { type: "vehicle_published", label: "Fahrzeug veröffentlicht", hint: "Sobald ein Inserat erfolgreich online gegangen ist." },
   { type: "publish_failed", label: "Veröffentlichung fehlgeschlagen", hint: "Wenn ein Inserat nicht online gestellt werden konnte." },
