@@ -89,6 +89,8 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
               <Badge variant="destructive">
                 {missing} Pflichtangabe{missing === 1 ? "" : "n"} fehlt
               </Badge>
+            ) : id === "ausstattung" ? (
+              <Badge variant="outline">freiwillig</Badge>
             ) : (
               <Badge variant="outline">vollständig</Badge>
             )}
