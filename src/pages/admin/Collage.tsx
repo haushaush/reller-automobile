@@ -5,10 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ChevronDown,
   ChevronUp,
   Download,
   FileText,
+  Image as ImageIcon,
   Images as ImagesIcon,
   Loader2,
   Share2,
@@ -24,6 +31,7 @@ import {
 } from "@/lib/mobileDeLabels";
 import { useFuzzySearch } from "@/hooks/useFuzzySearch";
 import { calculateRelevanceScore } from "@/lib/relevanceScore";
+
 
 interface VehicleRow {
   id: string;
@@ -122,6 +130,81 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+function blobToImageBitmapSource(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Bild konnte nicht dekodiert werden"));
+    };
+    img.src = url;
+  });
+}
+
+/** Draws the images into a square-ish grid collage on a canvas. */
+function drawCollage(images: HTMLImageElement[], background: string | null): HTMLCanvasElement {
+  const count = images.length;
+  const cols = Math.ceil(Math.sqrt(count));
+  const rows = Math.ceil(count / cols);
+  const cell = 800; // px per tile (4:3 aspect)
+  const cellW = cell;
+  const cellH = Math.round((cell * 3) / 4);
+  const gap = 12;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = cols * cellW + (cols + 1) * gap;
+  canvas.height = rows * cellH + (rows + 1) * gap;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas wird von diesem Browser nicht unterstützt");
+
+  if (background) {
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  images.forEach((img, i) => {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    const x = gap + c * (cellW + gap);
+    const y = gap + r * (cellH + gap);
+    // cover-fit
+    const scale = Math.max(cellW / img.width, cellH / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, cellW, cellH);
+    ctx.clip();
+    ctx.drawImage(img, x + (cellW - w) / 2, y + (cellH - h) / 2, w, h);
+    ctx.restore();
+  });
+
+  return canvas;
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, mime: string, quality?: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Bild konnte nicht erzeugt werden"))),
+      mime,
+      quality,
+    );
+  });
+}
+
+function todayStamp() {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+
 interface SelectedImage {
   vehicleId: string;
   url: string;
@@ -135,7 +218,7 @@ export default function Collage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // key: `${vehicleId}::${url}`
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState<null | "zip" | "pdf" | "share" | "single">(null);
+  const [busy, setBusy] = useState<null | "zip" | "pdf" | "share" | "single" | "image">(null);
   const [progress, setProgress] = useState<{ done: number; total: number }>({
     done: 0,
     total: 0,
@@ -553,7 +636,90 @@ export default function Collage() {
     }
   };
 
+  /**
+   * Renders the selected images as one collage image and offers it to the
+   * user. On iOS/Android the Web Share sheet is the only way into the photo
+   * gallery ("In Fotos sichern"); on desktop we fall back to a blob download.
+   */
+  const saveCollageImage = async (format: "png" | "jpeg") => {
+    const items = collectSelectedImages();
+    if (items.length === 0) {
+      toast.error("Keine Bilder ausgewählt");
+      return;
+    }
+    setBusy("image");
+    setProgress({ done: 0, total: items.length });
+    try {
+      const loaded: HTMLImageElement[] = [];
+      let failed = 0;
+      let done = 0;
+      for (const item of items) {
+        try {
+          const blob = await loadImage(item.url);
+          loaded.push(await blobToImageBitmapSource(blob));
+        } catch (e) {
+          console.warn("Collage image failed", item.url, e);
+          failed++;
+        }
+        done++;
+        setProgress({ done, total: items.length });
+      }
+      if (loaded.length === 0) {
+        toast.error("Kein Bild konnte geladen werden");
+        return;
+      }
+
+      const isJpeg = format === "jpeg";
+      // JPEG has no transparency — always paint a white background.
+      const canvas = drawCollage(loaded, isJpeg ? "#ffffff" : null);
+      const mime = isJpeg ? "image/jpeg" : "image/png";
+      const ext = isJpeg ? "jpg" : "png";
+      const blob = await canvasToBlob(canvas, mime, isJpeg ? 0.92 : undefined);
+
+      const firstVehicle = vehicles.find((v) => v.id === items[0].vehicleId);
+      const base = firstVehicle ? safeName(firstVehicle) : "Collage";
+      const filename = `${base}-${todayStamp()}.${ext}`.replace(/[^a-zA-Z0-9._-]/g, "-");
+
+      const file = new File([blob], filename, { type: mime });
+      const nav = navigator as Navigator & {
+        canShare?: (data: { files: File[] }) => boolean;
+        share?: (data: { files?: File[]; title?: string }) => Promise<void>;
+      };
+
+      if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
+        try {
+          await nav.share({ files: [file], title: filename });
+          toast.success("Bild geteilt — über „In Fotos sichern“ landet es in der Galerie");
+        } catch (e) {
+          if (e instanceof Error && e.name === "AbortError") return;
+          throw e;
+        }
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success(`Bild gespeichert (${filename})`);
+      }
+
+      if (failed > 0) toast.warning(`${failed} Bild(er) konnten nicht geladen werden`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Bild konnte nicht gespeichert werden", {
+        description: e instanceof Error ? e.message : "Unbekannter Fehler",
+      });
+    } finally {
+      setBusy(null);
+      setProgress({ done: 0, total: 0 });
+    }
+  };
+
   const downloadSingle = async () => {
+
     const items = collectSelectedImages();
     if (items.length !== 1) return;
     const item = items[0];
@@ -639,6 +805,33 @@ export default function Collage() {
           {busy === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
           PDF ({selectedCount})
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              disabled={selectedCount === 0 || busy !== null}
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              title="Collage als Bild sichern — auf dem Handy über „In Fotos sichern“ in die Galerie"
+            >
+              {busy === "image" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ImageIcon className="h-4 w-4" />
+              )}
+              Als Bild speichern ({selectedCount})
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => saveCollageImage("png")}>
+              PNG (verlustfrei)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => saveCollageImage("jpeg")}>
+              JPEG (kleiner, weißer Hintergrund)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {selectedCount === 1 && (
           <Button
             onClick={downloadSingle}

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { generateExposeBlob, logExposeFailure, EXPOSE_ERROR_HINT } from "@/lib/exposePdf";
 import type { Vehicle } from "@/hooks/useVehicles";
 
 interface DownloadExposeButtonProps {
@@ -13,14 +15,9 @@ const DownloadExposeButton = ({ vehicle }: DownloadExposeButtonProps) => {
 
   const handleDownload = async () => {
     setLoading(true);
+    const toastId = toast.loading("Exposé wird erstellt …");
     try {
-      // Lazy-load PDF deps only when the user actually wants the PDF.
-      const [{ pdf }, { default: VehicleExpose }] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("./VehicleExpose"),
-      ]);
-
-      const blob = await pdf(<VehicleExpose vehicle={vehicle} />).toBlob();
+      const blob = await generateExposeBlob(vehicle);
 
       // Trigger local download immediately so the user always gets the file.
       const url = URL.createObjectURL(blob);
@@ -28,11 +25,13 @@ const DownloadExposeButton = ({ vehicle }: DownloadExposeButtonProps) => {
       const brand = vehicle.brand || "Fahrzeug";
       const model = vehicle.model || vehicle.model_description || "";
       a.href = url;
-      a.download = `${brand}-${model}-Exposé.pdf`.replace(/\s+/g, "-");
+      a.download = `${brand}-${model}-Expose.pdf`.replace(/\s+/g, "-");
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      toast.success("Exposé wurde heruntergeladen", { id: toastId });
 
       // Best-effort: archive the PDF (admins only — anonymous users will be
       // rejected by RLS, which is fine and silent).
@@ -69,7 +68,11 @@ const DownloadExposeButton = ({ vehicle }: DownloadExposeButtonProps) => {
         console.warn("Expose archive skipped:", archiveErr);
       }
     } catch (err) {
-      console.error("PDF generation failed:", err);
+      await logExposeFailure(vehicle.id, vehicle.title, err, "vehicle-detail");
+      toast.error("Das Exposé konnte nicht erstellt werden", {
+        id: toastId,
+        description: EXPOSE_ERROR_HINT,
+      });
     } finally {
       setLoading(false);
     }
@@ -78,7 +81,7 @@ const DownloadExposeButton = ({ vehicle }: DownloadExposeButtonProps) => {
   return (
     <Button onClick={handleDownload} disabled={loading} variant="outline" className="gap-2">
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-      PDF-Exposé herunterladen
+      {loading ? "Exposé wird erstellt …" : "PDF-Exposé herunterladen"}
     </Button>
   );
 };
