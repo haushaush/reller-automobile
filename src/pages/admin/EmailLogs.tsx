@@ -42,7 +42,22 @@ type EmailLog = {
   provider_response: any;
   error_message: string | null;
   metadata: any;
+  event_type: string | null;
+  audience: string | null;
 };
+
+const EVENT_LABEL: Record<string, string> = {
+  inquiry_received: "Neue Kundenanfrage",
+  vehicle_sold: "Fahrzeug verkauft",
+  vehicle_published: "Fahrzeug veröffentlicht",
+  publish_failed: "Veröffentlichung fehlgeschlagen",
+  story_generated: "Story erzeugt",
+  expose_created: "Exposé erstellt",
+  quality_report: "Datenqualität",
+  open_tasks_reminder: "Offene Handgriffe",
+};
+
+const FAILED_STATUSES = new Set(["failed", "bounced", "error", "dlq"]);
 
 const STATUS_LABEL: Record<string, string> = {
   queued: "Wartet",
@@ -106,6 +121,8 @@ export default function EmailLogs() {
   const [loading, setLoading] = useState(true);
   const [mailType, setMailType] = useState("all");
   const [status, setStatus] = useState("all");
+  const [eventType, setEventType] = useState("all");
+  const [audience, setAudience] = useState("all");
   const [range, setRange] = useState("7d");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<EmailLog | null>(null);
@@ -121,6 +138,8 @@ export default function EmailLogs() {
     }
     if (status !== "all") q = q.eq("status", status);
     if (mailType !== "all") q = q.eq("mail_type", mailType);
+    if (eventType !== "all") q = q.eq("event_type", eventType);
+    if (audience !== "all") q = q.eq("audience", audience);
     const { data, error } = await q;
     if (error) {
       toast({ title: "Mail-Verlauf laden fehlgeschlagen", description: error.message, variant: "destructive" });
@@ -131,12 +150,19 @@ export default function EmailLogs() {
     setLoading(false);
   };
 
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [mailType, status, range]);
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [mailType, status, range, eventType, audience]);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    if (!s) return logs;
-    return logs.filter((l) => {
+    const sortFailedFirst = (rows: EmailLog[]) =>
+      [...rows].sort((a, b) => {
+        const af = FAILED_STATUSES.has(a.status) ? 0 : 1;
+        const bf = FAILED_STATUSES.has(b.status) ? 0 : 1;
+        if (af !== bf) return af - bf;
+        return b.created_at.localeCompare(a.created_at);
+      });
+    if (!s) return sortFailedFirst(logs);
+    return sortFailedFirst(logs.filter((l) => {
       const hay = [
         l.subject ?? "",
         l.mobile_ad_id ?? "",
@@ -146,7 +172,7 @@ export default function EmailLogs() {
         l.error_message ?? "",
       ].join(" ").toLowerCase();
       return hay.includes(s);
-    });
+    }));
   }, [logs, search]);
 
   const doResend = async () => {
@@ -183,7 +209,7 @@ export default function EmailLogs() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Filter</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3">
           <Select value={range} onValueChange={setRange}>
             <SelectTrigger><SelectValue placeholder="Zeitraum" /></SelectTrigger>
             <SelectContent>
@@ -209,6 +235,23 @@ export default function EmailLogs() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={eventType} onValueChange={setEventType}>
+            <SelectTrigger><SelectValue placeholder="Ereignis" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Ereignisse</SelectItem>
+              {Object.entries(EVENT_LABEL).map(([key, label]) => (
+                <SelectItem key={key} value={key}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={audience} onValueChange={setAudience}>
+            <SelectTrigger><SelectValue placeholder="Art" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Kunden- und interne Mails</SelectItem>
+              <SelectItem value="customer">Nur Kundenmails</SelectItem>
+              <SelectItem value="internal">Nur interne Mails</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -228,6 +271,8 @@ export default function EmailLogs() {
               <TableRow>
                 <TableHead>Zeitpunkt</TableHead>
                 <TableHead>Typ</TableHead>
+                <TableHead>Ereignis</TableHead>
+                <TableHead>Art</TableHead>
                 <TableHead>Betreff</TableHead>
                 <TableHead>Empfänger</TableHead>
                 <TableHead>Status</TableHead>
@@ -238,18 +283,24 @@ export default function EmailLogs() {
             </TableHeader>
             <TableBody>
               {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                <TableRow><TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
                   {loading ? "Lädt…" : "Keine Einträge"}
                 </TableCell></TableRow>
               )}
               {filtered.map((l) => (
                 <TableRow
                   key={l.id}
-                  className="cursor-pointer hover:bg-muted/40"
+                  className={`cursor-pointer hover:bg-muted/40 ${FAILED_STATUSES.has(l.status) ? "bg-destructive/5" : ""}`}
                   onClick={() => setSelected(l)}
                 >
                   <TableCell className="whitespace-nowrap text-xs">{fmt(l.created_at)}</TableCell>
                   <TableCell className="text-xs">{l.mail_type}</TableCell>
+                  <TableCell className="text-xs">
+                    {l.event_type ? (EVENT_LABEL[l.event_type] ?? l.event_type) : "—"}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {l.audience === "internal" ? "Intern" : l.audience === "customer" ? "Kunde" : "—"}
+                  </TableCell>
                   <TableCell className="max-w-[280px] truncate">{l.subject ?? "—"}</TableCell>
                   <TableCell className="text-xs max-w-[200px] truncate">{(l.recipients ?? []).join(", ")}</TableCell>
                   <TableCell><StatusBadge log={l} /></TableCell>
