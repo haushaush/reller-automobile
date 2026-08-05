@@ -17,6 +17,9 @@ import { logVehicleAudit } from "@/lib/vehicleAudit";
 import { resolveVehicleImages } from "@/lib/vehicleImages";
 import { VEHICLE_CATEGORY_OPTIONS } from "./VehiclesAdmin";
 import VehicleCard from "@/components/VehicleCard";
+import VehicleListingsPanel from "@/components/admin/VehicleListingsPanel";
+import VehicleStatusDialog from "@/components/admin/VehicleStatusDialog";
+import { vehicleSaleStatus } from "@/lib/listings";
 import type { Vehicle } from "@/hooks/useVehicles";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -111,6 +114,7 @@ export default function VehicleAdminDetail() {
   const [reservedNote, setReservedNote] = useState("");
   const [isReserved, setIsReserved] = useState(false);
   const [isFeatured, setIsFeatured] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -448,16 +452,34 @@ export default function VehicleAdminDetail() {
             )}
           </div>
         </div>
-        <Button onClick={handleSave} disabled={isSaving}>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setStatusDialogOpen(true)}>
+            Status ändern
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving}>
           {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-          Speichern
-        </Button>
+            Speichern
+          </Button>
+        </div>
       </div>
+
+      <VehicleStatusDialog
+        open={statusDialogOpen}
+        onOpenChange={setStatusDialogOpen}
+        vehicleId={vehicle.id}
+        vehicleTitle={vehicle.title}
+        current={vehicleSaleStatus(vehicle)}
+        onDone={() => {
+          queryClient.invalidateQueries({ queryKey: ["admin-vehicle", vehicle.id] });
+          queryClient.invalidateQueries({ queryKey: ["vehicle-listings", vehicle.id] });
+        }}
+      />
 
       <Tabs defaultValue="data" className="mt-6">
         <TabsList>
           <TabsTrigger value="data">Fahrzeugdaten</TabsTrigger>
           <TabsTrigger value="images">Bilder</TabsTrigger>
+          <TabsTrigger value="listings">Inserate</TabsTrigger>
           <TabsTrigger value="history">Änderungsverlauf</TabsTrigger>
         </TabsList>
 
@@ -596,6 +618,13 @@ export default function VehicleAdminDetail() {
               </div>
             )}
           </Card>
+        </TabsContent>
+
+        <TabsContent value="listings" className="mt-4">
+          <VehicleListingsPanel
+            vehicleId={vehicle.id}
+            vehicleCategory={(vehicle.vehicle_category as string | null) ?? null}
+          />
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">

@@ -1,0 +1,206 @@
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { logVehicleAudit } from "@/lib/vehicleAudit";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  PLATFORM_LABELS,
+  SALE_STATUS_LABELS,
+  createTasksForManualListings,
+  type ListingRow,
+  type VehicleSaleStatus,
+} from "@/lib/listings";
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  vehicleId: string;
+  vehicleTitle: string;
+  current: VehicleSaleStatus;
+  onDone?: () => void;
+}
+
+export default function VehicleStatusDialog({
+  open,
+  onOpenChange,
+  vehicleId,
+  vehicleTitle,
+  current,
+  onDone,
+}: Props) {
+  const [target, setTarget] = useState<VehicleSaleStatus>(current);
+  const [listings, setListings] = useState<ListingRow[]>([]);
+  const [running, setRunning] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setTarget(current);
+    supabase
+      .from("listings")
+      .select("*")
+      .eq("vehicle_id", vehicleId)
+      .then(({ data }) => setListings((data ?? []) as ListingRow[]));
+  }, [open, current, vehicleId]);
+
+  const mobile = listings.find((l) => l.platform === "mobile_de");
+  const manualLive = listings.filter((l) => l.is_manual && l.status === "live");
+  const mobileLive = mobile?.status === "live" || mobile?.status === "publishing";
+
+  const consequences: string[] = [];
+  if (target === "sold") {
+    consequences.push(
+      mobileLive
+        ? "Das Inserat auf Mobile.de wird automatisch beendet."
+        : "Auf Mobile.de ist derzeit kein aktives Inserat vorhanden — dort passiert nichts.",
+    );
+    if (manualLive.length > 0) {
+      consequences.push(
+        `Auf ${manualLive
+          .map((l) => PLATFORM_LABELS[l.platform])
+          .join(" und ")} müssen Sie das Inserat selbst beenden — wir erinnern Sie daran.`,
+      );
+    }
+  } else if (target === "reserved") {
+    consequences.push("Das Fahrzeug bleibt online, erhält aber den Hinweis „Reserviert“.");
+    if (manualLive.length > 0) {
+      consequences.push(
+        `Auf ${manualLive
+          .map((l) => PLATFORM_LABELS[l.platform])
+          .join(" und ")} kennzeichnen Sie das Inserat bitte selbst als reserviert — wir erinnern Sie daran.`,
+      );
+    }
+  } else {
+    consequences.push("Das Fahrzeug wird wieder als verfügbar geführt.");
+    if (manualLive.length > 0) {
+      consequences.push(
+        `Prüfen Sie auf ${manualLive
+          .map((l) => PLATFORM_LABELS[l.platform])
+          .join(" und ")}, ob das Inserat wieder aktiv ist — wir erinnern Sie daran.`,
+      );
+    }
+  }
+
+  const apply = async () => {
+    setRunning(true);
+    try {
+      const now = new Date().toISOString();
+      const patch =
+        target === "sold"
+          ? { is_sold: true, sold_at: now, reserved_at: null, reserved_note: null }
+          : target === "reserved"
+            ? { is_sold: false, sold_at: null, reserved_at: now }
+            : { is_sold: false, sold_at: null, reserved_at: null, reserved_note: null };
+
+      // 1) Mobile.de automatisch nachziehen
+      if (target === "sold") {
+        if (mobileLive) {
+          const { error: fnErr } = await supabase.functions.invoke("delete-mobile-ad", {
+            body: { vehicleId, markSold: true },
+          });
+          if (fnErr) throw new Error(`Mobile.de: ${fnErr.message}`);
+        }
+        if (mobile) {
+          await supabase
+            .from("listings")
+            .update({ status: "ended", error_message: null } as never)
+            .eq("id", mobile.id);
+        }
+      }
+
+      // 2) Fahrzeugstatus setzen
+      const { error } = await supabase
+        .from("vehicles")
+        .update(patch as never)
+        .eq("id", vehicleId);
+      if (error) throw error;
+
+      await logVehicleAudit(vehicleId, [
+        {
+          action: "status_change",
+          field: "sale_status",
+          oldValue: SALE_STATUS_LABELS[current],
+          newValue: SALE_STATUS_LABELS[target],
+        },
+      ]);
+
+      // 3) Aufgaben für manuelle Plattformen
+      const action =
+        target === "sold" ? "end_listing" : target === "reserved" ? "mark_reserved" : "reactivate";
+      const count = await createTasksForManualListings(
+        vehicleId,
+        action,
+        `${vehicleTitle}: Status auf „${SALE_STATUS_LABELS[target]}“ geändert`,
+      );
+
+      toast.success(
+        count > 0
+          ? `Status geändert. ${count} offene(r) Handgriff(e) wurden für Sie notiert.`
+          : "Status geändert.",
+      );
+      onOpenChange(false);
+      onDone?.();
+    } catch (e) {
+      toast.error(`Statuswechsel fehlgeschlagen: ${(e as Error).message}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Status ändern</DialogTitle>
+          <DialogDescription>{vehicleTitle}</DialogDescription>
+        </DialogHeader>
+
+        <RadioGroup
+          value={target}
+          onValueChange={(v) => setTarget(v as VehicleSaleStatus)}
+          className="gap-3"
+        >
+          {(["available", "reserved", "sold"] as VehicleSaleStatus[]).map((s) => (
+            <div key={s} className="flex items-center gap-2">
+              <RadioGroupItem value={s} id={`status-${s}`} />
+              <Label htmlFor={`status-${s}`} className="cursor-pointer font-normal">
+                {SALE_STATUS_LABELS[s]}
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
+
+        <div className="rounded-md bg-secondary/60 p-3">
+          <p className="text-xs font-medium">Das passiert dann:</p>
+          <ul className="mt-1.5 space-y-1">
+            {consequences.map((c) => (
+              <li key={c} className="text-xs text-muted-foreground">
+                · {c}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={running}>
+            Abbrechen
+          </Button>
+          <Button onClick={apply} disabled={running || target === current}>
+            {running && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Status setzen
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

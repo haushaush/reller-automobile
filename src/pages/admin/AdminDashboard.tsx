@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Car, BookmarkCheck, BadgeEuro, Mail, FileEdit, ArrowRight } from "lucide-react";
+import { Car, BookmarkCheck, BadgeEuro, Mail, FileEdit, ListChecks, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ interface Stats {
   soldThisMonth: number;
   openInquiries: number;
   drafts: number;
+  openTasks: number;
 }
 
 interface RecentInquiry {
@@ -45,6 +46,7 @@ export default function AdminDashboard() {
     soldThisMonth: 0,
     openInquiries: 0,
     drafts: 0,
+    openTasks: 0,
   });
   const [recent, setRecent] = useState<RecentInquiry[]>([]);
 
@@ -53,7 +55,7 @@ export default function AdminDashboard() {
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-      const [active, reserved, soldMonth, inquiries, drafts] = await Promise.all([
+      const [active, reserved, soldMonth, inquiries, drafts, tasks] = await Promise.all([
         supabase.from("vehicles").select("*", { count: "exact", head: true }).eq("is_sold", false),
         supabase
           .from("vehicles")
@@ -71,6 +73,11 @@ export default function AdminDashboard() {
           .select("*", { count: "exact", head: true })
           .eq("is_sold", false)
           .eq("publish_status", "draft"),
+        supabase
+          .from("listing_tasks")
+          .select("*", { count: "exact", head: true })
+          .is("done_at", null)
+          .is("dismissed_at", null),
       ]);
 
       setStats({
@@ -79,6 +86,7 @@ export default function AdminDashboard() {
         soldThisMonth: soldMonth.count ?? 0,
         openInquiries: inquiries.count ?? 0,
         drafts: drafts.count ?? 0,
+        openTasks: tasks.count ?? 0,
       });
 
       const { data: inquiryRows } = await supabase
@@ -138,6 +146,12 @@ export default function AdminDashboard() {
       value: stats.soldThisMonth,
       icon: BadgeEuro,
       to: "/admin/fahrzeuge?status=sold",
+    },
+    {
+      label: "Zu erledigen",
+      value: stats.openTasks,
+      icon: ListChecks,
+      to: "/admin/zu-erledigen",
     },
     { label: "Offene Anfragen", value: stats.openInquiries, icon: Mail, to: "/admin/anfragen" },
     {

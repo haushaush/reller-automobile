@@ -18,6 +18,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import PlatformBadges from "@/components/admin/PlatformBadges";
+import { loadListingOverview } from "@/lib/listings";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
@@ -218,6 +220,13 @@ export default function VehiclesAdmin() {
 
   const rows = data?.rows ?? [];
   const total = data?.count ?? 0;
+
+  // Inserate aller sichtbaren Fahrzeuge in einer Abfrage (kein N+1)
+  const { data: listingMap } = useQuery({
+    queryKey: ["admin-vehicles-listings", rows.map((r) => r.id)],
+    enabled: rows.length > 0,
+    queryFn: () => loadListingOverview(rows.map((r) => r.id)),
+  });
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.includes(r.id));
@@ -523,7 +532,7 @@ export default function VehiclesAdmin() {
               {sortableHead("price", "Preis")}
               <TableHead>Quelle</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Mobile.de</TableHead>
+              <TableHead>Inserate</TableHead>
               <TableHead>Bilder</TableHead>
               {sortableHead("synced_at", "Letzter Sync")}
             </TableRow>
@@ -592,7 +601,7 @@ export default function VehiclesAdmin() {
                       <StatusBadge v={v} />
                     </TableCell>
                     <TableCell>
-                      <PublishBadge v={v} />
+                      <PlatformBadges listings={listingMap?.get(v.id)} />
                     </TableCell>
                     <TableCell>{resolveVehicleImages(v).length}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
@@ -647,6 +656,7 @@ export default function VehiclesAdmin() {
                     </p>
                     <div className="flex items-center gap-2 mt-2">
                       <StatusBadge v={v} />
+                      <PlatformBadges listings={listingMap?.get(v.id)} hideNotListed />
                       <span className="text-xs text-muted-foreground">
                         {resolveVehicleImages(v).length} Bilder
                       </span>

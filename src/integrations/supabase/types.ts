@@ -308,6 +308,122 @@ export type Database = {
           },
         ]
       }
+      listing_tasks: {
+        Row: {
+          action: Database["public"]["Enums"]["listing_task_action"]
+          created_at: string
+          dismissed_at: string | null
+          done_at: string | null
+          done_by: string | null
+          id: string
+          listing_id: string | null
+          reason: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["listing_task_action"]
+          created_at?: string
+          dismissed_at?: string | null
+          done_at?: string | null
+          done_by?: string | null
+          id?: string
+          listing_id?: string | null
+          reason?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["listing_task_action"]
+          created_at?: string
+          dismissed_at?: string | null
+          done_at?: string | null
+          done_by?: string | null
+          id?: string
+          listing_id?: string | null
+          reason?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_tasks_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listing_tasks_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listings: {
+        Row: {
+          account_key: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          external_ad_id: string | null
+          external_url: string | null
+          id: string
+          is_manual: boolean
+          last_checked_at: string | null
+          last_pushed_at: string | null
+          note: string | null
+          platform: Database["public"]["Enums"]["listing_platform"]
+          published_at: string | null
+          status: Database["public"]["Enums"]["listing_status"]
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          account_key?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          external_ad_id?: string | null
+          external_url?: string | null
+          id?: string
+          is_manual?: boolean
+          last_checked_at?: string | null
+          last_pushed_at?: string | null
+          note?: string | null
+          platform: Database["public"]["Enums"]["listing_platform"]
+          published_at?: string | null
+          status?: Database["public"]["Enums"]["listing_status"]
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          account_key?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          external_ad_id?: string | null
+          external_url?: string | null
+          id?: string
+          is_manual?: boolean
+          last_checked_at?: string | null
+          last_pushed_at?: string | null
+          note?: string | null
+          platform?: Database["public"]["Enums"]["listing_platform"]
+          published_at?: string | null
+          status?: Database["public"]["Enums"]["listing_status"]
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listings_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mobile_ad_drafts: {
         Row: {
           created_at: string
@@ -464,6 +580,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_accounts: {
+        Row: {
+          account_key: string
+          created_at: string
+          default_for_categories: string[]
+          id: string
+          is_active: boolean
+          label: string
+          password_secret_name: string | null
+          platform: Database["public"]["Enums"]["listing_platform"]
+          seller_id: string | null
+          sort_order: number
+          updated_at: string
+          username_secret_name: string | null
+        }
+        Insert: {
+          account_key: string
+          created_at?: string
+          default_for_categories?: string[]
+          id?: string
+          is_active?: boolean
+          label: string
+          password_secret_name?: string | null
+          platform: Database["public"]["Enums"]["listing_platform"]
+          seller_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          username_secret_name?: string | null
+        }
+        Update: {
+          account_key?: string
+          created_at?: string
+          default_for_categories?: string[]
+          id?: string
+          is_active?: boolean
+          label?: string
+          password_secret_name?: string | null
+          platform?: Database["public"]["Enums"]["listing_platform"]
+          seller_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          username_secret_name?: string | null
+        }
+        Relationships: []
       }
       price_history: {
         Row: {
@@ -1104,7 +1265,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      vehicle_listing_overview: {
+        Row: {
+          error_count: number | null
+          listings: Json | null
+          live_count: number | null
+          vehicle_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listings_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       current_user_is_admin: { Args: never; Returns: boolean }
@@ -1152,6 +1329,20 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "editor" | "viewer" | "seller"
+      listing_platform: "mobile_de" | "autoscout24" | "kleinanzeigen"
+      listing_status:
+        | "not_listed"
+        | "draft"
+        | "publishing"
+        | "live"
+        | "error"
+        | "paused"
+        | "ended"
+      listing_task_action:
+        | "end_listing"
+        | "update_price"
+        | "mark_reserved"
+        | "reactivate"
       publish_status:
         | "draft"
         | "publishing"
@@ -1287,6 +1478,22 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "editor", "viewer", "seller"],
+      listing_platform: ["mobile_de", "autoscout24", "kleinanzeigen"],
+      listing_status: [
+        "not_listed",
+        "draft",
+        "publishing",
+        "live",
+        "error",
+        "paused",
+        "ended",
+      ],
+      listing_task_action: [
+        "end_listing",
+        "update_price",
+        "mark_reserved",
+        "reactivate",
+      ],
       publish_status: [
         "draft",
         "publishing",

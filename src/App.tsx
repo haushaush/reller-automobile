@@ -40,6 +40,7 @@ const Collage = lazy(() => import("./pages/admin/Collage"));
 const MobileAdCreate = lazy(() => import("./pages/admin/MobileAdCreate"));
 const EmailLogs = lazy(() => import("./pages/admin/EmailLogs"));
 const Storys = lazy(() => import("./pages/admin/Storys"));
+const ListingTasks = lazy(() => import("./pages/admin/ListingTasks"));
 
 /** Alte Anfragen-Detaillinks auf den neuen Pfad umleiten */
 const LegacyInquiryRedirect = () => {
@@ -93,6 +94,7 @@ const App = () => (
 
                       {/* Hauptbereiche */}
                       <Route path="fahrzeuge" element={<VehiclesAdmin />} />
+                      <Route path="zu-erledigen" element={<ListingTasks />} />
                       <Route path="fahrzeug-anlegen" element={<MobileAdCreate />} />
                       <Route path="fahrzeuge/:vehicleId/inserat" element={<MobileAdCreate />} />
                       <Route path="fahrzeuge/:vehicleId/live-edit" element={<MobileAdCreate />} />
