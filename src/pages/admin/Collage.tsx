@@ -218,7 +218,7 @@ export default function Collage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // key: `${vehicleId}::${url}`
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState<null | "zip" | "pdf" | "share" | "single">(null);
+  const [busy, setBusy] = useState<null | "zip" | "pdf" | "share" | "single" | "image">(null);
   const [progress, setProgress] = useState<{ done: number; total: number }>({
     done: 0,
     total: 0,
