@@ -4,9 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertTriangle, Info, XCircle, RefreshCw } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { de } from "date-fns/locale";
+import { Loader2, AlertTriangle, Info, XCircle, RefreshCw, CheckCircle2, Pencil } from "lucide-react";
+import {
+  resolveQualityMessage,
+  URGENCY,
+  URGENCY_ORDER,
+  type UrgencyKey,
+} from "@/lib/dataQualityMessages";
 
 interface QualityIssueRow {
   id: string;
@@ -21,29 +25,12 @@ interface VehicleLite {
   id: string;
   title: string;
   brand: string | null;
-  mobile_de_id: string;
   is_sold: boolean;
 }
 
-const ISSUE_LABELS: Record<string, string> = {
-  missing_images: "Keine Bilder",
-  missing_price: "Kein Preis",
-  missing_mileage: "Keine Laufleistung",
-  missing_year: "Keine Erstzulassung",
-  missing_fuel: "Kein Kraftstoff",
-  missing_gearbox: "Kein Getriebe",
-  missing_power: "Keine Leistung",
-  missing_body_type: "Keine Karosserieform",
-  implausible_price: "Unplausibler Preis",
-  implausible_mileage: "Unplausible Laufleistung",
-  implausible_year: "Unplausible Erstzulassung",
-  missing_description: "Keine Beschreibung",
-  stale: "Lange nicht aktualisiert",
-};
-
-function severityIcon(severity: string) {
-  if (severity === "error") return <XCircle className="h-4 w-4 text-destructive" />;
-  if (severity === "warning") return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+function urgencyIcon(urgency: UrgencyKey) {
+  if (urgency === "must") return <XCircle className="h-4 w-4 text-destructive" />;
+  if (urgency === "should") return <AlertTriangle className="h-4 w-4 text-amber-500" />;
   return <Info className="h-4 w-4 text-muted-foreground" />;
 }
 
@@ -51,8 +38,7 @@ export default function DataQuality() {
   const [issues, setIssues] = useState<QualityIssueRow[]>([]);
   const [vehicles, setVehicles] = useState<Record<string, VehicleLite>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [severityFilter, setSeverityFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [filter, setFilter] = useState<"all" | UrgencyKey>("all");
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -70,7 +56,7 @@ export default function DataQuality() {
     if (ids.length > 0) {
       const { data: vehicleRows } = await supabase
         .from("vehicles")
-        .select("id, title, brand, mobile_de_id, is_sold")
+        .select("id, title, brand, is_sold")
         .in("id", ids);
       const map: Record<string, VehicleLite> = {};
       for (const v of (vehicleRows as VehicleLite[]) || []) map[v.id] = v;
@@ -85,142 +71,155 @@ export default function DataQuality() {
     loadData();
   }, [loadData]);
 
-  const counts = useMemo(() => {
-    const c = { error: 0, warning: 0, info: 0 };
-    for (const i of issues) {
-      if (i.severity === "error") c.error++;
-      else if (i.severity === "warning") c.warning++;
-      else c.info++;
-    }
-    return c;
-  }, [issues]);
-
-  const types = useMemo(() => [...new Set(issues.map((i) => i.issue_type))].sort(), [issues]);
-
-  const filtered = useMemo(
+  const enriched = useMemo(
     () =>
-      issues.filter(
-        (i) =>
-          (severityFilter === "all" || i.severity === severityFilter) &&
-          (typeFilter === "all" || i.issue_type === typeFilter)
-      ),
-    [issues, severityFilter, typeFilter]
+      issues.map((i) => ({
+        ...i,
+        message: resolveQualityMessage(i.issue_type, i.severity, i.detail),
+      })),
+    [issues],
+  );
+
+  const grouped = useMemo(() => {
+    const g: Record<UrgencyKey, typeof enriched> = { must: [], should: [], hint: [] };
+    for (const i of enriched) g[i.message.urgency].push(i);
+    return g;
+  }, [enriched]);
+
+  const affectedVehicles = useMemo(
+    () => new Set(issues.map((i) => i.vehicle_id)).size,
+    [issues],
+  );
+
+  const summary = (() => {
+    if (isLoading) return "Wird geprüft …";
+    if (affectedVehicles === 0) return "Alles in Ordnung – kein Fahrzeug braucht Ihre Aufmerksamkeit.";
+    const mustCount = new Set(grouped.must.map((i) => i.vehicle_id)).size;
+    const base =
+      affectedVehicles === 1
+        ? "1 Fahrzeug braucht Ihre Aufmerksamkeit"
+        : `${affectedVehicles} Fahrzeuge brauchen Ihre Aufmerksamkeit`;
+    return mustCount > 0
+      ? `${base} – bei ${mustCount} davon ist es dringend.`
+      : `${base}.`;
+  })();
+
+  const visibleGroups = URGENCY_ORDER.filter(
+    (u) => (filter === "all" || filter === u) && grouped[u].length > 0,
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Datenqualität</h1>
-          <p className="text-muted-foreground mt-1">
-            Offene Auffälligkeiten im Fahrzeugbestand, ermittelt beim letzten Sync-Lauf.
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Datenqualität</h1>
+          <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+            Fahrzeuge, bei denen Fotos, Preis oder wichtige Angaben fehlen
           </p>
         </div>
         <Button variant="outline" onClick={loadData} disabled={isLoading}>
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Aktualisieren
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          Neu laden
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-5">
-          <div className="text-sm text-muted-foreground">Fehler</div>
-          <div className="text-2xl font-semibold mt-2 text-destructive">{counts.error}</div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-sm text-muted-foreground">Warnungen</div>
-          <div className="text-2xl font-semibold mt-2 text-amber-600">{counts.warning}</div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-sm text-muted-foreground">Hinweise</div>
-          <div className="text-2xl font-semibold mt-2">{counts.info}</div>
-        </Card>
+      <Card className="flex items-start gap-3 p-5">
+        {affectedVehicles === 0 && !isLoading ? (
+          <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
+        ) : (
+          <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-500" />
+        )}
+        <div>
+          <p className="text-base font-medium">{summary}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Je vollständiger ein Fahrzeug erfasst ist, desto häufiger wird es angesehen und
+            angefragt.
+          </p>
+        </div>
+      </Card>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant={filter === "all" ? "default" : "outline"}
+          onClick={() => setFilter("all")}
+        >
+          Alles anzeigen ({enriched.length})
+        </Button>
+        {URGENCY_ORDER.map((u) => (
+          <Button
+            key={u}
+            size="sm"
+            variant={filter === u ? "default" : "outline"}
+            onClick={() => setFilter(u)}
+          >
+            {URGENCY[u].label} ({grouped[u].length})
+          </Button>
+        ))}
       </div>
 
-      <Card className="p-5">
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          {["all", "error", "warning", "info"].map((s) => (
-            <Button
-              key={s}
-              size="sm"
-              variant={severityFilter === s ? "default" : "outline"}
-              onClick={() => setSeverityFilter(s)}
-            >
-              {s === "all" ? "Alle" : s === "error" ? "Fehler" : s === "warning" ? "Warnungen" : "Hinweise"}
-            </Button>
-          ))}
-          <span className="mx-1 h-5 w-px bg-border" />
-          <Button
-            size="sm"
-            variant={typeFilter === "all" ? "default" : "outline"}
-            onClick={() => setTypeFilter("all")}
-          >
-            Alle Typen
-          </Button>
-          {types.map((t) => (
-            <Button
-              key={t}
-              size="sm"
-              variant={typeFilter === t ? "default" : "outline"}
-              onClick={() => setTypeFilter(t)}
-            >
-              {ISSUE_LABELS[t] ?? t}
-            </Button>
-          ))}
-        </div>
-
-        {isLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        ) : filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Keine offenen Auffälligkeiten.</p>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((issue) => {
-              const v = vehicles[issue.vehicle_id];
-              return (
-                <div
-                  key={issue.id}
-                  className="flex items-start gap-3 pb-3 border-b border-border last:border-0"
-                >
-                  <div className="mt-0.5">{severityIcon(issue.severity)}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">
-                        {ISSUE_LABELS[issue.issue_type] ?? issue.issue_type}
-                      </span>
-                      <Badge variant="outline" className="text-xs">
-                        {issue.severity}
-                      </Badge>
-                      {v?.is_sold && (
-                        <Badge variant="destructive" className="text-xs">
-                          Verkauft
-                        </Badge>
-                      )}
+      {isLoading ? (
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      ) : visibleGroups.length === 0 ? (
+        <Card className="p-6">
+          <p className="text-sm text-muted-foreground">Hier ist gerade nichts zu tun.</p>
+        </Card>
+      ) : (
+        visibleGroups.map((u) => (
+          <section key={u} className="space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">
+                {URGENCY[u].label}{" "}
+                <span className="text-muted-foreground">({grouped[u].length})</span>
+              </h2>
+              <p className="text-sm text-muted-foreground">{URGENCY[u].description}</p>
+            </div>
+            <Card className="divide-y divide-border">
+              {grouped[u].map((issue) => {
+                const v = vehicles[issue.vehicle_id];
+                return (
+                  <div
+                    key={issue.id}
+                    className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="mt-0.5">{urgencyIcon(u)}</div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium">{issue.message.title}</span>
+                          {v?.is_sold && (
+                            <Badge variant="outline" className="text-xs">
+                              Verkauft
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {issue.message.advice}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {v
+                            ? `${v.brand ? `${v.brand} · ` : ""}${v.title}`
+                            : "Fahrzeug nicht gefunden"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-sm mt-1 truncate">
-                      {v ? (
-                        <Link to={`/fahrzeug/${issue.vehicle_id}`} className="hover:underline">
-                          {v.brand ? `${v.brand} · ` : ""}
-                          {v.title}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">Fahrzeug {issue.vehicle_id.slice(0, 8)}…</span>
-                      )}
-                    </div>
-                    {issue.detail && (
-                      <div className="text-xs text-muted-foreground mt-1 break-words">{issue.detail}</div>
-                    )}
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {formatDistanceToNow(new Date(issue.detected_at), { addSuffix: true, locale: de })}
-                      {v?.mobile_de_id ? ` · ${v.mobile_de_id}` : ""}
-                    </div>
+                    <Button asChild size="sm" variant="outline" className="shrink-0">
+                      <Link to={`/admin/fahrzeuge/${issue.vehicle_id}`}>
+                        <Pencil className="h-4 w-4" />
+                        Fahrzeug bearbeiten
+                      </Link>
+                    </Button>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+                );
+              })}
+            </Card>
+          </section>
+        ))
+      )}
     </div>
   );
 }
