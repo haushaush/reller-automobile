@@ -223,10 +223,11 @@ export default function ExposeArchive() {
       toast.success("Exposé erzeugt und gespeichert");
       await loadData();
     } catch (e) {
-      console.error(e);
-      toast.error("Exposé-Erzeugung fehlgeschlagen", {
-        description: e instanceof Error ? e.message : "Unbekannter Fehler",
+      await logExposeFailure(v.id, v.title, e, "admin-expose-archive");
+      toast.error("Das Exposé konnte nicht erstellt werden", {
+        description: EXPOSE_ERROR_HINT,
       });
+
     } finally {
       setBusyId(null);
     }
