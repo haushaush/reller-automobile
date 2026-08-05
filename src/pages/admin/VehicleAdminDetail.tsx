@@ -623,7 +623,7 @@ export default function VehicleAdminDetail() {
         <TabsContent value="listings" className="mt-4">
           <VehicleListingsPanel
             vehicleId={vehicle.id}
-            vehicleCategory={vehicle.vehicle_category}
+            vehicleCategory={(vehicle.vehicle_category as string | null) ?? null}
           />
         </TabsContent>
 
