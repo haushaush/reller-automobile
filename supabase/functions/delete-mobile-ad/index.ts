@@ -100,6 +100,9 @@ Deno.serve((req) => withAccountLock(async () => {
       await admin.from("vehicles").update({
         publish_status: "unpublished", publish_error: null, ...soldPatch,
       } as never).eq("id", vehicleId);
+      await syncMobileListing(admin, vehicleId, {
+        status: "ended", error_message: null, account_key: ACCOUNT.account_key,
+      });
       await logPush(null, "kein Mobile.de-Inserat vorhanden");
       return json(200, {
         success: true, mobileAdId: null, alreadyGone: true,

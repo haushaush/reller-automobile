@@ -313,6 +313,11 @@ Deno.serve((req) => withAccountLock(async () => {
         publish_error: msg.slice(0, 2000),
         last_pushed_at: new Date().toISOString(),
       } as never).eq("id", vehicleId);
+      await syncMobileListing(admin, vehicleId!, {
+        status: "error",
+        error_message: msg.slice(0, 2000),
+        account_key: ACCOUNT.account_key,
+      });
     };
 
     console.log(`update-mobile-ad vehicleId=${vehicleId} mobileAdId=${mobileAdId}`);
@@ -441,6 +446,12 @@ Deno.serve((req) => withAccountLock(async () => {
       publish_error: null,
       last_pushed_at: nowIso,
     } as never).eq("id", vehicleId);
+    await syncMobileListing(admin, vehicleId, {
+      status: "live",
+      external_ad_id: String(mobileAdId),
+      error_message: null,
+      account_key: ACCOUNT.account_key,
+    });
     await logPush("update", finalBody, putRes.status, putText);
 
     return json(200, {
