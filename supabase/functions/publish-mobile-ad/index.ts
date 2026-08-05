@@ -481,7 +481,7 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
   return { adBody, missing, warnings };
 }
 
-Deno.serve(async (req) => {
+Deno.serve((req) => withAccountLock(async () => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const json = (status: number, body: unknown) =>
@@ -500,9 +500,6 @@ Deno.serve(async (req) => {
     const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
     if (claimsError || !claimsData?.claims?.sub) return json(401, { error: "Unauthorized" });
 
-    if (!MOBILE_USER || !MOBILE_PASS) {
-      return json(500, { error: "Mobile.de Seller-API Zugangsdaten fehlen" });
-    }
     const userId = claimsData.claims.sub as string;
     const { data: roleRow } = await admin
       .from("user_roles")
@@ -519,6 +516,15 @@ Deno.serve(async (req) => {
       vehicleId = body?.vehicleId;
     } catch { /* empty body */ }
     if (!vehicleId) return json(400, { error: "vehicleId required" });
+
+    // Konto (Standard oder Unfall) anhand des Fahrzeugs bestimmen
+    applyAccount(await resolveMobileAccount(admin, vehicleId));
+    console.log(`publish-mobile-ad: Konto "${ACCOUNT.account_key}" (${ACCOUNT.label})`);
+    if (!MOBILE_USER || !MOBILE_PASS) {
+      return json(500, {
+        error: `Zugangsdaten für das Konto "${ACCOUNT.label}" fehlen`,
+      });
+    }
 
     const { data: vehicle, error: vehErr } = await admin
       .from("vehicles")
@@ -561,8 +567,18 @@ Deno.serve(async (req) => {
           last_pushed_at: new Date().toISOString(),
         } as never)
         .eq("id", vehicleId);
+      await syncMobileListing(admin, vehicleId!, {
+        status: "error",
+        error_message: msg.slice(0, 2000),
+        account_key: ACCOUNT.account_key,
+      });
     };
 
+    await syncMobileListing(admin, vehicleId, {
+      status: "publishing",
+      error_message: null,
+      account_key: ACCOUNT.account_key,
+    });
     await admin
       .from("vehicles")
       .update({ publish_status: "publishing", publish_error: null } as never)
@@ -778,6 +794,13 @@ Deno.serve(async (req) => {
         is_sold: false,
       } as never)
       .eq("id", vehicleId);
+    await syncMobileListing(admin, vehicleId, {
+      status: "live",
+      external_ad_id: mobileAdId,
+      external_url: detailPageUrl ?? null,
+      error_message: null,
+      account_key: ACCOUNT.account_key,
+    });
     console.log(`publish-mobile-ad: vehicle=${vehicleId} mobileAdId=${mobileAdId} published`);
 
     // Benachrichtigung wird jetzt direkt beim Veröffentlichen ausgelöst
@@ -801,4 +824,4 @@ Deno.serve(async (req) => {
     console.error("publish-mobile-ad fatal:", err);
     return json(500, { error: String((err as Error).message || err) });
   }
-});
+}));
