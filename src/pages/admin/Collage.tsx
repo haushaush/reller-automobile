@@ -805,6 +805,33 @@ export default function Collage() {
           {busy === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
           PDF ({selectedCount})
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              disabled={selectedCount === 0 || busy !== null}
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              title="Collage als Bild sichern — auf dem Handy über „In Fotos sichern“ in die Galerie"
+            >
+              {busy === "image" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ImageIcon className="h-4 w-4" />
+              )}
+              Als Bild speichern ({selectedCount})
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => saveCollageImage("png")}>
+              PNG (verlustfrei)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => saveCollageImage("jpeg")}>
+              JPEG (kleiner, weißer Hintergrund)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {selectedCount === 1 && (
           <Button
             onClick={downloadSingle}
