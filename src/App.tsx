@@ -38,6 +38,7 @@ const Accounts = lazy(() => import("./pages/admin/Accounts"));
 const ExposeArchive = lazy(() => import("./pages/admin/ExposeArchive"));
 const Collage = lazy(() => import("./pages/admin/Collage"));
 const MobileAdCreate = lazy(() => import("./pages/admin/MobileAdCreate"));
+const VehicleWizard = lazy(() => import("./pages/admin/VehicleWizard"));
 const EmailLogs = lazy(() => import("./pages/admin/EmailLogs"));
 const Storys = lazy(() => import("./pages/admin/Storys"));
 const ListingTasks = lazy(() => import("./pages/admin/ListingTasks"));
@@ -95,7 +96,8 @@ const App = () => (
                       {/* Hauptbereiche */}
                       <Route path="fahrzeuge" element={<VehiclesAdmin />} />
                       <Route path="zu-erledigen" element={<ListingTasks />} />
-                      <Route path="fahrzeug-anlegen" element={<MobileAdCreate />} />
+                      <Route path="fahrzeug-anlegen" element={<VehicleWizard />} />
+                      <Route path="fahrzeug-anlegen/:vehicleId" element={<VehicleWizard />} />
                       <Route path="fahrzeuge/:vehicleId/inserat" element={<MobileAdCreate />} />
                       <Route path="fahrzeuge/:vehicleId/live-edit" element={<MobileAdCreate />} />
                       <Route path="fahrzeuge/:id" element={<VehicleAdminDetail />} />
