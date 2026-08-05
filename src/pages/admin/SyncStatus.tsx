@@ -305,67 +305,74 @@ export default function SyncStatus() {
                     <div className="mt-0.5">{getStatusIcon(log.status)}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm">{log.sync_name}</span>
+                        <span className="font-medium text-sm">{runName(log.sync_name)}</span>
                         <Badge variant="outline" className="text-xs">
-                          {log.status ?? "—"}
+                          {RUN_STATUS_LABELS[log.status ?? ""] ?? "Unbekannt"}
                         </Badge>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
                         {formatDistanceToNow(new Date(log.started_at), { addSuffix: true, locale: de })}
-                        {log.duration_ms ? ` · ${formatDuration(log.duration_ms)}` : ""}
-                        {pages != null ? ` · ${pages} Seite${pages === 1 ? "" : "n"}` : ""}
-                        {mobileTotal != null ? ` · Mobile.de total: ${mobileTotal}` : ""}
+                        {log.duration_ms ? ` · Dauer ${formatDuration(log.duration_ms)}` : ""}
                       </div>
                       {hasCounts && (
                         <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
-                          <span>{log.vehicles_total ?? 0} gelesen</span>
-                          <span>·</span>
                           <span className="text-green-600">{log.vehicles_added ?? 0} neu</span>
                           <span>·</span>
                           <span>{log.vehicles_updated ?? 0} aktualisiert</span>
-                          {log.vehicles_unchanged != null && (
-                            <>
-                              <span>·</span>
-                              <span>{log.vehicles_unchanged} unverändert</span>
-                            </>
-                          )}
                           <span>·</span>
-                          <span className="text-destructive">{log.vehicles_marked_sold ?? 0} verkauft</span>
-                          {log.price_changes != null && (
-                            <>
-                              <span>·</span>
-                              <span>{log.price_changes} Preisänderung{log.price_changes === 1 ? "" : "en"}</span>
-                            </>
-                          )}
-                          {log.quality_issues_found != null && (
-                            <>
-                              <span>·</span>
-                              <span>{log.quality_issues_found} Qualitätsprobleme</span>
-                            </>
-                          )}
+                          <span className="text-destructive">
+                            {log.vehicles_marked_sold ?? 0} verkauft
+                          </span>
                         </div>
-                      )}
-                      {log.stop_reason && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Stop: {log.stop_reason}
-                        </div>
-                      )}
-                      {paginationCapWarning && (
-                        <p className="text-xs text-amber-600 mt-1">
-                          Hinweis: Es wurden genau {pageSize} Fahrzeuge geladen. Bitte Pagination prüfen, falls mehr Fahrzeuge erwartet werden.
-                        </p>
                       )}
                       {log.status === "success_with_warning" && (
                         <p className="text-xs text-amber-600 mt-1">
-                          Hinweis: Soft-Delete übersprungen, weil die Pagination nicht eindeutig abgeschlossen wurde.
+                          Hinweis: Es wurden vorsichtshalber keine Fahrzeuge als verkauft markiert,
+                          weil nicht alle Daten geladen werden konnten.
                         </p>
                       )}
-                      {log.error_message && (
-                        <p className="text-xs text-destructive mt-1 break-words">{log.error_message}</p>
+                      {log.status === "failed" && (
+                        <p className="text-xs text-destructive mt-1">
+                          Der Abgleich konnte nicht abgeschlossen werden. Bitte später erneut starten.
+                        </p>
                       )}
+
+                      <Collapsible>
+                        <CollapsibleTrigger className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                          <ChevronDown className="h-3 w-3" />
+                          Technische Details
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-1 space-y-0.5 rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
+                          <div>Vorgang: {log.sync_name}</div>
+                          <div>Zustand: {log.status ?? "—"}</div>
+                          <div>Gelesene Datensätze: {log.vehicles_total ?? 0}</div>
+                          {log.vehicles_unchanged != null && (
+                            <div>Unverändert: {log.vehicles_unchanged}</div>
+                          )}
+                          {pages != null && <div>Geladene Seiten: {pages}</div>}
+                          {mobileTotal != null && <div>Treffer bei Mobile.de: {mobileTotal}</div>}
+                          {log.price_changes != null && (
+                            <div>Preisänderungen: {log.price_changes}</div>
+                          )}
+                          {log.quality_issues_found != null && (
+                            <div>Gefundene Datenlücken: {log.quality_issues_found}</div>
+                          )}
+                          {log.stop_reason && <div>Abbruchgrund: {log.stop_reason}</div>}
+                          {paginationCapWarning && (
+                            <div className="text-amber-600">
+                              Es wurden genau {pageSize} Fahrzeuge geladen – möglicherweise fehlen
+                              weitere.
+                            </div>
+                          )}
+                          {log.error_message && (
+                            <div className="text-destructive break-words">{log.error_message}</div>
+                          )}
+                        </CollapsibleContent>
+                      </Collapsible>
                     </div>
                   </div>
                 );
+
               })}
             </div>
           )}
