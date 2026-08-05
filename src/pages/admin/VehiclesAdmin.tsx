@@ -202,7 +202,7 @@ export default function VehiclesAdmin() {
         query = query.eq("is_sold", false).not("reserved_at", "is", null);
       if (filters.status === "available")
         query = query.eq("is_sold", false).is("reserved_at", null);
-      if (filters.publish !== "all") query = query.eq("publish_status", filters.publish);
+      if (filters.publish !== "all") query = query.eq("publish_status", filters.publish as "draft");
       if (filters.onlyNoImages) query = query.or("image_urls.is.null,image_urls.eq.{}");
       if (issueIds) query = query.in("id", issueIds);
 
