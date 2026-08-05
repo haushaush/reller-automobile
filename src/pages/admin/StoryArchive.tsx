@@ -92,7 +92,7 @@ const selectFilterKeys: (keyof Filters)[] = [
   "status",
 ];
 
-export default function StoryArchive() {
+export default function StoryArchive({ embedded = false }: { embedded?: boolean } = {}) {
   const [stories, setStories] = useState<StoryWithVehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
@@ -508,12 +508,14 @@ export default function StoryArchive() {
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-24 md:pb-0">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Story-Archiv</h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-1">
-          Alle generierten Story-Mockups ansehen und herunterladen
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Gespeicherte Storys</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+            Alle erstellten Bilder ansehen und herunterladen
+          </p>
+        </div>
+      )}
 
       <Card className="p-4">
         <FilterBar

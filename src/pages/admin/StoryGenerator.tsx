@@ -80,7 +80,7 @@ const selectFilterKeys: (keyof Filters)[] = [
   "status",
 ];
 
-export default function StoryGenerator() {
+export default function StoryGenerator({ embedded = false }: { embedded?: boolean } = {}) {
   const [vehicles, setVehicles] = useState<VehicleWithStory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
