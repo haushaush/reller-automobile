@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { generateExposeBlob, logExposeFailure, EXPOSE_ERROR_HINT } from "@/lib/exposePdf";
+
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
