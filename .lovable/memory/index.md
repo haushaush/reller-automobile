@@ -22,3 +22,4 @@ vehicle_category persisted in DB ('oldtimer'|'youngtimer'|'used'|'accident'|'com
 - [Mobile.de Sync](mem://integrations/mobile-de-sync) — 2-stage API sync, batching, soft-deletes (is_sold: true), triggers alerts. Two accounts: main (sync-vehicles) + accident (sync-accident-vehicles, ID prefix 'accident_', secrets MOBILE_DE_ACCIDENT_USERNAME/PASSWORD). Each sync only touches its own vehicle_category scope.
 - [Favorites System](mem://features/favorites-system) — LocalStorage, Heart icon animations, context, side drawer
 - [Categories & Hub](mem://features/categories-hub) — 4 UI buckets, CATEGORIES def in src/lib/categories.ts, hub page, useVehicleCounts hook
+- [Anfragen-Posteingang](mem://features/leads-inbox) — Mobile.de Lead-API, Cursor-Abruf, Statusrückmeldung, DSGVO-Löschung
