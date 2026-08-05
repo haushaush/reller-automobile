@@ -358,6 +358,20 @@ export default function Settings() {
         </p>
       </div>
 
+      <Card className="p-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Benachrichtigungen</h2>
+          <p className="text-sm text-muted-foreground">
+            Absenderadresse festlegen und einstellen, wer welche Mail bekommt — inklusive Testversand.
+          </p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link to="/admin/einstellungen/benachrichtigungen">Öffnen</Link>
+        </Button>
+      </Card>
+
+
+
       <Card className="p-6 space-y-4">
         <div className="flex items-start gap-3">
           <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
