@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // imagescript: pure-TS image lib that runs in Deno without native deps
 import { decode as decodeImage, Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { emitNotificationEvent } from "../_shared/emit-event.ts";
 import {
   resolveMobileAccount,
   syncMobileListing,
@@ -572,6 +573,15 @@ Deno.serve((req) => withAccountLock(async () => {
         error_message: msg.slice(0, 2000),
         account_key: ACCOUNT.account_key,
       });
+      const { data: failedVehicle } = await admin
+        .from("vehicles").select("title").eq("id", vehicleId!).maybeSingle();
+      await emitNotificationEvent(admin, "publish_failed", {
+        vehicleId,
+        title: (failedVehicle as { title?: string } | null)?.title ?? "Fahrzeug",
+        platform: "Mobile.de",
+        account: ACCOUNT.label ?? ACCOUNT.account_key,
+        error: msg.slice(0, 500),
+      });
     };
 
     await syncMobileListing(admin, vehicleId, {
@@ -802,6 +812,18 @@ Deno.serve((req) => withAccountLock(async () => {
       account_key: ACCOUNT.account_key,
     });
     console.log(`publish-mobile-ad: vehicle=${vehicleId} mobileAdId=${mobileAdId} published`);
+
+    {
+      const { data: publishedVehicle } = await admin
+        .from("vehicles").select("title").eq("id", vehicleId).maybeSingle();
+      await emitNotificationEvent(admin, "vehicle_published", {
+        vehicleId,
+        title: (publishedVehicle as { title?: string } | null)?.title ?? "Fahrzeug",
+        platform: "Mobile.de",
+        account: ACCOUNT.label ?? ACCOUNT.account_key,
+        url: detailPageUrl ?? null,
+      });
+    }
 
     // Benachrichtigung wird jetzt direkt beim Veröffentlichen ausgelöst
     // (nicht mehr über den Pull-Sync).
