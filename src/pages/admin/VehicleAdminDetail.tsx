@@ -466,8 +466,8 @@ export default function VehicleAdminDetail() {
             <Card className="p-4 sm:p-6 space-y-5">
               {isMobileDe && (
                 <p className="text-xs text-muted-foreground">
-                  Dieses Fahrzeug stammt aus dem Mobile.de-Sync. Felder sind schreibgeschützt, bis
-                  „manuell überschreiben" aktiviert wird — danach fasst der Sync das Feld nicht mehr an.
+                  Dieses Fahrzeug stammt aus dem Abgleich mit Mobile.de. Felder sind schreibgeschützt, bis
+                  „manuell überschreiben" aktiviert wird — danach bleibt das Feld beim Abgleich unverändert.
                 </p>
               )}
               {FIELDS.map(renderField)}
@@ -512,7 +512,7 @@ export default function VehicleAdminDetail() {
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <p className="text-sm text-muted-foreground">
                 Reihenfolge per Drag-and-Drop ändern, Bilder ausblenden oder eigene Bilder hochladen.
-                Der Sync überschreibt Reihenfolge und eigene Uploads nicht.
+                Der Abgleich überschreibt Reihenfolge und eigene Uploads nicht.
               </p>
               <label className="inline-flex">
                 <input

@@ -97,6 +97,7 @@ interface Filters {
   source: string;
   onlyIssues: boolean;
   onlyNoImages: boolean;
+  publish: string;
 }
 
 function formatPrice(price: number | null, currency: string | null) {
@@ -148,6 +149,7 @@ export default function VehiclesAdmin() {
     source: "all",
     onlyIssues: searchParams.get("issues") === "1",
     onlyNoImages: searchParams.get("noImages") === "1",
+    publish: searchParams.get("publish") ?? "all",
   });
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(0);
@@ -200,6 +202,7 @@ export default function VehiclesAdmin() {
         query = query.eq("is_sold", false).not("reserved_at", "is", null);
       if (filters.status === "available")
         query = query.eq("is_sold", false).is("reserved_at", null);
+      if (filters.publish !== "all") query = query.eq("publish_status", filters.publish as "draft");
       if (filters.onlyNoImages) query = query.or("image_urls.is.null,image_urls.eq.{}");
       if (issueIds) query = query.in("id", issueIds);
 
@@ -314,7 +317,7 @@ export default function VehiclesAdmin() {
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link to="/admin/fahrzeuge/neu">Fahrzeug anlegen</Link>
+          <Link to="/admin/fahrzeug-anlegen">Fahrzeug anlegen</Link>
         </Button>
       </div>
 
@@ -407,6 +410,23 @@ export default function VehiclesAdmin() {
               Nur Fahrzeuge ohne Bilder
             </Label>
           </div>
+          {filters.publish !== "all" && (
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">
+                {PUBLISH_LABELS[filters.publish]?.label ?? filters.publish}
+              </Badge>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  updateFilters({ publish: "all" });
+                  setSearchParams({});
+                }}
+              >
+                Filter entfernen
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
 

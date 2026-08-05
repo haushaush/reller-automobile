@@ -80,7 +80,7 @@ const selectFilterKeys: (keyof Filters)[] = [
   "status",
 ];
 
-export default function StoryGenerator() {
+export default function StoryGenerator({ embedded = false }: { embedded?: boolean } = {}) {
   const [vehicles, setVehicles] = useState<VehicleWithStory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -298,12 +298,15 @@ export default function StoryGenerator() {
 
   return (
     <div className="pb-40 md:pb-24">
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold tracking-tight">Story-Generator</h1>
-        <p className="text-muted-foreground mt-1">
-          Erstellt Mockup-Bilder im Story-Format (1080×1920) für WhatsApp/Instagram Stories
-        </p>
-      </div>
+      {!embedded && (
+        <div className="mb-6">
+          <h1 className="text-3xl font-semibold tracking-tight">Storys erstellen</h1>
+          <p className="text-muted-foreground mt-1">
+            Erstellt Bilder im Hochformat (1080×1920) für WhatsApp und Instagram
+          </p>
+        </div>
+      )}
+
 
       <Card className="p-4 mb-4">
         <FilterBar

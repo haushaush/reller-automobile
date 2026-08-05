@@ -209,7 +209,7 @@ export default function InquiriesAdmin() {
                     </SelectContent>
                   </Select>
                   <Button variant="outline" size="icon" asChild title="Details ansehen" className="h-11 w-11 md:h-10 md:w-10 flex-shrink-0">
-                    <Link to={`/admin/inquiries/${inq.id}`}>
+                    <Link to={`/admin/anfragen/${inq.id}`}>
                       <ExternalLink className="h-4 w-4" />
                     </Link>
                   </Button>

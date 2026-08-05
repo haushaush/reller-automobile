@@ -78,7 +78,7 @@ export default function InquiryDetail() {
     return (
       <div>
         <Button variant="ghost" asChild>
-          <Link to="/admin/inquiries">
+          <Link to="/admin/anfragen">
             <ArrowLeft className="h-4 w-4" /> Zurück
           </Link>
         </Button>
@@ -91,7 +91,7 @@ export default function InquiryDetail() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <Button variant="ghost" size="sm" asChild className="mb-2 -ml-3">
-            <Link to="/admin/inquiries">
+            <Link to="/admin/anfragen">
               <ArrowLeft className="h-4 w-4" /> Anfragen
             </Link>
           </Button>

@@ -1837,7 +1837,7 @@ function PayloadPreview({ form, imageCount }: { form: FormState; imageCount: num
   return (
     <details className="rounded-md border border-border bg-muted/30 p-4 group">
       <summary className="cursor-pointer flex items-center justify-between text-sm font-medium">
-        <span>Technische Mobile.de-Payload-Vorschau</span>
+        <span>Technische Details der Übertragung</span>
         <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
       </summary>
       <div className="mt-4 space-y-4 text-xs">
