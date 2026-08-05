@@ -130,6 +130,81 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+function blobToImageBitmapSource(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Bild konnte nicht dekodiert werden"));
+    };
+    img.src = url;
+  });
+}
+
+/** Draws the images into a square-ish grid collage on a canvas. */
+function drawCollage(images: HTMLImageElement[], background: string | null): HTMLCanvasElement {
+  const count = images.length;
+  const cols = Math.ceil(Math.sqrt(count));
+  const rows = Math.ceil(count / cols);
+  const cell = 800; // px per tile (4:3 aspect)
+  const cellW = cell;
+  const cellH = Math.round((cell * 3) / 4);
+  const gap = 12;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = cols * cellW + (cols + 1) * gap;
+  canvas.height = rows * cellH + (rows + 1) * gap;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas wird von diesem Browser nicht unterstützt");
+
+  if (background) {
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  images.forEach((img, i) => {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    const x = gap + c * (cellW + gap);
+    const y = gap + r * (cellH + gap);
+    // cover-fit
+    const scale = Math.max(cellW / img.width, cellH / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, cellW, cellH);
+    ctx.clip();
+    ctx.drawImage(img, x + (cellW - w) / 2, y + (cellH - h) / 2, w, h);
+    ctx.restore();
+  });
+
+  return canvas;
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, mime: string, quality?: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Bild konnte nicht erzeugt werden"))),
+      mime,
+      quality,
+    );
+  });
+}
+
+function todayStamp() {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+
 interface SelectedImage {
   vehicleId: string;
   url: string;
