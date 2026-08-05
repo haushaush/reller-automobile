@@ -9,6 +9,30 @@ import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import { toast } from "sonner";
 import ReconciliationPanel from "@/components/admin/ReconciliationPanel";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+
+/** Verständliche Bezeichnungen für die Zustände eines Laufs */
+const RUN_STATUS_LABELS: Record<string, string> = {
+  success: "Erfolgreich",
+  success_with_warning: "Erfolgreich, mit Hinweis",
+  failed: "Fehlgeschlagen",
+  running: "Läuft gerade",
+  skipped: "Übersprungen",
+  aborted: "Abgebrochen",
+};
+
+/** Verständliche Bezeichnungen für die einzelnen Abläufe */
+const RUN_NAME_LABELS: Record<string, string> = {
+  "mobile-de-reconcile": "Abgleich mit Mobile.de",
+  "mobile-de-reconcile-accident": "Abgleich Unfallfahrzeuge",
+  "sync-vehicles": "Abgleich mit Mobile.de",
+  "sync-accident-vehicles": "Abgleich Unfallfahrzeuge",
+};
+
+function runName(name: string) {
+  return RUN_NAME_LABELS[name] ?? name;
+}
 
 interface SyncLog {
   id: string;
@@ -146,13 +170,13 @@ export default function SyncStatus() {
       /401|non-2xx/i.test(error?.message ?? "");
     if (error || payload.error) {
       const description = isAuth
-        ? "Mobile.de Sync fehlgeschlagen: Zugangsdaten der Search-API prüfen."
+        ? "Abgleich fehlgeschlagen: Die Zugangsdaten zu Mobile.de bitte prüfen."
         : payload.error || error?.message || "Unbekannter Fehler";
-      toast.error("Sync fehlgeschlagen", { description });
+      toast.error("Abgleich fehlgeschlagen", { description });
       setTimeout(loadData, 1500);
       return;
     }
-    toast.success("Sync gestartet");
+    toast.success("Abgleich gestartet");
     setTimeout(loadData, 2000);
   };
 
@@ -208,12 +232,14 @@ export default function SyncStatus() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Sync-Status</h1>
-          <p className="text-muted-foreground mt-1">Mobile.de-Synchronisation und letzte Updates</p>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Status-Log</h1>
+          <p className="text-muted-foreground mt-1">
+            Zeigt, ob der Abgleich mit Mobile.de erfolgreich gelaufen ist
+          </p>
         </div>
         <Button onClick={triggerSync} disabled={isTriggering}>
           {isTriggering ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Sync jetzt starten
+          Abgleich jetzt starten
         </Button>
       </div>
 
@@ -221,7 +247,7 @@ export default function SyncStatus() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="p-5">
-          <div className="text-sm text-muted-foreground">Letzter Sync</div>
+          <div className="text-sm text-muted-foreground">Letzter Abgleich</div>
           <div className="text-lg font-semibold mt-2">
             {stats.lastSync
               ? formatDistanceToNow(new Date(stats.lastSync), { addSuffix: true, locale: de })
@@ -229,20 +255,20 @@ export default function SyncStatus() {
           </div>
         </Card>
         <Card className="p-5">
-          <div className="text-sm text-muted-foreground">Neu in DB (24h)</div>
+          <div className="text-sm text-muted-foreground">Neu aufgenommen (24 Std.)</div>
           <div className="text-2xl font-semibold mt-2 text-green-600">+{stats.added24h}</div>
-          <div className="text-xs text-muted-foreground mt-1">nach created_at</div>
+          
         </Card>
         <Card className="p-5">
-          <div className="text-sm text-muted-foreground">Verkauft markiert (24h)</div>
+          <div className="text-sm text-muted-foreground">Als verkauft markiert (24 Std.)</div>
           <div className="text-2xl font-semibold mt-2">{stats.sold24h}</div>
-          <div className="text-xs text-muted-foreground mt-1">nach sold_at</div>
+          
         </Card>
         <Card className="p-5">
-          <div className="text-sm text-muted-foreground">Offene Datenqualitäts-Probleme</div>
+          <div className="text-sm text-muted-foreground">Fahrzeuge mit fehlenden Angaben</div>
           <div className="text-2xl font-semibold mt-2">{stats.openIssues}</div>
           <div className="text-xs text-muted-foreground mt-1">
-            davon {stats.errorIssues} Fehler ·{" "}
+            davon {stats.errorIssues} dringend ·{" "}
             <Link to="/admin/einstellungen/datenqualitaet" className="underline">
               Details
             </Link>
@@ -252,11 +278,11 @@ export default function SyncStatus() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-5">
-          <h2 className="text-lg font-semibold mb-4">Sync-Verlauf</h2>
+          <h2 className="text-lg font-semibold mb-4">Verlauf der Abgleiche</h2>
           {isLoading ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           ) : logs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Noch keine Sync-Läufe</p>
+            <p className="text-sm text-muted-foreground">Es wurde noch kein Abgleich ausgeführt.</p>
           ) : (
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
               {logs.map((log) => {
@@ -347,9 +373,9 @@ export default function SyncStatus() {
 
         <div className="space-y-6">
           <Card className="p-5">
-            <h2 className="text-lg font-semibold">Neue Fahrzeuge (24h)</h2>
+            <h2 className="text-lg font-semibold">Neue Fahrzeuge (24 Std.)</h2>
             <p className="text-xs text-muted-foreground mt-1 mb-4">
-              Fahrzeuge, die in den letzten 24 Stunden neu in die Datenbank aufgenommen wurden (nach created_at).
+              Fahrzeuge, die in den letzten 24 Stunden neu aufgenommen wurden.
             </p>
             {newVehicles.length === 0 ? (
               <p className="text-sm text-muted-foreground">Keine neuen Fahrzeuge in den letzten 24 Stunden.</p>
@@ -363,7 +389,7 @@ export default function SyncStatus() {
           <Card className="p-5">
             <h2 className="text-lg font-semibold">Zuletzt aktualisierte Fahrzeuge</h2>
             <p className="text-xs text-muted-foreground mt-1 mb-4">
-              Diese Liste zeigt Fahrzeuge, die beim letzten Sync aktualisiert wurden – nicht zwingend neu hinzugefügt.
+              Diese Fahrzeuge wurden beim letzten Abgleich aktualisiert – sie sind nicht zwingend neu.
             </p>
             {recentlyUpdated.length === 0 ? (
               <p className="text-sm text-muted-foreground">Keine Fahrzeuge</p>
@@ -375,9 +401,9 @@ export default function SyncStatus() {
           </Card>
 
           <Card className="p-5">
-            <h2 className="text-lg font-semibold">Preisänderungen (24h)</h2>
+            <h2 className="text-lg font-semibold">Preisänderungen (24 Std.)</h2>
             <p className="text-xs text-muted-foreground mt-1 mb-4">
-              Neue Einträge in der Preishistorie aus den letzten 24 Stunden.
+              Preise, die sich in den letzten 24 Stunden geändert haben.
             </p>
             {priceChanges.length === 0 ? (
               <p className="text-sm text-muted-foreground">Keine Preisänderungen in den letzten 24 Stunden.</p>
