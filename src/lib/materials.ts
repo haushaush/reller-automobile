@@ -132,7 +132,7 @@ export async function shareOrDownloadBlob(blob: Blob, filename: string): Promise
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
   return "downloaded";
 }
 
@@ -277,7 +277,7 @@ export async function downloadFromUrl(url: string, filename: string): Promise<"s
   let response: Response;
   try {
     response = await fetch(url);
-  } catch (e) {
+  } catch {
     throw new MaterialFileError("Die Datei konnte nicht geladen werden (Netzwerkfehler).");
   }
   if (!response.ok) {
