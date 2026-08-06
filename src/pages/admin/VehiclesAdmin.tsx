@@ -782,9 +782,15 @@ export default function VehiclesAdmin() {
             {total} Fahrzeug(e){chips.length > 0 ? " mit den gesetzten Filtern" : " insgesamt"}
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link to="/admin/fahrzeug-anlegen">Fahrzeug anlegen</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={exportCsv} disabled={isExporting}>
+            <Download className="mr-2 h-4 w-4" />
+            {isExporting ? "Export läuft …" : "Tabelle exportieren"}
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/admin/fahrzeug-anlegen">Fahrzeug anlegen</Link>
+          </Button>
+        </div>
       </div>
 
       {/* Schnellfilter */}
@@ -834,6 +840,37 @@ export default function VehiclesAdmin() {
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[320px] bg-popover space-y-3">
+              <div>
+                <Label className="text-xs">Konto (Mobile.de)</Label>
+                <Select
+                  value={filters.account}
+                  onValueChange={(v) => updateFilters({ account: v })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    <SelectItem value="all">Alle Konten</SelectItem>
+                    {mobileAccounts.map((a) => (
+                      <SelectItem key={a.account_key} value={a.account_key}>
+                        {accountShortLabel(accounts, a.account_key)}
+                        {a.seller_id ? ` (${a.seller_id})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <Label htmlFor="group-by-account" className="text-sm font-normal">
+                    Nach Konto gruppieren
+                  </Label>
+                  <Switch
+                    id="group-by-account"
+                    checked={groupByAccount}
+                    onCheckedChange={setGroupByAccount}
+                  />
+                </div>
+              </div>
+
               <div>
                 <Label className="text-xs">Fahrzeugart</Label>
                 <Select
