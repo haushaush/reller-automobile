@@ -139,25 +139,39 @@ Deno.serve(async (req) => {
       .select("id, mobile_ad_id, mobile_de_id, detail_page_url, title");
     const vehicles = (rows ?? []) as Row[];
 
+    // Interne Präfixe (z. B. "accident_") abstreifen, damit IDs vergleichbar sind
+    const bare = (v: unknown) => String(v ?? "").replace(/^[a-z_]+_/, "");
+
     const byAdId = new Map<string, Row>();
     const byMobileDeId = new Map<string, Row>();
     const byUrl = new Map<string, Row>();
     for (const v of vehicles) {
-      if (v.mobile_ad_id) byAdId.set(String(v.mobile_ad_id), v);
-      if (v.mobile_de_id) byMobileDeId.set(String(v.mobile_de_id), v);
+      if (v.mobile_ad_id) byAdId.set(bare(v.mobile_ad_id), v);
+      if (v.mobile_de_id) byMobileDeId.set(bare(v.mobile_de_id), v);
       if (v.detail_page_url) byUrl.set(String(v.detail_page_url).split("?")[0], v);
     }
 
     const toCreate: SellerAd[] = [];
     const toMatch: { vehicleId: string; ad: SellerAd; via: string }[] = [];
+    const unclear: { mobileAdId: string; title: string; reason: string }[] = [];
     const alreadyLinked: string[] = [];
 
     for (const ad of ads) {
-      if (byAdId.has(ad.mobileAdId)) { alreadyLinked.push(ad.mobileAdId); continue; }
+      const adKey = bare(ad.mobileAdId);
+      if (byAdId.has(adKey)) { alreadyLinked.push(ad.mobileAdId); continue; }
       const viaUrl = ad.detailPageUrl ? byUrl.get(ad.detailPageUrl.split("?")[0]) : undefined;
-      const viaId = byMobileDeId.get(ad.mobileAdId);
+      const viaId = byMobileDeId.get(adKey);
       const hit = viaId ?? viaUrl;
       if (hit) {
+        // Fahrzeug hängt bereits an einer anderen Anzeigen-Nummer → nicht eindeutig
+        if (hit.mobile_ad_id && bare(hit.mobile_ad_id) !== adKey) {
+          unclear.push({
+            mobileAdId: ad.mobileAdId,
+            title: ad.title,
+            reason: `Fahrzeug ist bereits mit Anzeige ${hit.mobile_ad_id} verknüpft`,
+          });
+          continue;
+        }
         toMatch.push({ vehicleId: hit.id as string, ad, via: viaId ? "mobile_de_id" : "detail_page_url" });
       } else {
         toCreate.push(ad);
@@ -165,11 +179,15 @@ Deno.serve(async (req) => {
     }
 
     const preview = {
+      accountKey: account.accountKey,
+      accountLabel: account.label,
+      sellerId: account.sellerId,
       totalAds: ads.length,
       alreadyLinked: alreadyLinked.length,
       willCreate: toCreate.length,
       willMatch: toMatch.length,
-      unclear: 0,
+      unclear: unclear.length,
+      unclearSamples: unclear.slice(0, 20),
       createSamples: toCreate.slice(0, 20).map((a) => ({ mobileAdId: a.mobileAdId, title: a.title, price: a.price })),
       matchSamples: toMatch.slice(0, 20).map((m) => ({ mobileAdId: m.ad.mobileAdId, title: m.ad.title, via: m.via })),
       partialFetchError: error ?? null,
