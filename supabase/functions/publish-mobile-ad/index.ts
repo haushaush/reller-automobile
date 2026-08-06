@@ -10,6 +10,10 @@ import {
   syncMobileListing,
   type PlatformAccount,
 } from "../_shared/platform-accounts.ts";
+import {
+  checkRequiredAdFields,
+  type RequiredAdField,
+} from "../_shared/mobile-ad-required.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -457,29 +461,32 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
 
   if (refs.length) adBody.images = refs.map((ref) => ({ ref }));
 
-  const missing: string[] = [];
+  // Pflichtfeldprüfung aus der gemeinsamen Liste (_shared/mobile-ad-required.ts),
+  // damit Assistent und Server niemals auseinanderlaufen.
   const m = adBody;
-  if (!m.make) missing.push("make");
-  if (!m.model) missing.push("model");
-  if (!m.modelDescription) missing.push("modelDescription");
-  if (!m.category) missing.push("category");
-  if (m.mileage === undefined || m.mileage === null) missing.push("mileage");
-  if (!m.firstRegistration || !/^\d{6}$/.test(String(m.firstRegistration)))
-    missing.push("firstRegistration (YYYYMM)");
-  if (!m.fuel) missing.push("fuel");
-  if (!m.gearbox) missing.push("gearbox");
-  if (m.power === undefined || m.power === null) missing.push("power");
-  if (m.cubicCapacity === undefined || m.cubicCapacity === null) missing.push("cubicCapacity");
-  if (!m.condition) missing.push("condition");
-  if (typeof m.damageUnrepaired !== "boolean") missing.push("damageUnrepaired");
-  if (!cleanAmount || cleanAmount === "0") missing.push("price.consumerPriceGross");
-  if (!rawVat) missing.push("price.vatRate");
+  const missingFields: RequiredAdField[] = checkRequiredAdFields({
+    make: m.make,
+    model: m.model,
+    modelDescription: m.modelDescription,
+    category: m.category,
+    mileage: m.mileage,
+    firstRegistration: m.firstRegistration,
+    fuel: m.fuel,
+    gearbox: m.gearbox,
+    power: m.power,
+    cubicCapacity: m.cubicCapacity,
+    condition: m.condition,
+    damageUnrepaired: m.damageUnrepaired,
+    "price.consumerPriceGross": cleanAmount,
+    "price.vatRate": rawVat,
+  });
+  const missing: string[] = missingFields.map((f) => f.api!);
 
   if (removedInternal.length) {
     warnings.push(`Interne Feldnamen entfernt: ${removedInternal.join(", ")}`);
   }
 
-  return { adBody, missing, warnings };
+  return { adBody, missing, missingFields, warnings };
 }
 
 Deno.serve((req) => withAccountLock(async () => {
