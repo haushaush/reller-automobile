@@ -152,7 +152,7 @@ export function safeFileName(input: string): string {
     .slice(0, 80);
 }
 
-/** Lädt eine Collage in den öffentlichen Story-Bucket und legt den Datensatz an. */
+/** Lädt eine Collage in den Story-Bucket und legt den Datensatz an (Pfad, keine URL). */
 export async function uploadCollage(vehicleId: string, blob: Blob, baseName: string) {
   const path = `collages/${vehicleId}-${Date.now()}.jpg`;
   const { error: upErr } = await supabase.storage
@@ -160,14 +160,130 @@ export async function uploadCollage(vehicleId: string, blob: Blob, baseName: str
     .upload(path, blob, { contentType: "image/jpeg", upsert: true });
   if (upErr) throw upErr;
 
-  const { data: pub } = supabase.storage.from("vehicle-stories").getPublicUrl(path);
   const { data: userData } = await supabase.auth.getUser();
   const { error: dbErr } = await supabase.from("vehicle_collages").insert({
     vehicle_id: vehicleId,
-    image_url: pub.publicUrl,
+    image_url: path,
     storage_path: path,
     created_by: userData.user?.id ?? null,
   });
   if (dbErr) throw dbErr;
-  return { url: pub.publicUrl, path, baseName };
+  return { path, baseName };
 }
+
+/* ---------------------------------------------------------------------------
+ * Storage: Pfade, signierte Links, Downloads
+ * ------------------------------------------------------------------------- */
+
+export const MATERIAL_BUCKETS: Record<MaterialKind, string> = {
+  story: "vehicle-stories",
+  expose: "vehicle-exposes",
+  collage: "vehicle-stories",
+};
+
+/** Standard-Endung je Materialart, falls der Pfad keine hergibt. */
+const DEFAULT_EXT: Record<MaterialKind, string> = {
+  story: "png",
+  expose: "pdf",
+  collage: "jpg",
+};
+
+const FILE_LABEL: Record<MaterialKind, string> = {
+  story: "Story",
+  expose: "Expose",
+  collage: "Collage",
+};
+
+/** Gültigkeit signierter Links in Sekunden (60 Minuten). */
+export const SIGNED_URL_TTL = 60 * 60;
+
+/** Wandelt eine gespeicherte URL oder einen Pfad in den reinen Storage-Pfad um. */
+export function storagePathFromValue(value: string | null | undefined, bucket: string): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed.replace(/^\/+/, "");
+  try {
+    const url = new URL(trimmed);
+    const marker = `/storage/v1/object/`;
+    const idx = url.pathname.indexOf(marker);
+    if (idx < 0) return null;
+    let rest = url.pathname.slice(idx + marker.length);
+    rest = rest.replace(/^(public|sign|authenticated)\//, "");
+    if (rest.startsWith(`${bucket}/`)) rest = rest.slice(bucket.length + 1);
+    return decodeURIComponent(rest) || null;
+  } catch {
+    return null;
+  }
+}
+
+export class MaterialFileError extends Error {
+  /** true, wenn die Datei im Bucket fehlt. */
+  missing: boolean;
+  constructor(message: string, missing = false) {
+    super(message);
+    this.name = "MaterialFileError";
+    this.missing = missing;
+  }
+}
+
+/** Übersetzt technische Storage-Fehler in verständliche Hinweise. */
+export function describeStorageError(raw: unknown): MaterialFileError {
+  const msg = (raw instanceof Error ? raw.message : String(raw ?? "")).toLowerCase();
+  if (msg.includes("not found") || msg.includes("404") || msg.includes("no such")) {
+    return new MaterialFileError("Die Datei ist im Speicher nicht mehr vorhanden.", true);
+  }
+  if (msg.includes("expired") || msg.includes("jwt")) {
+    return new MaterialFileError("Der Link ist abgelaufen. Bitte erneut versuchen.");
+  }
+  if (msg.includes("403") || msg.includes("401") || msg.includes("unauthorized") || msg.includes("permission")) {
+    return new MaterialFileError("Kein Zugriff auf diese Datei.");
+  }
+  return new MaterialFileError(
+    raw instanceof Error && raw.message ? raw.message : "Die Datei konnte nicht geladen werden.",
+  );
+}
+
+/** Erzeugt einen signierten Link (60 Minuten) – funktioniert auch für private Buckets. */
+export async function createSignedMaterialUrl(
+  bucket: string,
+  path: string,
+  expiresIn = SIGNED_URL_TTL,
+): Promise<string> {
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
+  if (error || !data?.signedUrl) throw describeStorageError(error ?? "not found");
+  return data.signedUrl;
+}
+
+/** Sprechender Dateiname aus Marke, Modell und Materialart. */
+export function materialFileName(
+  kind: MaterialKind,
+  parts: { brand?: string | null; model?: string | null; fallback?: string | null },
+  path?: string | null,
+): string {
+  const ext = (path?.match(/\.([a-z0-9]{2,4})$/i)?.[1] ?? DEFAULT_EXT[kind]).toLowerCase();
+  const base =
+    safeFileName(
+      [parts.brand, parts.model].filter(Boolean).join(" ") || parts.fallback || "Fahrzeug",
+    ) || "Fahrzeug";
+  return `${base}-${FILE_LABEL[kind]}.${ext}`;
+}
+
+/**
+ * Lädt eine Datei per fetch als Blob und speichert bzw. teilt sie.
+ * Nötig, weil das download-Attribut bei fremden Domains ignoriert wird.
+ */
+export async function downloadFromUrl(url: string, filename: string): Promise<"shared" | "downloaded"> {
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch (e) {
+    throw new MaterialFileError("Die Datei konnte nicht geladen werden (Netzwerkfehler).");
+  }
+  if (!response.ok) {
+    throw describeStorageError(`${response.status} ${response.statusText}`);
+  }
+  const blob = await response.blob();
+  return shareOrDownloadBlob(blob, filename);
+}
+
