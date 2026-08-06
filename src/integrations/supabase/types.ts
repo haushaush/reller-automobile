@@ -838,6 +838,7 @@ export type Database = {
       platform_accounts: {
         Row: {
           account_key: string
+          badge_color: string | null
           created_at: string
           default_for_categories: string[]
           id: string
@@ -850,12 +851,14 @@ export type Database = {
           password_secret_name: string | null
           platform: Database["public"]["Enums"]["listing_platform"]
           seller_id: string | null
+          short_label: string | null
           sort_order: number
           updated_at: string
           username_secret_name: string | null
         }
         Insert: {
           account_key: string
+          badge_color?: string | null
           created_at?: string
           default_for_categories?: string[]
           id?: string
@@ -868,12 +871,14 @@ export type Database = {
           password_secret_name?: string | null
           platform: Database["public"]["Enums"]["listing_platform"]
           seller_id?: string | null
+          short_label?: string | null
           sort_order?: number
           updated_at?: string
           username_secret_name?: string | null
         }
         Update: {
           account_key?: string
+          badge_color?: string | null
           created_at?: string
           default_for_categories?: string[]
           id?: string
@@ -886,6 +891,7 @@ export type Database = {
           password_secret_name?: string | null
           platform?: Database["public"]["Enums"]["listing_platform"]
           seller_id?: string | null
+          short_label?: string | null
           sort_order?: number
           updated_at?: string
           username_secret_name?: string | null

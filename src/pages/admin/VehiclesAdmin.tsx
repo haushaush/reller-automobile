@@ -3,8 +3,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  Download,
   ImageOff,
   MoreHorizontal,
   Search,
@@ -25,8 +27,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import PlatformBadges from "@/components/admin/PlatformBadges";
 import VehicleStatusDialog from "@/components/admin/VehicleStatusDialog";
 import BulkStatusDialog from "@/components/admin/BulkStatusDialog";
-import { vehicleSaleStatus } from "@/lib/listings";
-import { loadListingOverview } from "@/lib/listings";
+import {
+  accountShortLabel,
+  expectedAccountKey,
+  loadListingOverview,
+  vehicleSaleStatus,
+  type PlatformAccountRow,
+} from "@/lib/listings";
+import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -147,7 +155,13 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "mileage:desc", label: "Kilometerstand: meiste zuerst" },
 ];
 
-type QuickFilter = "all" | "not_listed" | "reserved" | "sold" | "attention";
+type QuickFilter =
+  | "all"
+  | "not_listed"
+  | "reserved"
+  | "sold"
+  | "attention"
+  | "account_mismatch";
 
 const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "all", label: "Alle" },
@@ -155,11 +169,14 @@ const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "reserved", label: "Reserviert" },
   { value: "sold", label: "Verkauft" },
   { value: "attention", label: "Braucht Aufmerksamkeit" },
+  { value: "account_mismatch", label: "Konto passt nicht zur Fahrzeugart" },
 ];
 
 interface Filters {
   q: string;
   quick: QuickFilter;
+  /** Mobile.de-Konto: "all" oder account_key */
+  account: string;
   category: string;
   publish: string;
   condition: string;
@@ -174,6 +191,7 @@ interface Filters {
 const EMPTY_FILTERS: Filters = {
   q: "",
   quick: "all",
+  account: "all",
   category: "all",
   publish: "all",
   condition: "all",
@@ -278,6 +296,10 @@ export default function VehiclesAdmin() {
     noImages: searchParams.get("noImages") === "1",
   }));
   const [searchInput, setSearchInput] = useState("");
+  const [groupByAccount, setGroupByAccount] = useState(
+    () => localStorage.getItem("admin.vehicles.groupByAccount") === "1",
+  );
+  const [isExporting, setIsExporting] = useState(false);
   const [page, setPage] = useState(0);
   const [sortValue, setSortValue] = useState("created_at:desc");
   const [selected, setSelected] = useState<string[]>([]);
@@ -291,6 +313,69 @@ export default function VehiclesAdmin() {
   const [isRunning, setIsRunning] = useState(false);
 
   const [sortKey, sortDir] = sortValue.split(":") as [SortKey, "asc" | "desc"];
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("admin.vehicles.groupByAccount", groupByAccount ? "1" : "0");
+    } catch {
+      /* Speicher nicht verfügbar */
+    }
+  }, [groupByAccount]);
+
+  /** Stammdaten der Mobile.de-Konten (Kurzname, Farbe, Kundennummer) */
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["platform-accounts"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_accounts")
+        .select("*")
+        .order("sort_order");
+      if (error) throw error;
+      return (data ?? []) as PlatformAccountRow[];
+    },
+  });
+
+  const mobileAccounts = useMemo(
+    () => accounts.filter((a) => a.platform === "mobile_de"),
+    [accounts],
+  );
+
+  /**
+   * Welches Konto trägt welches Fahrzeug — und passt es zur Fahrzeugart?
+   * Wird für Filter, Gruppierung und den Hinweis „falsches Konto“ gebraucht.
+   */
+  const { data: accountIndex } = useQuery({
+    queryKey: ["admin-vehicles-account-index", accounts.length],
+    enabled: accounts.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("listings")
+        .select("vehicle_id, account_key, status, vehicles!inner(vehicle_category)")
+        .eq("platform", "mobile_de")
+        .limit(5000);
+      if (error) throw error;
+      const byVehicle = new Map<string, string>();
+      const mismatch = new Set<string>();
+      for (const row of (data ?? []) as unknown as {
+        vehicle_id: string;
+        account_key: string | null;
+        status: string;
+        vehicles: { vehicle_category: string | null } | null;
+      }[]) {
+        if (!row.account_key) continue;
+        if (row.status === "not_listed") continue;
+        byVehicle.set(row.vehicle_id, row.account_key);
+        const expected = expectedAccountKey(accounts, row.vehicles?.vehicle_category ?? null);
+        if (expected && expected !== row.account_key) mismatch.add(row.vehicle_id);
+      }
+      return { byVehicle, mismatch };
+    },
+  });
+
+  const needsAccountIndex =
+    filters.account !== "all" || filters.quick === "account_mismatch";
 
   const updateFilters = useCallback((patch: Partial<Filters>) => {
     setFilters((f) => ({ ...f, ...patch }));
@@ -306,9 +391,8 @@ export default function VehiclesAdmin() {
     setSelected([]);
   };
 
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["admin-vehicles", filters, sortValue, page],
-    queryFn: async () => {
+  const fetchVehicles = useCallback(
+    async (offset: number, size: number) => {
       const term = filters.q.trim();
 
       // Suche schließt VIN und interne Nummer mit ein
@@ -332,7 +416,26 @@ export default function VehiclesAdmin() {
         attentionIds = [...new Set((issues ?? []).map((i) => i.vehicle_id))];
       }
 
+      // Kontofilter und „falsches Konto“ laufen über die Inserate
+      let accountIds: string[] | null = null;
+      if (needsAccountIndex) {
+        const entries = [...(accountIndex?.byVehicle.entries() ?? [])];
+        accountIds = entries
+          .filter(
+            ([id, key]) =>
+              (filters.account === "all" || key === filters.account) &&
+              (filters.quick !== "account_mismatch" || accountIndex?.mismatch.has(id)),
+          )
+          .map(([id]) => id)
+          .slice(0, 1000);
+      }
+
+      if (accountIds !== null && accountIds.length === 0) {
+        return { rows: [] as AdminVehicleRow[], count: 0 };
+      }
+
       let query = supabase.from("vehicles").select(SELECT_COLUMNS, { count: "exact" });
+      if (accountIds !== null) query = query.in("id", accountIds);
 
       if (term) {
         const like = `%${term}%`;
@@ -392,12 +495,19 @@ export default function VehiclesAdmin() {
 
       query = query
         .order(dbKey, { ascending, nullsFirst: false })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        .range(offset, offset + size - 1);
 
       const { data: rows, count, error } = await query;
       if (error) throw error;
       return { rows: (rows as unknown as AdminVehicleRow[]) ?? [], count: count ?? 0 };
     },
+    [filters, sortKey, sortDir, needsAccountIndex, accountIndex],
+  );
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["admin-vehicles", filters, sortValue, page, needsAccountIndex && !!accountIndex],
+    enabled: !needsAccountIndex || !!accountIndex,
+    queryFn: () => fetchVehicles(page * PAGE_SIZE, PAGE_SIZE),
   });
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
@@ -487,6 +597,63 @@ export default function VehiclesAdmin() {
     refresh();
   };
 
+  const accountKeyFor = (id: string) => accountIndex?.byVehicle.get(id) ?? null;
+  const accountNameFor = (id: string) => {
+    const key = accountKeyFor(id);
+    return key ? accountShortLabel(accounts, key) ?? key : "Kein Konto";
+  };
+
+  /** Tabellenexport der aktuell gefilterten Fahrzeuge, inkl. Spalte „Konto“ */
+  const exportCsv = async () => {
+    setIsExporting(true);
+    try {
+      const { rows: all } = await fetchVehicles(0, 2000);
+      const header = [
+        "Titel",
+        "Marke",
+        "Modell",
+        "Fahrzeugart",
+        "Erstzulassung",
+        "Kilometerstand",
+        "Preis",
+        "Währung",
+        "Status",
+        "Konto",
+        "Interne Nummer",
+      ];
+      const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const body = all.map((v) =>
+        [
+          v.title,
+          v.brand,
+          v.model,
+          categoryLabel(v.vehicle_category),
+          v.year,
+          v.mileage,
+          v.price,
+          v.currency ?? "EUR",
+          v.is_sold ? "Verkauft" : v.reserved_at ? "Reserviert" : "Verfügbar",
+          accountNameFor(v.id),
+          v.mobile_de_id,
+        ]
+          .map(cell)
+          .join(";"),
+      );
+      const csv = "\uFEFF" + [header.map(cell).join(";"), ...body].join("\r\n");
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fahrzeuge-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${all.length} Fahrzeug(e) exportiert`);
+    } catch (e) {
+      toast.error(`Export fehlgeschlagen: ${(e as Error).message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   /* aktive Filter als Chips */
   const chips = useMemo(() => {
     const list: { key: string; label: string; clear: () => void }[] = [];
@@ -504,6 +671,12 @@ export default function VehiclesAdmin() {
         key: "quick",
         label: QUICK_FILTERS.find((q) => q.value === filters.quick)!.label,
         clear: () => updateFilters({ quick: "all" }),
+      });
+    if (filters.account !== "all")
+      list.push({
+        key: "account",
+        label: `Konto: ${accountShortLabel(accounts, filters.account) ?? filters.account}`,
+        clear: () => updateFilters({ account: "all" }),
       });
     if (filters.category !== "all")
       list.push({
@@ -560,9 +733,31 @@ export default function VehiclesAdmin() {
         clear: () => updateFilters({ noImages: false }),
       });
     return list;
-  }, [filters, updateFilters]);
+  }, [filters, updateFilters, accounts]);
 
   const thumbFor = (v: AdminVehicleRow) => resolveVehicleImages(v)[0] ?? null;
+
+  /** Abschnitte für die Ansicht „Nach Konto gruppieren“ */
+  const groups = useMemo(() => {
+    if (!groupByAccount) return [{ key: "all", label: "", rows }];
+    const map = new Map<string, AdminVehicleRow[]>();
+    for (const v of rows) {
+      const key = accountIndex?.byVehicle.get(v.id) ?? "__none";
+      const list = map.get(key) ?? [];
+      list.push(v);
+      map.set(key, list);
+    }
+    return [...map.entries()]
+      .sort((a, b) => (a[0] === "__none" ? 1 : b[0] === "__none" ? -1 : a[0].localeCompare(b[0])))
+      .map(([key, list]) => ({
+        key,
+        label:
+          key === "__none"
+            ? "Ohne Mobile.de-Konto"
+            : accountShortLabel(accounts, key) ?? key,
+        rows: list,
+      }));
+  }, [groupByAccount, rows, accountIndex, accounts]);
   const optionalCount = cols.length;
 
   const rowMenu = (v: AdminVehicleRow) => (
@@ -609,9 +804,15 @@ export default function VehiclesAdmin() {
             {total} Fahrzeug(e){chips.length > 0 ? " mit den gesetzten Filtern" : " insgesamt"}
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link to="/admin/fahrzeug-anlegen">Fahrzeug anlegen</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={exportCsv} disabled={isExporting}>
+            <Download className="mr-2 h-4 w-4" />
+            {isExporting ? "Export läuft …" : "Tabelle exportieren"}
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/admin/fahrzeug-anlegen">Fahrzeug anlegen</Link>
+          </Button>
+        </div>
       </div>
 
       {/* Schnellfilter */}
@@ -661,6 +862,37 @@ export default function VehiclesAdmin() {
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[320px] bg-popover space-y-3">
+              <div>
+                <Label className="text-xs">Konto (Mobile.de)</Label>
+                <Select
+                  value={filters.account}
+                  onValueChange={(v) => updateFilters({ account: v })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    <SelectItem value="all">Alle Konten</SelectItem>
+                    {mobileAccounts.map((a) => (
+                      <SelectItem key={a.account_key} value={a.account_key}>
+                        {accountShortLabel(accounts, a.account_key)}
+                        {a.seller_id ? ` (${a.seller_id})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <Label htmlFor="group-by-account" className="text-sm font-normal">
+                    Nach Konto gruppieren
+                  </Label>
+                  <Switch
+                    id="group-by-account"
+                    checked={groupByAccount}
+                    onCheckedChange={setGroupByAccount}
+                  />
+                </div>
+              </div>
+
               <div>
                 <Label className="text-xs">Fahrzeugart</Label>
                 <Select
@@ -941,7 +1173,17 @@ export default function VehiclesAdmin() {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((v) => {
+              groups.flatMap((group) => [
+                ...(groupByAccount
+                  ? [
+                      <TableRow key={`head-${group.key}`} className="bg-muted/60 hover:bg-muted/60">
+                        <TableCell colSpan={7 + optionalCount} className="py-2 text-sm font-medium">
+                          {group.label} · {group.rows.length} Fahrzeug(e)
+                        </TableCell>
+                      </TableRow>,
+                    ]
+                  : []),
+                ...group.rows.map((v) => {
                 const thumb = thumbFor(v);
                 return (
                   <TableRow key={v.id} className={selected.includes(v.id) ? "bg-secondary/50" : ""}>
@@ -992,7 +1234,12 @@ export default function VehiclesAdmin() {
                       <StatusBadge v={v} />
                     </TableCell>
                     <TableCell>
-                      <PlatformBadges listings={listingMap?.get(v.id)} className="flex-nowrap" />
+                      <PlatformBadges
+                        listings={listingMap?.get(v.id)}
+                        accounts={accounts}
+                        vehicleCategory={v.vehicle_category}
+                        className="flex-nowrap"
+                      />
                     </TableCell>
                     {OPTIONAL_COLUMNS.filter((c) => cols.includes(c.key)).map((c) => (
                       <TableCell key={c.key} className="text-xs text-muted-foreground whitespace-nowrap">
@@ -1002,7 +1249,8 @@ export default function VehiclesAdmin() {
                     <TableCell>{rowMenu(v)}</TableCell>
                   </TableRow>
                 );
-              })
+                }),
+              ])
             )}
           </TableBody>
         </Table>
@@ -1028,7 +1276,15 @@ export default function VehiclesAdmin() {
             </Button>
           </Card>
         ) : (
-          rows.map((v) => {
+          groups.flatMap((group) => [
+            ...(groupByAccount
+              ? [
+                  <p key={`mhead-${group.key}`} className="pt-2 text-sm font-medium">
+                    {group.label} · {group.rows.length} Fahrzeug(e)
+                  </p>,
+                ]
+              : []),
+            ...group.rows.map((v) => {
             const thumb = thumbFor(v);
             return (
               <Card key={v.id} className="overflow-hidden">
@@ -1064,6 +1320,14 @@ export default function VehiclesAdmin() {
                     {rowMenu(v)}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{keyFacts(v)}</p>
+                  <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                    Konto: {accountNameFor(v.id)}
+                    {accountIndex?.mismatch.has(v.id) && (
+                      <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="h-3 w-3" /> passt nicht zur Fahrzeugart
+                      </span>
+                    )}
+                  </p>
                   <div className="mt-2 flex items-end justify-between gap-2">
                     <div>
                       <p className="text-lg font-semibold">{formatPrice(v.price, v.currency)}</p>
@@ -1073,7 +1337,12 @@ export default function VehiclesAdmin() {
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       <StatusBadge v={v} />
-                      <PlatformBadges listings={listingMap?.get(v.id)} hideNotListed />
+                      <PlatformBadges
+                        listings={listingMap?.get(v.id)}
+                        accounts={accounts}
+                        vehicleCategory={v.vehicle_category}
+                        hideNotListed
+                      />
                     </div>
                   </div>
                   {cols.length > 0 && (
@@ -1086,7 +1355,8 @@ export default function VehiclesAdmin() {
                 </div>
               </Card>
             );
-          })
+            }),
+          ])
         )}
       </div>
 

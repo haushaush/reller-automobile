@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import SalesStats from "@/components/admin/SalesStats";
 import { ALL_TOOLS } from "@/lib/adminNav";
+import { accountShortLabel, type PlatformAccountRow } from "@/lib/listings";
 
 interface Stats {
   activeVehicles: number;
@@ -49,6 +50,8 @@ export default function AdminDashboard() {
     openTasks: 0,
   });
   const [recent, setRecent] = useState<RecentInquiry[]>([]);
+  /** Aufteilung der aktiven Fahrzeuge auf die Mobile.de-Konten */
+  const [accountSplit, setAccountSplit] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -88,6 +91,32 @@ export default function AdminDashboard() {
         drafts: drafts.count ?? 0,
         openTasks: tasks.count ?? 0,
       });
+
+      // Aufteilung nach Mobile.de-Konto
+      const [{ data: accountRows }, { data: listingRows }] = await Promise.all([
+        supabase.from("platform_accounts").select("*").eq("platform", "mobile_de").order("sort_order"),
+        supabase
+          .from("listings")
+          .select("account_key, status, vehicles!inner(is_sold)")
+          .eq("platform", "mobile_de")
+          .in("status", ["live", "publishing", "paused"])
+          .limit(5000),
+      ]);
+      const counts = new Map<string, number>();
+      for (const row of (listingRows ?? []) as unknown as {
+        account_key: string | null;
+        vehicles: { is_sold: boolean } | null;
+      }[]) {
+        if (!row.account_key || row.vehicles?.is_sold) continue;
+        counts.set(row.account_key, (counts.get(row.account_key) ?? 0) + 1);
+      }
+      const parts = ((accountRows ?? []) as PlatformAccountRow[])
+        .map((a) => {
+          const n = counts.get(a.account_key) ?? 0;
+          return n > 0 ? `${n} ${accountShortLabel([a], a.account_key)}` : null;
+        })
+        .filter(Boolean) as string[];
+      setAccountSplit(parts.length ? parts.join(" · ") : null);
 
       const { data: inquiryRows } = await supabase
         .from("inquiries")
@@ -134,6 +163,7 @@ export default function AdminDashboard() {
       value: stats.activeVehicles,
       icon: Car,
       to: "/admin/fahrzeuge?status=available",
+      hint: accountSplit,
     },
     {
       label: "Davon reserviert",
@@ -181,6 +211,9 @@ export default function AdminDashboard() {
                 <Icon className="mb-2 h-5 w-5 text-muted-foreground transition-colors group-hover:text-primary" />
                 <div className="text-2xl font-semibold sm:text-3xl">{c.value}</div>
                 <div className="mt-1 text-xs text-muted-foreground sm:text-sm">{c.label}</div>
+                {"hint" in c && c.hint ? (
+                  <div className="mt-1 text-[11px] text-muted-foreground">{c.hint}</div>
+                ) : null}
               </Card>
             </Link>
           );
