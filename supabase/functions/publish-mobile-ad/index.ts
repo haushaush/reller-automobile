@@ -14,6 +14,14 @@ import {
   checkRequiredAdFields,
   type RequiredAdField,
 } from "../_shared/mobile-ad-required.ts";
+import {
+  parseMobileErrors,
+  summarizeIssues,
+  messageCode,
+  type AdIssue,
+} from "../_shared/mobile-ad-errors.ts";
+import { loadMobileErrorTexts } from "../_shared/mobile-error-texts.ts";
+
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
