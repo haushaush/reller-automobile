@@ -20,6 +20,7 @@ import {
   Loader2,
   Share2,
 } from "lucide-react";
+import { saveBlob, downloadBlob, useIsTouchDevice, saveToastMessage, GALLERY_HINT } from "@/lib/download";
 import { toast } from "sonner";
 import FilterBar, { Filters } from "@/components/FilterBar";
 import ActiveFilters from "@/components/ActiveFilters";
@@ -422,10 +423,7 @@ export default function Collage() {
     setBusy("zip");
     setProgress({ done: 0, total: items.length });
     try {
-      const [{ default: JSZip }, { saveAs }] = await Promise.all([
-        import("jszip"),
-        import("file-saver"),
-      ]);
+      const { default: JSZip } = await import("jszip");
       const zip = new JSZip();
       const vmap = new Map(vehicles.map((v) => [v.id, v]));
       const usedNames = new Set<string>();
@@ -463,7 +461,7 @@ export default function Collage() {
 
       const blob = await zip.generateAsync({ type: "blob" });
       const ts = new Date().toISOString().slice(0, 10);
-      saveAs(blob, `Reller-Collage-${ts}.zip`);
+      downloadBlob(blob, `reller-collage-${ts}.zip`);
       if (failed > 0) {
         toast.warning(`ZIP erstellt — ${failed} Bild(er) fehlgeschlagen`);
       } else {
@@ -492,7 +490,6 @@ export default function Collage() {
       const [{ Document, Page, Image: PdfImage, View, Text, StyleSheet, pdf }] = await Promise.all([
         import("@react-pdf/renderer"),
       ]);
-      const { saveAs } = await import("file-saver");
       const vmap = new Map(vehicles.map((v) => [v.id, v]));
 
       const loaded: { dataUrl: string; vehicle?: VehicleRow }[] = [];
@@ -680,31 +677,10 @@ export default function Collage() {
       const base = firstVehicle ? safeName(firstVehicle) : "Collage";
       const filename = `${base}-${todayStamp()}.${ext}`.replace(/[^a-zA-Z0-9._-]/g, "-");
 
-      const file = new File([blob], filename, { type: mime });
-      const nav = navigator as Navigator & {
-        canShare?: (data: { files: File[] }) => boolean;
-        share?: (data: { files?: File[]; title?: string }) => Promise<void>;
-      };
-
-      if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
-        try {
-          await nav.share({ files: [file], title: filename });
-          toast.success("Bild geteilt — über „In Fotos sichern“ landet es in der Galerie");
-        } catch (e) {
-          if (e instanceof Error && e.name === "AbortError") return;
-          throw e;
-        }
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success(`Bild gespeichert (${filename})`);
-      }
+      // Zentrale Weiche: Bild + Touch-Gerät → Teilen-Dialog, sonst Download.
+      const result = await saveBlob(blob, filename);
+      const msg = saveToastMessage(result, true);
+      if (msg) toast.success(result === "downloaded" ? `Bild gespeichert (${filename})` : msg);
 
       if (failed > 0) toast.warning(`${failed} Bild(er) konnten nicht geladen werden`);
     } catch (e) {
@@ -729,9 +705,7 @@ export default function Collage() {
       const blob = await loadImage(item.url);
       const ext = extFromMime(blob.type, item.url);
       const base = v ? safeName(v) : "Fahrzeug";
-      const { saveAs } = await import("file-saver");
-      saveAs(blob, `${base}-1.${ext}`);
-      toast.success("Bild heruntergeladen");
+      await saveBlob(blob, `${base}-1.${ext}`);
     } catch (e) {
       console.error(e);
       toast.error("Download fehlgeschlagen", {
@@ -742,6 +716,7 @@ export default function Collage() {
     }
   };
 
+  const isTouch = useIsTouchDevice();
   const selectedCount = selected.size;
   const progressPct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
@@ -819,7 +794,7 @@ export default function Collage() {
               ) : (
                 <ImageIcon className="h-4 w-4" />
               )}
-              Als Bild speichern ({selectedCount})
+              {isTouch ? "Teilen / Speichern" : "Herunterladen"} ({selectedCount})
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
