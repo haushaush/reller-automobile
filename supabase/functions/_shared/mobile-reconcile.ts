@@ -399,6 +399,7 @@ export async function reconcile(
     orphanAds,
     missingAds: vanished.length,
     driftAds: uniqueIssues.filter((i) => String(i.issue_type).endsWith("_drift")).length,
+    soldButListed: uniqueIssues.filter((i) => i.issue_type === "sold_but_listed").length,
     issues: uniqueIssues.length,
   };
 
