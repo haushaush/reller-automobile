@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Download,
   ImageOff,
+  Loader2,
   MoreHorizontal,
   Search,
   Settings2,
