@@ -36,6 +36,15 @@ export interface PublishError {
   fields: RequiredField[];
 }
 
+interface PublishResponse {
+  ok?: boolean;
+  success?: boolean;
+  error?: string;
+  needsPriceConfirmation?: boolean;
+  mobileWarnings?: string[];
+  missingFields?: { form: string; label: string; section: string }[];
+}
+
 /** Wurde im Assistenten überhaupt schon etwas erfasst? */
 function isBlankDraft(form: FormState, imagePaths: string[]): boolean {
   if (imagePaths.length > 0) return false;
