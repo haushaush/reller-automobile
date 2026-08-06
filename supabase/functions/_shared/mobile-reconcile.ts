@@ -215,10 +215,12 @@ export async function reconcile(
   const vehicleById = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) vehicleById.set(String(v.id), v);
 
+  // Interne Präfixe (z. B. "accident_") gehören nicht zur echten Mobile.de-Inseratsnummer.
+  const bareAdId = (value: unknown) => String(value).replace(/^accident_/, "");
   const byAdId = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) {
-    if (v.mobile_ad_id) byAdId.set(String(v.mobile_ad_id), v);
-    if (v.mobile_de_id && !byAdId.has(String(v.mobile_de_id))) byAdId.set(String(v.mobile_de_id), v);
+    if (v.mobile_ad_id) byAdId.set(bareAdId(v.mobile_ad_id), v);
+    if (v.mobile_de_id && !byAdId.has(bareAdId(v.mobile_de_id))) byAdId.set(bareAdId(v.mobile_de_id), v);
   }
 
   // Kontozuordnung: mobile_de-Listings aller Konten
