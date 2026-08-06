@@ -73,7 +73,22 @@ export function calculateRelevanceScore(vehicle: Vehicle, query: string): number
       .join(" ")
   );
 
+  // Reine Zahlensuche (190, 320, 911): nur exakte Wort-Treffer zählen.
+  if (/^\d+$/.test(trimmed)) {
+    const modelTokens = tokenize(
+      [vehicle.title, vehicle.model, vehicle.model_description].filter(Boolean).join(" ")
+    );
+    if (!modelTokens.includes(trimmed)) {
+      return (vehicle.mobile_de_id || "").toLowerCase().startsWith(trimmed) ? 400 : 0;
+    }
+    let numScore = 600;
+    if (nModel === nQuery) numScore += 400;
+    if (nModel.startsWith(nQuery)) numScore += 200;
+    return numScore;
+  }
+
   let score = 0;
+
 
   // 1. Exact normalized model match
   if (nModel && nModel === nQuery) score += 1000;
