@@ -3,7 +3,7 @@ import Fuse from "fuse.js";
 import type { Vehicle } from "./useVehicles";
 
 /**
- * Normalize a string for fuzzy comparison: lowercase, strip spaces, hyphens
+ * Normalize a string for comparison: lowercase, strip spaces, hyphens
  * and most punctuation. So "190SL", "190 SL", "190-SL" all collapse to "190sl".
  */
 function normalize(s: string | null | undefined): string {
@@ -19,9 +19,8 @@ function normalize(s: string | null | undefined): string {
  * Smart tokenizer:
  * - Splits on whitespace, hyphens, punctuation
  * - Splits between letters and digits ("SL190" → ["sl", "190"], "190SL" → ["190", "sl"])
- * - Lowercases and removes empty tokens
  */
-function tokenize(text: string | null | undefined): string[] {
+export function tokenize(text: string | null | undefined): string[] {
   if (!text) return [];
   return text
     .toLowerCase()
@@ -33,26 +32,31 @@ function tokenize(text: string | null | undefined): string[] {
     .filter((t) => t.length > 0);
 }
 
+/** Nur Ziffern? Dann ist es fast immer eine Modellnummer (190, 320, 911). */
+export const isNumericQuery = (q: string): boolean => /^\d+$/.test(q.trim());
+
 interface IndexedVehicle {
   vehicle: Vehicle;
-  normTitle: string;
-  normModelDesc: string;
-  normBrand: string;
-  normModel: string;
+  haystack: string;
   rawTitle: string;
   rawModelDesc: string;
   rawBrand: string;
   rawModel: string;
   tokens: string[];
+  /** Tokens nur aus Titel, Modell und Modellbezeichnung — für Zahlensuche */
+  modelTokens: string[];
+  internalId: string;
 }
 
 /**
- * Fuzzy search over a list of vehicles. Tolerates typos, ignores
- * whitespace/hyphens, ignores word order (each token must fuzzy-match
- * somewhere in the searchable fields). Also handles glued letter+digit
- * combos like "SL190" / "190SL".
+ * Fuzzy search over a list of vehicles.
  *
- * Returns the original list when query is empty/short.
+ * Regeln:
+ * - Reine Ziffernsuche ("190") sucht NICHT unscharf. Treffer nur, wenn die
+ *   Ziffernfolge als eigenständiges Wort in Titel, Modell oder
+ *   Modellbezeichnung steht, oder wenn interne Nummer / VIN damit beginnen.
+ * - Textsuche ist nur leicht fehlertolerant (enge Schwelle).
+ * - Mehrere Wörter: ALLE müssen treffen.
  */
 export function useFuzzySearch(vehicles: Vehicle[], query: string): Vehicle[] {
   const indexed = useMemo<IndexedVehicle[]>(
@@ -63,30 +67,42 @@ export function useFuzzySearch(vehicles: Vehicle[], query: string): Vehicle[] {
           .join(" ");
         return {
           vehicle: v,
-          normTitle: normalize(v.title),
-          normModelDesc: normalize(v.model_description),
-          normBrand: normalize(v.brand),
-          normModel: normalize(v.model),
+          haystack:
+            normalize(v.title) +
+            " " +
+            normalize(v.model_description) +
+            " " +
+            normalize(v.brand) +
+            " " +
+            normalize(v.model),
           rawTitle: (v.title || "").toLowerCase(),
           rawModelDesc: (v.model_description || "").toLowerCase(),
           rawBrand: (v.brand || "").toLowerCase(),
           rawModel: (v.model || "").toLowerCase(),
           tokens: tokenize(combined),
+          modelTokens: tokenize([v.title, v.model, v.model_description].filter(Boolean).join(" ")),
+          internalId: (
+            (v.mobile_de_id || "") +
+            " " +
+            ((v as unknown as { vin?: string | null }).vin || "")
+          )
+            .toLowerCase()
+            .trim(),
         };
       }),
     [vehicles]
   );
 
-  // Fuse on the *raw* fields handles small typos; we layer the normalized
-  // substring + token check on top to handle "190SL" vs "190 SL".
+  // Enge Schwelle: nur echte Tippfehler, keine ähnlich klingenden Modelle.
   const fuse = useMemo(
     () =>
       new Fuse(indexed, {
         keys: ["rawTitle", "rawModelDesc", "rawBrand", "rawModel"],
-        threshold: 0.4,
+        threshold: 0.2,
+        distance: 60,
         ignoreLocation: true,
         includeScore: false,
-        minMatchCharLength: 2,
+        minMatchCharLength: 3,
       }),
     [indexed]
   );
@@ -95,36 +111,46 @@ export function useFuzzySearch(vehicles: Vehicle[], query: string): Vehicle[] {
     const trimmed = query.trim();
     if (trimmed.length < 2) return vehicles;
 
+    // ---- Reine Zahlensuche: exakt, niemals unscharf ----
+    if (isNumericQuery(trimmed)) {
+      const num = trimmed;
+      const hits = new Set(
+        indexed
+          .filter(
+            (item) =>
+              item.modelTokens.includes(num) ||
+              item.internalId.split(/\s+/).some((id) => id && id.startsWith(num))
+          )
+          .map((item) => item.vehicle.id)
+      );
+      return vehicles.filter((v) => hits.has(v.id));
+    }
+
     const queryTokens = tokenize(trimmed);
     const nQuery = normalize(trimmed);
 
     const tokenHits = new Set<string>();
-    if (queryTokens.length > 0) {
-      for (const item of indexed) {
-        const haystack =
-          item.normTitle + " " + item.normModelDesc + " " + item.normBrand + " " + item.normModel;
-
-        // Each query token must appear inside some indexed token,
-        // OR be contained as substring in the normalized haystack.
-        const allTokensMatch = queryTokens.every(
-          (qTok) =>
-            item.tokens.some((tTok) => tTok.includes(qTok) || qTok.includes(tTok)) ||
-            haystack.includes(qTok)
+    for (const item of indexed) {
+      // Jedes Suchwort muss treffen — Zahl-Tokens exakt, Wörter als Präfix.
+      const allTokensMatch = queryTokens.every((qTok) => {
+        if (/^\d+$/.test(qTok)) return item.tokens.includes(qTok);
+        return (
+          item.tokens.some((tTok) => tTok.startsWith(qTok) || qTok.startsWith(tTok)) ||
+          item.haystack.includes(qTok)
         );
-
-        const directSubstring = haystack.includes(nQuery);
-
-        if (allTokensMatch || directSubstring) tokenHits.add(item.vehicle.id);
-      }
+      });
+      if (allTokensMatch || item.haystack.includes(nQuery)) tokenHits.add(item.vehicle.id);
     }
 
-    // Fuse handles typos (e.g. "Terramr" -> "Terramar")
-    const fuseResults = fuse.search(trimmed);
-    const fuseHits = new Set(fuseResults.map((r) => r.item.vehicle.id));
+    // Fuse fängt Tippfehler ab (z. B. "Terramr" → "Terramar"),
+    // aber nur wenn die Suche keine Zahl enthält.
+    const hasDigits = queryTokens.some((t) => /\d/.test(t));
+    const fuseHits = hasDigits
+      ? new Set<string>()
+      : new Set(fuse.search(trimmed).map((r) => r.item.vehicle.id));
 
     const allHits = new Set<string>([...tokenHits, ...fuseHits]);
     if (allHits.size === 0) return [];
-
     return vehicles.filter((v) => allHits.has(v.id));
   }, [vehicles, indexed, fuse, query]);
 }

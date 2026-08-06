@@ -32,6 +32,8 @@ import {
   expectedAccountKey,
   loadListingOverview,
   vehicleSaleStatus,
+  SALE_STATUS_LABELS,
+  type VehicleSaleStatus,
   type PlatformAccountRow,
 } from "@/lib/listings";
 import { Switch } from "@/components/ui/switch";
@@ -272,12 +274,46 @@ function keyFacts(v: AdminVehicleRow): string {
   return parts.length ? parts.join(" · ") : "Keine Eckdaten hinterlegt";
 }
 
-function StatusBadge({ v }: { v: AdminVehicleRow }) {
-  if (v.is_sold) return <Badge variant="destructive">Verkauft</Badge>;
-  if (v.reserved_at)
-    return <Badge className="bg-amber-500 text-white hover:bg-amber-500">Reserviert</Badge>;
-  return <Badge variant="secondary">Verfügbar</Badge>;
+const SALE_STATUS_TRIGGER: Record<VehicleSaleStatus, string> = {
+  available: "bg-secondary text-secondary-foreground border-transparent",
+  reserved: "bg-amber-500 text-white border-transparent",
+  sold: "bg-destructive text-destructive-foreground border-transparent",
+};
+
+/** Status direkt in der Zeile ändern — öffnet den Bestätigungsdialog. */
+function StatusSelect({
+  v,
+  onPick,
+}: {
+  v: AdminVehicleRow;
+  onPick: (v: AdminVehicleRow, target: VehicleSaleStatus) => void;
+}) {
+  const current = vehicleSaleStatus(v);
+  return (
+    <Select
+      value={current}
+      onValueChange={(val) => {
+        const target = val as VehicleSaleStatus;
+        if (target !== current) onPick(v, target);
+      }}
+    >
+      <SelectTrigger
+        className={`h-7 w-[128px] rounded-full px-3 text-xs font-medium ${SALE_STATUS_TRIGGER[current]}`}
+        aria-label="Status ändern"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="bg-popover">
+        {(["available", "reserved", "sold"] as VehicleSaleStatus[]).map((s) => (
+          <SelectItem key={s} value={s}>
+            {SALE_STATUS_LABELS[s]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
+
 
 /* ---------- Seite ---------- */
 
@@ -304,6 +340,11 @@ export default function VehiclesAdmin() {
   const [sortValue, setSortValue] = useState("created_at:desc");
   const [selected, setSelected] = useState<string[]>([]);
   const [statusFor, setStatusFor] = useState<AdminVehicleRow | null>(null);
+  const [statusTarget, setStatusTarget] = useState<VehicleSaleStatus | undefined>(undefined);
+  const openStatus = useCallback((v: AdminVehicleRow, target?: VehicleSaleStatus) => {
+    setStatusTarget(target);
+    setStatusFor(v);
+  }, []);
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | {
     label: string;
@@ -771,7 +812,7 @@ export default function VehiclesAdmin() {
         <DropdownMenuItem asChild>
           <Link to={`/admin/fahrzeuge/${v.id}`}>Fahrzeug öffnen</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setStatusFor(v)}>Status ändern</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => openStatus(v)}>Status ändern</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => toggleFeatured(v)}>
           {v.is_featured ? "Hervorhebung entfernen" : "Auf Startseite hervorheben"}
@@ -1231,7 +1272,7 @@ export default function VehiclesAdmin() {
                       </p>
                     </TableCell>
                     <TableCell>
-                      <StatusBadge v={v} />
+                      <StatusSelect v={v} onPick={openStatus} />
                     </TableCell>
                     <TableCell>
                       <PlatformBadges
@@ -1336,7 +1377,7 @@ export default function VehiclesAdmin() {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                      <StatusBadge v={v} />
+                      <StatusSelect v={v} onPick={openStatus} />
                       <PlatformBadges
                         listings={listingMap?.get(v.id)}
                         accounts={accounts}
@@ -1389,10 +1430,16 @@ export default function VehiclesAdmin() {
       {statusFor && (
         <VehicleStatusDialog
           open={!!statusFor}
-          onOpenChange={(o) => !o && setStatusFor(null)}
+          onOpenChange={(o) => {
+            if (!o) {
+              setStatusFor(null);
+              setStatusTarget(undefined);
+            }
+          }}
           vehicleId={statusFor.id}
           vehicleTitle={statusFor.title}
           current={vehicleSaleStatus(statusFor)}
+          initialTarget={statusTarget}
           onDone={refresh}
         />
       )}

@@ -73,7 +73,22 @@ export function calculateRelevanceScore(vehicle: Vehicle, query: string): number
       .join(" ")
   );
 
+  // Reine Zahlensuche (190, 320, 911): nur exakte Wort-Treffer zählen.
+  if (/^\d+$/.test(trimmed)) {
+    const modelTokens = tokenize(
+      [vehicle.title, vehicle.model, vehicle.model_description].filter(Boolean).join(" ")
+    );
+    if (!modelTokens.includes(trimmed)) {
+      return (vehicle.mobile_de_id || "").toLowerCase().startsWith(trimmed) ? 400 : 0;
+    }
+    let numScore = 600;
+    if (nModel === nQuery) numScore += 400;
+    if (nModel.startsWith(nQuery)) numScore += 200;
+    return numScore;
+  }
+
   let score = 0;
+
 
   // 1. Exact normalized model match
   if (nModel && nModel === nQuery) score += 1000;
@@ -93,11 +108,13 @@ export function calculateRelevanceScore(vehicle: Vehicle, query: string): number
   // 6. Query as contiguous substring in title
   if (nTitle && nTitle.includes(nQuery)) score += 150;
 
-  // 7. Token-AND match — every query token appears in some text token.
-  //    Makes "SL190" find "Mercedes-Benz 190 SL".
+  // 7. Token-AND match — jedes Suchwort muss treffen.
+  //    Zahl-Tokens nur exakt, damit "190" keinen "X5 3.0d 190 kW"-Zufall erzeugt.
   if (queryTokens.length > 0) {
     const allTokensFound = queryTokens.every((qTok) =>
-      textTokens.some((tTok) => tTok.includes(qTok) || qTok.includes(tTok))
+      /^\d+$/.test(qTok)
+        ? textTokens.includes(qTok)
+        : textTokens.some((tTok) => tTok.startsWith(qTok) || qTok.startsWith(tTok))
     );
     if (allTokensFound) {
       score += 200;
@@ -116,13 +133,14 @@ export function calculateRelevanceScore(vehicle: Vehicle, query: string): number
   const pos = nTitle.indexOf(nQuery);
   if (pos >= 0) score += Math.max(0, 100 - pos);
 
-  // 10. Fuzzy fallback (typos) only when nothing else matched
-  if (score === 0 && nModel) {
+  // 10. Fuzzy fallback (nur Tippfehler, nie bei Zahlen)
+  if (score === 0 && nModel && !/\d/.test(nQuery)) {
     const distance = levenshtein(nQuery, nModel);
     const maxLen = Math.max(nQuery.length, nModel.length);
     const similarity = maxLen > 0 ? 1 - distance / maxLen : 0;
-    if (similarity > 0.7) score += Math.floor(similarity * 30);
+    if (similarity > 0.85) score += Math.floor(similarity * 30);
   }
+
 
   return score;
 }
