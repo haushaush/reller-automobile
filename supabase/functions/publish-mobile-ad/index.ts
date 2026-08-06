@@ -368,6 +368,12 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
   const fuelTankVolume = num(pick(src.fuelTankVolume, src.fuelCapacity));
   if (fuelTankVolume !== undefined) adBody.fuelTankVolume = fuelTankVolume;
 
+  // Baujahr (Oldtimer): Root-Feld "constructionYear"
+  const constructionYear = num(pick(src.constructionYear, src["construction-year"], src.baujahr));
+  if (constructionYear !== undefined && constructionYear >= 1900) {
+    adBody.constructionYear = constructionYear;
+  }
+
   addKey("driveType");
   addKey("exteriorColor"); addKey("interiorColor"); addKey("interiorType");
   addStr("manufacturerColorName"); addBoolTrue("metallic");
@@ -505,6 +511,8 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
     cubicCapacity: m.cubicCapacity,
     condition: m.condition,
     damageUnrepaired: m.damageUnrepaired,
+    accidentDamaged: m.accidentDamaged,
+    roadworthy: m.roadworthy,
     "price.consumerPriceGross": cleanAmount,
     "price.vatRate": rawVat,
   });
