@@ -11,7 +11,10 @@ import {
 } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { MobileRefdata } from "@/hooks/useMobileRefdata";
+import { Button } from "@/components/ui/button";
+import EquipmentPicker from "@/components/admin/wizard/EquipmentPicker";
 import YearCombobox from "@/components/admin/wizard/YearCombobox";
+
 import {
   type FormState,
   type AccidentState,
