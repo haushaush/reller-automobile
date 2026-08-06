@@ -343,6 +343,15 @@ export default function Reconciliation() {
           {visible.map((issue) => {
             const info = infoFor(issue.issue_type);
             const values = parseValues(issue.detail);
+            const nums = parseNumbers(issue.detail);
+            const isDrift = DRIFT_TYPES.has(issue.issue_type) && !!issue.vehicle_id;
+            const unit = issue.issue_type === "price_drift" ? "€" : "km";
+            const diff =
+              nums.portal !== undefined && nums.mobile !== undefined
+                ? nums.mobile - nums.portal
+                : undefined;
+            const diffPct =
+              diff !== undefined && nums.portal ? (diff / nums.portal) * 100 : undefined;
             const vehicle = issue.vehicle_id ? vehicles[issue.vehicle_id] : undefined;
             return (
               <Card key={issue.id} className="p-4">
@@ -384,8 +393,42 @@ export default function Reconciliation() {
                           <span className="text-muted-foreground">Mobile.de: </span>
                           {values.mobile ?? "–"}
                         </span>
+                        {diff !== undefined ? (
+                          <span>
+                            <span className="text-muted-foreground">Differenz: </span>
+                            {diff > 0 ? "+" : "−"}
+                            {formatNumber(Math.abs(Math.round(diff)))} {unit}
+                            {diffPct !== undefined
+                              ? ` (${diff > 0 ? "+" : "−"}${Math.abs(diffPct).toFixed(1).replace(".", ",")} %)`
+                              : ""}
+                          </span>
+                        ) : null}
                       </div>
                     ) : null}
+
+                    {isDrift ? (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => resolveDrift(issue.id, "to_mobile")}
+                          disabled={busyId === issue.id}
+                        >
+                          <ArrowUpFromLine className="mr-2 h-4 w-4" />
+                          Portalwert übertragen
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => resolveDrift(issue.id, "to_portal")}
+                          disabled={busyId === issue.id}
+                        >
+                          <ArrowDownToLine className="mr-2 h-4 w-4" />
+                          Mobile.de-Wert übernehmen
+                        </Button>
+                      </div>
+                    ) : null}
+
 
                     <p className="text-sm text-muted-foreground">{info.hint}</p>
 
