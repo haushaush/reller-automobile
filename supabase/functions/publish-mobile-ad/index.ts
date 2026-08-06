@@ -3,6 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { uploadVehicleImages, storeImageRefs } from "../_shared/mobile-images.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { stripECarFields } from "../_shared/mobile-ecar.ts";
 
 import { emitNotificationEvent } from "../_shared/emit-event.ts";
 import {
@@ -456,6 +457,15 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
     warnings.push(`Interne Feldnamen entfernt: ${removedInternal.join(", ")}`);
   }
 
+  // Elektro-Felder nur bei elektrischem/hybridem Antrieb senden — sonst meldet
+  // Mobile.de "vehicle-not-eligible-for-e-car-attributes".
+  {
+    const removedECar = stripECarFields(adBody, adBody.fuel);
+    if (removedECar.length) {
+      warnings.push(`Elektro-Felder nicht gesendet (kein E-/Hybridantrieb): ${removedECar.join(", ")}`);
+    }
+  }
+
   return { adBody, missing, missingFields, warnings };
 }
 
@@ -556,6 +566,42 @@ Deno.serve((req) => withAccountLock(async () => {
     }
     console.log(`X-Mobile-Insertion-Request-Id=${insertionRequestId}`);
     console.log(`Publishing vehicle ${vehicleId}, ${imagePaths.length} image(s)`);
+
+    /**
+     * Protokollzeile VOR dem Aufruf anlegen. Bricht die Function danach ab,
+     * bleibt eine Zeile ohne Antwort stehen — das ist der Nachweis.
+     */
+    const beginPush = async (action: string, requestBody: unknown): Promise<string | null> => {
+      try {
+        const { data, error } = await admin.from("mobile_push_log").insert({
+          vehicle_id: vehicleId,
+          action,
+          request_body: (requestBody ?? null) as never,
+          response_status: null,
+          response_body: "Aufruf abgesetzt – Antwort ausstehend",
+        } as never).select("id").single();
+        if (error) throw error;
+        return (data as { id: string }).id;
+      } catch (e) {
+        console.warn("mobile_push_log (Vorabzeile) fehlgeschlagen:", (e as Error).message);
+        return null;
+      }
+    };
+    const finishPush = async (
+      id: string | null,
+      responseStatus: number | null,
+      responseBody: string,
+    ) => {
+      if (!id) return;
+      try {
+        await admin.from("mobile_push_log").update({
+          response_status: responseStatus,
+          response_body: responseBody.slice(0, 5000),
+        } as never).eq("id", id);
+      } catch (e) {
+        console.warn("mobile_push_log (Antwort) fehlgeschlagen:", (e as Error).message);
+      }
+    };
 
     const logPush = async (
       action: string,
@@ -739,6 +785,7 @@ Deno.serve((req) => withAccountLock(async () => {
 
 
     const createUrl = `${API_BASE}/sellers/${SELLER_ID}/ads`;
+    const pushLogId = await beginPush("publish", adBody);
     const createRes = await fetch(createUrl, {
       method: "POST",
       // Kein automatisches Folgen: 303 verweist auf die bereits vorhandene Anzeige.
@@ -752,6 +799,7 @@ Deno.serve((req) => withAccountLock(async () => {
       body: JSON.stringify(adBody),
     });
     const createText = await createRes.text();
+    await finishPush(pushLogId, createRes.status, createText);
     const alreadyCreated = createRes.status === 303;
     if (alreadyCreated) {
       console.log(`Mobile.de meldet 303 – Anzeige existiert bereits (Location=${createRes.headers.get("Location") ?? "(none)"}).`);
@@ -774,7 +822,7 @@ Deno.serve((req) => withAccountLock(async () => {
       console.error(`[${errorId}] Create ad failed ${createRes.status}: ${createText.slice(0, 800)}`);
       for (const i of issues) console.error(`[${i.code}] ${i.key} path=${i.path ?? "-"} value=${i.value ?? "-"}`);
       await failVehicle(issues.map((i) => i.message).join(" · ") || summary);
-      await logPush("publish", adBody, createRes.status, `[${errorId}] ${createText}`);
+      await finishPush(pushLogId, createRes.status, `[${errorId}] ${createText}`);
       return json(400, {
         error: summary,
         errorId,
@@ -854,7 +902,6 @@ Deno.serve((req) => withAccountLock(async () => {
       ? `Hinweis: ${skipped.length} Bild(er) übersprungen: ${skipped.map((s) => `#${s.index} (${s.reason})`).join("; ")}`
       : null;
 
-    await logPush("publish", adBody, createRes.status, createText);
     const nowIso = new Date().toISOString();
 
     if (!mobileAdId) {
