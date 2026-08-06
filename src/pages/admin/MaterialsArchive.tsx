@@ -53,19 +53,31 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
     const [stories, exposes, collages] = await Promise.all([
       supabase
         .from("vehicle_stories")
-        .select("id, vehicle_id, story_image_url, generated_at, vehicles(title)")
+        .select("id, vehicle_id, story_image_url, generated_at")
         .order("generated_at", { ascending: false }),
       supabase
         .from("vehicle_exposes")
-        .select("id, vehicle_id, pdf_url, updated_at, vehicles(title)")
+        .select("id, vehicle_id, pdf_url, updated_at")
         .order("updated_at", { ascending: false }),
       supabase
         .from("vehicle_collages")
-        .select("id, vehicle_id, image_url, created_at, vehicles(title)")
+        .select("id, vehicle_id, image_url, created_at")
         .order("created_at", { ascending: false }),
     ]);
 
-    const title = (r: { vehicles?: { title: string } | null }) => r.vehicles?.title ?? "Fahrzeug";
+    const ids = [
+      ...new Set([
+        ...(stories.data ?? []).map((r) => r.vehicle_id),
+        ...(exposes.data ?? []).map((r) => r.vehicle_id),
+        ...(collages.data ?? []).map((r) => r.vehicle_id),
+      ]),
+    ];
+    const titles = new Map<string, string>();
+    if (ids.length > 0) {
+      const { data: vs } = await supabase.from("vehicles").select("id, title").in("id", ids);
+      for (const v of vs ?? []) titles.set(v.id, v.title);
+    }
+    const title = (r: { vehicle_id: string }) => titles.get(r.vehicle_id) ?? "Fahrzeug";
 
     const all: MaterialRow[] = [
       ...(stories.data ?? []).map((s) => ({
