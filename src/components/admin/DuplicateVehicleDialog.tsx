@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { supabase } from "@/integrations/supabase/client";
 import {
   duplicateVehicle,
   ownImagePathCount,
@@ -38,9 +39,20 @@ export default function DuplicateVehicleDialog({ vehicle, onClose, onDone }: Pro
   useEffect(() => {
     if (!vehicle) return;
     setTitle(`${vehicle.title} (Kopie)`);
-    const count = ownImagePathCount(vehicle.mobile_payload);
-    setImageCount(count);
-    setCopyImages(count > 0);
+    let active = true;
+    (async () => {
+      let payload = vehicle.mobile_payload;
+      if (payload === undefined) {
+        const { data } = await supabase
+          .from("vehicles").select("mobile_payload").eq("id", vehicle.id).maybeSingle();
+        payload = data?.mobile_payload;
+      }
+      if (!active) return;
+      const count = ownImagePathCount(payload);
+      setImageCount(count);
+      setCopyImages(count > 0);
+    })();
+    return () => { active = false; };
   }, [vehicle]);
 
   const run = async () => {

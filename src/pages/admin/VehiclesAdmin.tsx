@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import PlatformBadges from "@/components/admin/PlatformBadges";
 import VehicleStatusDialog from "@/components/admin/VehicleStatusDialog";
+import DuplicateVehicleDialog from "@/components/admin/DuplicateVehicleDialog";
 import BulkStatusDialog from "@/components/admin/BulkStatusDialog";
 import VehicleLifecycleDialog, {
   type LifecycleMode,
@@ -654,6 +655,7 @@ export default function VehiclesAdmin() {
 
   /* Hängende Veröffentlichungen auflösen: die Function gleicht die
    * Inseratsliste des Kontos ab und trägt gefundene Anzeigen nach. */
+  const [duplicate, setDuplicate] = useState<{ id: string; title: string } | null>(null);
   const [stuckChecking, setStuckChecking] = useState(false);
   const checkStuckPublishing = useCallback(async () => {
     setStuckChecking(true);
@@ -905,6 +907,9 @@ export default function VehiclesAdmin() {
           <Link to={`/admin/fahrzeuge/${v.id}`}>Fahrzeug öffnen</Link>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => openStatus(v)}>Status ändern</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setDuplicate({ id: v.id, title: v.title })}>
+          Duplizieren
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => toggleFeatured(v)}>
           {v.is_featured ? "Hervorhebung entfernen" : "Auf Startseite hervorheben"}
