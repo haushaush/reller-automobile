@@ -438,7 +438,7 @@ export default function Settings() {
         <div className="flex items-start gap-3">
           <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
           <div className="flex-1">
-            <h2 className="text-lg font-semibold">Story-Kontaktdaten</h2>
+            <h2 className="text-lg font-semibold">Angezeigte Kontaktdaten</h2>
             <p className="text-sm text-muted-foreground">
               Diese Daten erscheinen unten im Story-Bild. Leer lassen = keine Anzeige.
             </p>
