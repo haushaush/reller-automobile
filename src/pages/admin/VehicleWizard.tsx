@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +72,7 @@ async function readFunctionError(
 
 export default function VehicleWizard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const params = useParams<{ vehicleId?: string }>();
 
   const [vehicleId, setVehicleId] = useState<string | null>(params.vehicleId ?? null);
@@ -424,6 +426,8 @@ export default function VehicleWizard() {
         toast.info(`Hinweise von Mobile.de: ${warnings.join(" · ")}`, { duration: 8000 });
       }
       setDirty(false);
+      // Liste neu laden, damit das Fahrzeug ohne manuelles Aktualisieren erscheint
+      await queryClient.invalidateQueries({ queryKey: ["admin-vehicles"] });
       navigate("/admin/fahrzeuge");
     } catch (e) {
       console.error(e);
@@ -536,7 +540,7 @@ export default function VehicleWizard() {
           manual={manual}
           onManual={(p) => setManual((m) => ({ ...m, ...p }))}
           saving={saving || published}
-          onSaveDraft={async () => { await persist(); navigate("/admin/fahrzeuge"); }}
+          onSaveDraft={async () => { await persist(); await queryClient.invalidateQueries({ queryKey: ["admin-vehicles"] }); navigate("/admin/fahrzeuge"); }}
           onPublish={() => void publish()}
           onJump={jumpToField}
           publishError={publishError}
