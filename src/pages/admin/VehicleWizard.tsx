@@ -17,6 +17,7 @@ import { useMobileRefdata } from "@/hooks/useMobileRefdata";
 import {
   EMPTY, type FormState, type RequiredField,
   buildVehiclePayload, buildVehicleColumnsFor, payloadToForm,
+  REQUIRED_FIELDS, missingRequired,
 } from "@/lib/mobileAdForm";
 import {
   ensureListingRows, suggestAccountKey, type PlatformAccountRow,
@@ -79,8 +80,8 @@ export default function VehicleWizard() {
 
   useEffect(() => {
     if (accounts.length === 0) return;
-    setAccountKey((cur) => cur || suggestAccountKey(accounts, form.category) || "");
-  }, [accounts, form.category]);
+    setAccountKey((cur) => cur || suggestAccountKey(accounts, form.portalCategory) || "");
+  }, [accounts, form.portalCategory]);
 
   /* ── Bestehenden Entwurf laden ── */
   const loadVehicle = useCallback(async (id: string) => {
@@ -147,6 +148,12 @@ export default function VehicleWizard() {
   /* ── Speichern ── */
   const persist = useCallback(async (opts?: { silent?: boolean; step?: number }): Promise<string | null> => {
     const { form: f, imagePaths: paths, vehicleId: id } = stateRef.current;
+    // Kein Datensatz, solange nichts eingegeben wurde — sonst entstehen leere
+    // Entwürfe („Unbenanntes Fahrzeug“) allein durch das Öffnen des Assistenten.
+    if (!id && isBlankDraft(f, paths)) {
+      if (!opts?.silent) toast.info("Noch nichts einzugeben — bitte zuerst Daten erfassen.");
+      return null;
+    }
     const payload = {
       ...buildVehiclePayload(f),
       _imagePaths: paths,
@@ -251,7 +258,7 @@ export default function VehicleWizard() {
     if (!id) return;
     setSaving(true);
     try {
-      await ensureListingRows(id, form.category, accounts);
+      await ensureListingRows(id, form.portalCategory, accounts);
       if (accountKey) {
         await supabase
           .from("listings")
@@ -278,11 +285,24 @@ export default function VehicleWizard() {
       const { data, error } = await supabase.functions.invoke("publish-mobile-ad", {
         body: { vehicleId: id },
       });
-      const d = (data ?? null) as { success?: boolean; error?: string } | null;
+      const d = (data ?? null) as
+        | { success?: boolean; error?: string; missingFields?: { form: string; label: string; section: string }[] }
+        | null;
       if (error || !d?.success) {
-        toast.error(`Mobile.de: ${d?.error || error?.message || "Veröffentlichen fehlgeschlagen"}`);
+        const detail = d ?? (await readFunctionError(error));
+        const fields = detail?.missingFields ?? [];
+        setPublishError({
+          message: detail?.error || error?.message || "Veröffentlichen fehlgeschlagen",
+          fields: fields.map((f) => ({
+            field: f.form,
+            label: f.label,
+            section: f.section as RequiredField["section"],
+          })),
+        });
+        toast.error(detail?.error || error?.message || "Veröffentlichen fehlgeschlagen");
         return;
       }
+      setPublishError(null);
       toast.success("Fahrzeug wurde bei Mobile.de veröffentlicht.");
       setDirty(false);
       navigate("/admin/fahrzeuge");
