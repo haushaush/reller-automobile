@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.close_issues_for_ended_listing() FROM PUBLIC, anon, authenticated;

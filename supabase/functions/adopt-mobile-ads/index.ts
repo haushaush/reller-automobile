@@ -7,11 +7,34 @@ import { basicAuth, fetchSellerAds, SellerAd } from "../_shared/mobile-reconcile
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const SELLER_ID = "451040";
-const MOBILE_USER =
-  Deno.env.get("MOBILE_DE_SELLER_USERNAME") || Deno.env.get("MOBILE_DE_USERNAME") || "";
-const MOBILE_PASS =
-  Deno.env.get("MOBILE_DE_SELLER_PASSWORD") || Deno.env.get("MOBILE_DE_PASSWORD") || "";
+
+/** Zugangsdaten je Mobile.de-Konto aus platform_accounts (Standard/Unfall). */
+async function resolveAccountByKey(
+  admin: ReturnType<typeof createClient>,
+  accountKey: string,
+): Promise<{ accountKey: string; label: string; sellerId: string; user: string; pass: string }> {
+  const { data } = await admin
+    .from("platform_accounts")
+    .select("account_key, label, seller_id, username_secret_name, password_secret_name")
+    .eq("platform", "mobile_de")
+    .eq("account_key", accountKey)
+    .maybeSingle();
+  const row = (data ?? null) as Record<string, string> | null;
+  const fromSecret = (n?: string | null) => (n ? Deno.env.get(n) ?? "" : "");
+  return {
+    accountKey,
+    label: row?.label ?? accountKey,
+    sellerId: row?.seller_id ?? "451040",
+    user:
+      fromSecret(row?.username_secret_name) ||
+      Deno.env.get("MOBILE_DE_SELLER_USERNAME") ||
+      Deno.env.get("MOBILE_DE_USERNAME") || "",
+    pass:
+      fromSecret(row?.password_secret_name) ||
+      Deno.env.get("MOBILE_DE_SELLER_PASSWORD") ||
+      Deno.env.get("MOBILE_DE_PASSWORD") || "",
+  };
+}
 
 type Row = Record<string, unknown>;
 
@@ -92,15 +115,23 @@ Deno.serve(async (req) => {
       .eq("user_id", claims.claims.sub as string).eq("role", "admin").maybeSingle();
     if (!roleRow) return json(403, { error: "Forbidden" });
 
-    if (!MOBILE_USER || !MOBILE_PASS) return json(500, { error: "Mobile.de Seller-API Zugangsdaten fehlen" });
-
     let dryRun = true;
+    let accountKey = "standard";
     try {
       const body = await req.json();
       dryRun = body?.dryRun !== false;
+      if (typeof body?.accountKey === "string" && body.accountKey.trim()) {
+        accountKey = body.accountKey.trim();
+      }
     } catch { /* default dry run */ }
 
-    const { ads, error } = await fetchSellerAds(SELLER_ID, basicAuth(MOBILE_USER, MOBILE_PASS));
+    const account = await resolveAccountByKey(admin, accountKey);
+    if (!account.user || !account.pass) {
+      return json(500, { error: `Zugangsdaten für das Konto "${account.label}" fehlen` });
+    }
+    console.log(`adopt-mobile-ads Konto=${account.accountKey} seller=${account.sellerId} dryRun=${dryRun}`);
+
+    const { ads, error } = await fetchSellerAds(account.sellerId, basicAuth(account.user, account.pass));
     if (error && ads.length === 0) return json(502, { error });
 
     const { data: rows } = await admin
@@ -108,25 +139,39 @@ Deno.serve(async (req) => {
       .select("id, mobile_ad_id, mobile_de_id, detail_page_url, title");
     const vehicles = (rows ?? []) as Row[];
 
+    // Interne Präfixe (z. B. "accident_") abstreifen, damit IDs vergleichbar sind
+    const bare = (v: unknown) => String(v ?? "").replace(/^[a-z_]+_/, "");
+
     const byAdId = new Map<string, Row>();
     const byMobileDeId = new Map<string, Row>();
     const byUrl = new Map<string, Row>();
     for (const v of vehicles) {
-      if (v.mobile_ad_id) byAdId.set(String(v.mobile_ad_id), v);
-      if (v.mobile_de_id) byMobileDeId.set(String(v.mobile_de_id), v);
+      if (v.mobile_ad_id) byAdId.set(bare(v.mobile_ad_id), v);
+      if (v.mobile_de_id) byMobileDeId.set(bare(v.mobile_de_id), v);
       if (v.detail_page_url) byUrl.set(String(v.detail_page_url).split("?")[0], v);
     }
 
     const toCreate: SellerAd[] = [];
     const toMatch: { vehicleId: string; ad: SellerAd; via: string }[] = [];
+    const unclear: { mobileAdId: string; title: string; reason: string }[] = [];
     const alreadyLinked: string[] = [];
 
     for (const ad of ads) {
-      if (byAdId.has(ad.mobileAdId)) { alreadyLinked.push(ad.mobileAdId); continue; }
+      const adKey = bare(ad.mobileAdId);
+      if (byAdId.has(adKey)) { alreadyLinked.push(ad.mobileAdId); continue; }
       const viaUrl = ad.detailPageUrl ? byUrl.get(ad.detailPageUrl.split("?")[0]) : undefined;
-      const viaId = byMobileDeId.get(ad.mobileAdId);
+      const viaId = byMobileDeId.get(adKey);
       const hit = viaId ?? viaUrl;
       if (hit) {
+        // Fahrzeug hängt bereits an einer anderen Anzeigen-Nummer → nicht eindeutig
+        if (hit.mobile_ad_id && bare(hit.mobile_ad_id) !== adKey) {
+          unclear.push({
+            mobileAdId: ad.mobileAdId,
+            title: ad.title,
+            reason: `Fahrzeug ist bereits mit Anzeige ${hit.mobile_ad_id} verknüpft`,
+          });
+          continue;
+        }
         toMatch.push({ vehicleId: hit.id as string, ad, via: viaId ? "mobile_de_id" : "detail_page_url" });
       } else {
         toCreate.push(ad);
@@ -134,11 +179,15 @@ Deno.serve(async (req) => {
     }
 
     const preview = {
+      accountKey: account.accountKey,
+      accountLabel: account.label,
+      sellerId: account.sellerId,
       totalAds: ads.length,
       alreadyLinked: alreadyLinked.length,
       willCreate: toCreate.length,
       willMatch: toMatch.length,
-      unclear: 0,
+      unclear: unclear.length,
+      unclearSamples: unclear.slice(0, 20),
       createSamples: toCreate.slice(0, 20).map((a) => ({ mobileAdId: a.mobileAdId, title: a.title, price: a.price })),
       matchSamples: toMatch.slice(0, 20).map((m) => ({ mobileAdId: m.ad.mobileAdId, title: m.ad.title, via: m.via })),
       partialFetchError: error ?? null,
