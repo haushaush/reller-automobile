@@ -496,7 +496,29 @@ export default function VehicleWizard() {
         )}
       </div>
 
+      {/* Preis-Plausibilität */}
+      <AlertDialog open={Boolean(priceConfirm)} onOpenChange={(o) => !o && setPriceConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Preis prüfen</AlertDialogTitle>
+            <AlertDialogDescription>{priceConfirm}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPriceConfirm(null)}>Zurück zum Preis</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPriceConfirm(null);
+                void publish(true);
+              }}
+            >
+              Preis stimmt — veröffentlichen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Entwurf fortsetzen */}
+
       <AlertDialog open={Boolean(resumeDraft)} onOpenChange={(o) => !o && setResumeDraft(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
