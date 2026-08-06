@@ -17,7 +17,6 @@ import { useMobileRefdata } from "@/hooks/useMobileRefdata";
 import {
   EMPTY, type FormState, type RequiredField,
   buildVehiclePayload, buildVehicleColumnsFor, payloadToForm,
-  REQUIRED_FIELDS, missingRequired,
 } from "@/lib/mobileAdForm";
 import {
   ensureListingRows, suggestAccountKey, type PlatformAccountRow,
