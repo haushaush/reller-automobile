@@ -51,6 +51,7 @@ async function fetchVehicle(id: string): Promise<Vehicle> {
   const { data, error } = await supabase
     .from("vehicles")
     .select(VEHICLE_COLUMNS)
+    .eq("is_test", false)
     .eq("id", id)
     .single();
 

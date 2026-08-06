@@ -210,7 +210,8 @@ export async function reconcile(
 
   const { data: rows } = await supabase
     .from("vehicles")
-    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at");
+    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at, is_test")
+    .eq("is_test", false);
   const vehicles = (rows ?? []) as Array<Record<string, unknown>>;
   const vehicleById = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) vehicleById.set(String(v.id), v);
