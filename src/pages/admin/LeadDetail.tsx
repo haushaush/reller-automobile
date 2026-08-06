@@ -460,7 +460,7 @@ export default function LeadDetail() {
               <div className="mt-3">
                 {primaryVehicleImage(vehicle) && (
                   <img
-                    src={primaryVehicleImage(vehicle)}
+                    src={primaryVehicleImage(vehicle) ?? undefined}
                     alt={vehicle.title}
                     className="mb-3 aspect-video w-full rounded-md object-cover"
                     loading="lazy"

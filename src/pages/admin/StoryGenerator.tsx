@@ -356,7 +356,7 @@ export default function StoryGenerator({ embedded = false }: { embedded?: boolea
               <div className="flex items-start gap-4">
                 {primaryVehicleImage(vehicle) && (
                   <img
-                    src={primaryVehicleImage(vehicle)}
+                    src={primaryVehicleImage(vehicle) ?? undefined}
                     alt={vehicle.title}
                     className="w-24 h-16 object-cover rounded shrink-0"
                     loading="lazy"
