@@ -111,6 +111,8 @@ function taskHeadline(action: ListingTaskAction, platform: ListingPlatform | nul
 /** Grund als vollständiger Satz mit Datum. */
 function taskReason(t: TaskRow, price: PriceChange | null): string {
   const v = t.vehicles;
+  // Aufgaben ohne Fahrzeugbezug tragen ihren Grund als eigenen Text.
+  if (!t.vehicle_id) return t.reason ?? "Das zugehörige Fahrzeug wurde endgültig gelöscht.";
   switch (t.action) {
     case "end_listing": {
       const d = dateDe(v?.sold_at) ?? dateDe(t.created_at);
