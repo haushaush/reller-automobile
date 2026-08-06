@@ -259,9 +259,18 @@ export async function reconcile(
     .eq("scope", scope)
     .is("resolved_at", null);
 
-  if (issues.length) {
-    await supabase.from("mobile_reconciliation_issues").insert(issues);
+  // Zusätzlich je Lauf entdoppeln (issue_type + scope + mobile_ad_id)
+  const uniqueIssues = [...new Map(
+    issues.map((i) => [`${i.issue_type}|${i.scope}|${i.mobile_ad_id}`, i]),
+  ).values()];
+
+  if (uniqueIssues.length) {
+    const { error } = await supabase
+      .from("mobile_reconciliation_issues")
+      .insert(uniqueIssues, { count: "exact" });
+    if (error) console.error("Meldungen konnten nicht geschrieben werden:", error.message);
   }
+
 
   return {
     checked: ads.length,
