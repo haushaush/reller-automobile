@@ -85,7 +85,12 @@ export default function VehicleStatusDialog({
       );
     }
   } else if (target === "reserved") {
-    consequences.push("Das Fahrzeug bleibt online, erhält aber den Hinweis „Reserviert“.");
+    consequences.push(
+      mobileLive
+        ? "Das Inserat auf Mobile.de wird als „Reserviert“ gekennzeichnet und bleibt sichtbar."
+        : "Das Fahrzeug bleibt online, erhält aber den Hinweis „Reserviert“.",
+    );
+
     if (manualLive.length > 0) {
       consequences.push(
         `Auf ${manualLive
