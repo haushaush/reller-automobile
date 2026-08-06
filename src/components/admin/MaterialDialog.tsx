@@ -225,46 +225,57 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
     }
   };
 
-  const download = async (kind: MaterialKind) => {
+  const fileNameFor = (kind: MaterialKind, path: string | null) =>
+    materialFileName(kind, { brand: vehicle.brand, model: vehicle.model, fallback: vehicle.title }, path);
+
+  /** Holt einen frischen signierten Link – gespeicherte Links laufen nach 60 Minuten ab. */
+  const freshUrl = async (kind: MaterialKind) => {
     const item = state[kind];
+    if (!item.path) throw describeStorageError("not found");
+    try {
+      return await createSignedMaterialUrl(MATERIAL_BUCKETS[kind], item.path);
+    } catch (e) {
+      const err = describeStorageError(e);
+      if (err.missing) setState((s) => ({ ...s, [kind]: { ...s[kind], missing: true, signedUrl: null } }));
+      throw err;
+    }
+  };
+
+  const download = async (kind: MaterialKind) => {
     setBusy(kind);
     try {
-      if (kind === "expose" && item.path) {
-        const { data, error } = await supabase.storage
-          .from("vehicle-exposes")
-          .createSignedUrl(item.path, 3600, { download: `Reller-Expose-${baseName}.pdf` });
-        if (error || !data) throw error ?? new Error("Link konnte nicht erzeugt werden");
-        const a = document.createElement("a");
-        a.href = data.signedUrl;
-        a.rel = "noopener noreferrer";
-        a.target = "_blank";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } else if (item.url) {
-        const suffix = kind === "story" ? "Story" : "Collage";
-        const mode = await shareOrDownloadUrl(item.url, `Reller-${suffix}-${baseName}.jpg`);
-        if (mode === "downloaded") toast.success("Datei gespeichert");
-      }
+      const url = await freshUrl(kind);
+      const mode = await downloadFromUrl(url, fileNameFor(kind, state[kind].path));
+      toast.success(
+        mode === "shared" ? "Datei geteilt" : `${MATERIAL_LABELS[kind]} gespeichert`,
+      );
     } catch (e) {
+      const err = describeStorageError(e);
       toast.error("Download fehlgeschlagen", {
-        description: e instanceof Error ? e.message : "Unbekannter Fehler",
+        description: err.message,
+        action: { label: "Erneut versuchen", onClick: () => void download(kind) },
       });
     } finally {
       setBusy(null);
     }
   };
 
-  const openExposePreview = async (path: string) => {
-    const { data, error } = await supabase.storage
-      .from("vehicle-exposes")
-      .createSignedUrl(path, 3600);
-    if (error || !data) {
-      toast.error("Vorschau nicht möglich", { description: error?.message });
-      return;
+  const view = async (kind: MaterialKind) => {
+    setBusy(kind);
+    try {
+      const url = await freshUrl(kind);
+      setPreview({ kind, url });
+    } catch (e) {
+      const err = describeStorageError(e);
+      toast.error("Vorschau nicht möglich", {
+        description: err.message,
+        action: { label: "Erneut versuchen", onClick: () => void view(kind) },
+      });
+    } finally {
+      setBusy(null);
     }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
+
 
   return (
     <>
