@@ -1,4 +1,4 @@
-import { AlertCircle, Check, Loader2, Lock, Rocket, Save } from "lucide-react";
+import { AlertCircle, Check, Link2, Loader2, Lock, Rocket, Save, Unlink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,11 +7,46 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import type { PlatformAccountRow } from "@/lib/listings";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  accountShortLabel,
+  isPlatformConnected,
+  type PlatformAccountRow,
+} from "@/lib/listings";
+import AdPreview from "./AdPreview";
 import {
   type FormState, type RequiredField, REQUIRED_FIELDS, isFieldFilled,
   CATEGORY_LABELS, FUEL_LABELS, GEARBOX_LABELS, labelFor,
 } from "@/lib/mobileAdForm";
+
+/**
+ * Kurze Statusanzeige neben dem Plattformnamen. Der Zustand kommt aus der
+ * Portal-Konfiguration — sobald eine Schnittstelle angebunden ist, steht hier
+ * von selbst „Verbunden“.
+ */
+function ConnectionBadge({ connected, detail }: { connected: boolean; detail?: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant={connected ? "secondary" : "outline"}
+          className={`gap-1 font-normal ${connected ? "" : "border-dashed text-muted-foreground"}`}
+        >
+          {connected ? <Link2 className="h-3 w-3" /> : <Unlink className="h-3 w-3" />}
+          {connected ? "Verbunden" : "Verknüpfung fehlt"}
+          {connected && detail ? ` · ${detail}` : ""}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[260px]">
+        <p className="text-xs">
+          {connected
+            ? "Schnittstelle ist angebunden — das Inserat wird automatisch angelegt."
+            : "Keine Schnittstelle angebunden. Das Inserat müssen Sie dort von Hand erstellen — wir legen dafür eine Aufgabe unter „Offene Aufgaben“ an."}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 interface Props {
   form: FormState;
@@ -177,6 +212,18 @@ export default function StepReview({
           </div>
         </Card>
       </div>
+
+      <AdPreview
+        form={form}
+        makeName={makeName}
+        modelName={modelName}
+        imagePaths={imagePaths}
+        previews={previews}
+        accounts={accounts}
+        accountKey={accountKey}
+        manual={manual}
+        onJump={onJump}
+      />
 
       <Card className="p-6 space-y-3">
         <div className="flex flex-wrap gap-3">
