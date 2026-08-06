@@ -376,13 +376,19 @@ export async function reconcile(
   }
 
 
+  const orphanAds = uniqueIssues.filter((i) => i.issue_type === "orphan_ad").length;
   return {
     checked: ads.length,
-    orphanAds: uniqueIssues.filter((i) => i.issue_type === "orphan_ad").length,
+    listingsInScope,
+    matched,
+    unmatched: orphanAds + accountMismatch,
+    accountMismatch,
+    orphanAds,
     missingAds: vanished.length,
     driftAds: uniqueIssues.filter((i) => String(i.issue_type).endsWith("_drift")).length,
     issues: uniqueIssues.length,
   };
+
 }
 
 export function serviceClient() {
