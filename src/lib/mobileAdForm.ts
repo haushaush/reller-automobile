@@ -134,6 +134,7 @@ export interface FormState {
   model: string;
   modelDescription: string;
   trimLine: string;
+  modelRange: string;
   category: string;
   /** Portal-Fahrzeugart (vehicles.vehicle_category) — NICHT der Mobile.de-Schlüssel */
   portalCategory: string;
@@ -192,7 +193,7 @@ export interface FormState {
 }
 
 export const EMPTY: FormState = {
-  make: "", model: "", modelDescription: "", trimLine: "",
+  make: "", model: "", modelDescription: "", trimLine: "", modelRange: "",
   category: "", portalCategory: "", mileage: "", regYear: "", regMonth: "",
   doors: "", seats: "",
   fuel: "", gearbox: "", power: "", cubicCapacity: "",
@@ -260,6 +261,7 @@ export function payloadToForm(payload: Record<string, unknown> | null | undefine
     model: asStr(get(payload, ["vehicle", "model", "key"])),
     modelDescription: asStr(get(payload, ["vehicle", "model-description"])),
     trimLine: asStr(get(payload, ["vehicle", "trimLine"])),
+    modelRange: asStr(get(payload, ["vehicle", "modelRange"])),
     category: asStr(get(payload, ["vehicle", "category", "key"])),
     portalCategory: asStr(get(payload, ["_portalCategory"])),
     mileage: asStr(get(payload, ["vehicle", "mileage"])),
@@ -398,6 +400,7 @@ export function mobileAdToFormFlat(
     model: asKey(pick(m.model, veh.model)),
     modelDescription: asStr(pick(m.modelDescription, veh["model-description"], veh.modelDescription)),
     trimLine: asStr(pick(m.trimLine, veh.trimLine)),
+    modelRange: asStr(pick(m.modelRange, veh.modelRange)),
     category: asKey(pick(m.category, veh.category)),
     portalCategory: asStr(pick(d._portalCategory, "")),
     mileage: asStr(pick(m.mileage, veh.mileage)),
@@ -479,6 +482,7 @@ export function buildVehiclePayload(form: FormState): Record<string, unknown> {
   };
 
   if (form.trimLine) vehicle.trimLine = form.trimLine;
+  if (form.modelRange) vehicle.modelRange = form.modelRange;
   if (form.doors) vehicle.doors = { key: form.doors };
   const seats = intIf(form.seats); if (seats !== undefined) vehicle.seats = seats;
   const cyl = intIf(form.cylinders); if (cyl !== undefined) vehicle.cylinder = cyl;

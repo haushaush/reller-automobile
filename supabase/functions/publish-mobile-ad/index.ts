@@ -519,9 +519,11 @@ Deno.serve((req) => withAccountLock(async () => {
 
     // ── Input ─────────────────────────────────────────────────
     let vehicleId: string | undefined;
+    let confirmPrice = false;
     try {
       const body = await req.json();
       vehicleId = body?.vehicleId;
+      confirmPrice = body?.confirmPrice === true;
     } catch { /* empty body */ }
     if (!vehicleId) return json(400, { error: "vehicleId required" });
 
@@ -542,6 +544,29 @@ Deno.serve((req) => withAccountLock(async () => {
     if (vehErr || !vehicle) return json(404, { error: "Fahrzeug nicht gefunden" });
     if (vehicle.mobile_ad_id && vehicle.publish_status === "published") {
       return json(400, { error: "Fahrzeug ist bereits veröffentlicht" });
+    }
+
+    // Doppelklick-Schutz: läuft bereits eine Veröffentlichung oder existiert
+    // schon ein aktives Inserat auf diesem Konto?
+    if (vehicle.publish_status === "publishing") {
+      return json(409, {
+        error: "Für dieses Fahrzeug läuft bereits eine Veröffentlichung. Bitte einen Moment warten.",
+      });
+    }
+    {
+      const { data: liveListing } = await admin
+        .from("listings")
+        .select("id, status, external_ad_id")
+        .eq("vehicle_id", vehicleId)
+        .eq("platform", "mobile_de")
+        .in("status", ["live", "publishing"])
+        .maybeSingle();
+      if (liveListing?.external_ad_id) {
+        return json(409, {
+          error: "Für dieses Fahrzeug besteht bereits ein Mobile.de-Inserat.",
+          mobileAdId: liveListing.external_ad_id,
+        });
+      }
     }
 
     const payload = (vehicle.mobile_payload ?? {}) as Record<string, unknown>;
@@ -622,6 +647,24 @@ Deno.serve((req) => withAccountLock(async () => {
       });
     }
 
+    // ── Preis-Plausibilität (unter 500 € / über 500.000 €) ────
+    {
+      const priceRaw = (mobilePayload.price as Record<string, unknown> | undefined)?.consumerPriceGross;
+      const priceNum = Number(String(priceRaw ?? "").replace(/[^0-9]/g, ""));
+      if (Number.isFinite(priceNum) && priceNum > 0 && (priceNum < 500 || priceNum > 500000) && !confirmPrice) {
+        const msg = priceNum < 500
+          ? `Der Preis von ${priceNum.toLocaleString("de-DE")} € wirkt sehr niedrig. Bitte prüfen und bestätigen.`
+          : `Der Preis von ${priceNum.toLocaleString("de-DE")} € wirkt sehr hoch. Bitte prüfen und bestätigen.`;
+        await admin
+          .from("vehicles")
+          .update({ publish_status: "draft", publish_error: null } as never)
+          .eq("id", vehicleId);
+        await syncMobileListing(admin, vehicleId, {
+          status: "draft", error_message: null, account_key: ACCOUNT.account_key,
+        });
+        return json(422, { error: msg, needsPriceConfirmation: true, price: priceNum });
+      }
+    }
 
 
     // ── Step 1: upload images one by one (skip individual failures) ──
@@ -721,9 +764,10 @@ Deno.serve((req) => withAccountLock(async () => {
       body: JSON.stringify(adBody),
     });
     const createText = await createRes.text();
-    console.log(`Create ad -> status ${createRes.status}`);
+    const createOk = createRes.status >= 200 && createRes.status < 300;
+    console.log(`Create ad -> status ${createRes.status} (ok=${createOk}) location=${createRes.headers.get("Location") ?? "(none)"}`);
 
-    if (!createRes.ok) {
+    if (!createOk) {
       let parsed: unknown = createText;
       try { parsed = JSON.parse(createText); } catch { /* keep text */ }
       const human =
@@ -740,7 +784,25 @@ Deno.serve((req) => withAccountLock(async () => {
       });
     }
 
+    // Warnungen aus der Antwort sind KEIN Fehler — sie werden nur gemeldet.
+    const mobileWarnings: string[] = [];
+    try {
+      const parsedOk = JSON.parse(createText) as { warnings?: unknown };
+      const list = Array.isArray(parsedOk?.warnings) ? parsedOk.warnings : [];
+      for (const w of list) {
+        const entry = w as { key?: string; message?: string; args?: { key?: string; value?: string }[] };
+        const path = entry.args?.find((a) => a?.key === "path")?.value;
+        if (entry.key === "missing-field" && path) {
+          mobileWarnings.push(`Optionale Angabe fehlt: ${path}`);
+        } else {
+          mobileWarnings.push(entry.message || entry.key || JSON.stringify(w));
+        }
+      }
+    } catch { /* keine JSON-Antwort */ }
+    if (mobileWarnings.length) console.log("Mobile.de Hinweise:", mobileWarnings.join(" | "));
+
     // ── Step 3: success ───────────────────────────────────────
+
     const { mobileAdId, source: idSource } = extractMobileAdId(createRes, createText);
     let detailPageUrl: string | undefined;
     try {
@@ -796,11 +858,16 @@ Deno.serve((req) => withAccountLock(async () => {
           publish_error: [warnMsg, skippedNote].filter(Boolean).join(" ").slice(0, 2000),
         } as never)
         .eq("id", vehicleId);
+      await syncMobileListing(admin, vehicleId, {
+        status: "live", error_message: warnMsg, account_key: ACCOUNT.account_key,
+      });
       return json(200, {
         ok: true,
+        success: true,
         warning: true,
         mobileAdId: null,
         message: warnMsg,
+        mobileWarnings,
         detailPageUrl,
         uploadedImages: refs.length,
         skippedImages: skipped,
@@ -852,8 +919,10 @@ Deno.serve((req) => withAccountLock(async () => {
 
     return json(200, {
       ok: true,
+      success: true,
       mobileAdId,
       detailPageUrl,
+      mobileWarnings,
       uploadedImages: refs.length,
       skippedImages: skipped,
     });

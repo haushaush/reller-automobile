@@ -36,6 +36,15 @@ export interface PublishError {
   fields: RequiredField[];
 }
 
+interface PublishResponse {
+  ok?: boolean;
+  success?: boolean;
+  error?: string;
+  needsPriceConfirmation?: boolean;
+  mobileWarnings?: string[];
+  missingFields?: { form: string; label: string; section: string }[];
+}
+
 /** Wurde im Assistenten überhaupt schon etwas erfasst? */
 function isBlankDraft(form: FormState, imagePaths: string[]): boolean {
   if (imagePaths.length > 0) return false;
@@ -50,7 +59,7 @@ function isBlankDraft(form: FormState, imagePaths: string[]): boolean {
 /** Liest den Fehlertext aus der Antwort einer Edge Function (non-2xx). */
 async function readFunctionError(
   error: unknown,
-): Promise<{ error?: string; missingFields?: { form: string; label: string; section: string }[] } | null> {
+): Promise<PublishResponse | null> {
   const ctx = (error as { context?: unknown } | null)?.context;
   if (!ctx || typeof (ctx as Response).json !== "function") return null;
   try {
@@ -77,6 +86,8 @@ export default function VehicleWizard() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [focusSection, setFocusSection] = useState<SectionId | null>(null);
   const [publishError, setPublishError] = useState<PublishError | null>(null);
+  const [published, setPublished] = useState(false);
+  const [priceConfirm, setPriceConfirm] = useState<string | null>(null);
 
   const [accounts, setAccounts] = useState<PlatformAccountRow[]>([]);
   const [accountKey, setAccountKey] = useState("");
@@ -282,7 +293,8 @@ export default function VehicleWizard() {
   };
 
   /* ── Veröffentlichen ── */
-  const publish = async () => {
+  const publish = async (confirmPrice = false) => {
+    if (saving || published) return;
     const id = await persist({ silent: true, step: 4 });
     if (!id) return;
     setSaving(true);
@@ -312,13 +324,16 @@ export default function VehicleWizard() {
       }
 
       const { data, error } = await supabase.functions.invoke("publish-mobile-ad", {
-        body: { vehicleId: id },
+        body: { vehicleId: id, confirmPrice },
       });
-      const d = (data ?? null) as
-        | { success?: boolean; error?: string; missingFields?: { form: string; label: string; section: string }[] }
-        | null;
-      if (error || !d?.success) {
+      const d = (data ?? null) as PublishResponse | null;
+      const okResponse = Boolean(d?.success || d?.ok);
+      if (error || !okResponse) {
         const detail = d ?? (await readFunctionError(error));
+        if (detail?.needsPriceConfirmation) {
+          setPriceConfirm(detail.error || "Bitte den Preis bestätigen.");
+          return;
+        }
         const fields = detail?.missingFields ?? [];
         setPublishError({
           message: detail?.error || error?.message || "Veröffentlichen fehlgeschlagen",
@@ -332,7 +347,12 @@ export default function VehicleWizard() {
         return;
       }
       setPublishError(null);
+      setPublished(true);
+      const warnings = d?.mobileWarnings ?? [];
       toast.success("Fahrzeug wurde bei Mobile.de veröffentlicht.");
+      if (warnings.length) {
+        toast.info(`Hinweise von Mobile.de: ${warnings.join(" · ")}`, { duration: 8000 });
+      }
       setDirty(false);
       navigate("/admin/fahrzeuge");
     } catch (e) {
@@ -342,6 +362,7 @@ export default function VehicleWizard() {
       setSaving(false);
     }
   };
+
 
   const jumpToField = (field: RequiredField) => {
     if (field.section === "fotos") { void goToStep(1); return; }
@@ -444,9 +465,9 @@ export default function VehicleWizard() {
           onAccountKey={setAccountKey}
           manual={manual}
           onManual={(p) => setManual((m) => ({ ...m, ...p }))}
-          saving={saving}
+          saving={saving || published}
           onSaveDraft={async () => { await persist(); navigate("/admin/fahrzeuge"); }}
-          onPublish={publish}
+          onPublish={() => void publish()}
           onJump={jumpToField}
           publishError={publishError}
         />
@@ -475,7 +496,29 @@ export default function VehicleWizard() {
         )}
       </div>
 
+      {/* Preis-Plausibilität */}
+      <AlertDialog open={Boolean(priceConfirm)} onOpenChange={(o) => !o && setPriceConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Preis prüfen</AlertDialogTitle>
+            <AlertDialogDescription>{priceConfirm}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPriceConfirm(null)}>Zurück zum Preis</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPriceConfirm(null);
+                void publish(true);
+              }}
+            >
+              Preis stimmt — veröffentlichen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Entwurf fortsetzen */}
+
       <AlertDialog open={Boolean(resumeDraft)} onOpenChange={(o) => !o && setResumeDraft(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

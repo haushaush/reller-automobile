@@ -184,6 +184,28 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
             />
           </div>
           <div className="space-y-2">
+            <Label>Modellreihe</Label>
+            <Input
+              value={form.modelRange}
+              onChange={(e) => onChange({ modelRange: e.target.value })}
+              placeholder="z. B. Golf VII"
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional — Mobile.de weist sonst auf die fehlende Angabe hin.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Ausstattungslinie</Label>
+            <Input
+              value={form.trimLine}
+              onChange={(e) => onChange({ trimLine: e.target.value })}
+              placeholder="z. B. Highline"
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional — Mobile.de weist sonst auf die fehlende Angabe hin.
+            </p>
+          </div>
+          <div className="space-y-2">
             <Label>{req("Fahrzeugart")}</Label>
             <Select value={form.portalCategory} onValueChange={(v) => onChange({ portalCategory: v })}>
               <SelectTrigger><SelectValue placeholder="Fahrzeugart wählen" /></SelectTrigger>
@@ -415,6 +437,13 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
               onChange={(e) => onChange({ consumerPriceGross: e.target.value.replace(/[^0-9]/g, "") })}
               placeholder="z. B. 12900"
             />
+            {(() => {
+              const p = Number(form.consumerPriceGross || 0);
+              if (!p) return null;
+              if (p < 500) return <p className="text-xs text-amber-600 dark:text-amber-400">Der Preis wirkt sehr niedrig — bitte prüfen.</p>;
+              if (p > 500000) return <p className="text-xs text-amber-600 dark:text-amber-400">Der Preis wirkt sehr hoch — bitte prüfen.</p>;
+              return null;
+            })()}
           </div>
           <div className="space-y-2">
             <Label>{req("Mehrwertsteuer")}</Label>
