@@ -143,52 +143,49 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
     );
   }, [rows, kind, search]);
 
-  const open = async (row: MaterialRow) => {
-    if (row.kind === "expose" && row.path) {
-      const { data, error } = await supabase.storage
-        .from("vehicle-exposes")
-        .createSignedUrl(row.path, 3600);
-      if (error || !data) {
-        toast.error("Vorschau nicht möglich", { description: error?.message });
-        return;
-      }
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-    if (row.url) setPreview(row.url);
+  const signRow = async (row: MaterialRow) => {
+    if (!row.path) throw describeStorageError("not found");
+    return createSignedMaterialUrl(MATERIAL_BUCKETS[row.kind], row.path);
   };
 
-  const download = async (row: MaterialRow) => {
+  const open = async (row: MaterialRow) => {
     setBusy(row.key);
-    const base = safeFileName(row.vehicleTitle) || "Fahrzeug";
     try {
-      if (row.kind === "expose" && row.path) {
-        const { data, error } = await supabase.storage
-          .from("vehicle-exposes")
-          .createSignedUrl(row.path, 3600, { download: `Reller-Expose-${base}.pdf` });
-        if (error || !data) throw error ?? new Error("Link konnte nicht erzeugt werden");
-        const a = document.createElement("a");
-        a.href = data.signedUrl;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } else if (row.url) {
-        const mode = await shareOrDownloadUrl(
-          row.url,
-          `Reller-${row.kind === "story" ? "Story" : "Collage"}-${base}.jpg`,
-        );
-        if (mode === "downloaded") toast.success("Datei gespeichert");
-      }
+      const url = await signRow(row);
+      setPreview({ kind: row.kind, url });
     } catch (e) {
-      toast.error("Download fehlgeschlagen", {
-        description: e instanceof Error ? e.message : "Unbekannter Fehler",
+      const err = describeStorageError(e);
+      toast.error("Vorschau nicht möglich", {
+        description: err.message,
+        action: { label: "Erneut versuchen", onClick: () => void open(row) },
       });
     } finally {
       setBusy(null);
     }
   };
+
+  const download = async (row: MaterialRow) => {
+    setBusy(row.key);
+    try {
+      const url = await signRow(row);
+      const name = materialFileName(
+        row.kind,
+        { brand: row.vehicleBrand, model: row.vehicleModel, fallback: row.vehicleTitle },
+        row.path,
+      );
+      const mode = await downloadFromUrl(url, name);
+      toast.success(mode === "shared" ? "Datei geteilt" : "Datei gespeichert");
+    } catch (e) {
+      const err = describeStorageError(e);
+      toast.error("Download fehlgeschlagen", {
+        description: err.message,
+        action: { label: "Erneut versuchen", onClick: () => void download(row) },
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
 
   return (
     <div>
