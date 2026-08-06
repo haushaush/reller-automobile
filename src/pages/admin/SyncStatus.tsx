@@ -382,6 +382,16 @@ export default function SyncStatus() {
                 );
 
               })}
+              {logs.length > visibleLogs && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setVisibleLogs((n) => n + 10)}
+                >
+                  Weitere anzeigen ({logs.length - visibleLogs} übrig)
+                </Button>
+              )}
             </div>
           )}
         </Card>
