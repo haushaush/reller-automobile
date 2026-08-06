@@ -63,11 +63,13 @@ interface Props {
   onSaveDraft: () => void;
   onPublish: () => void;
   onJump: (field: RequiredField) => void;
+  publishError?: { message: string; fields: RequiredField[] } | null;
 }
 
 export default function StepReview({
   form, makeName, modelName, imagePaths, previews, accounts,
   accountKey, onAccountKey, manual, onManual, saving, onSaveDraft, onPublish, onJump,
+  publishError,
 }: Props) {
   const mobileAccounts = accounts.filter((a) => a.platform === "mobile_de" && a.is_active);
   const checklist: { item: RequiredField; ok: boolean }[] = REQUIRED_FIELDS.map((r) => ({
@@ -160,7 +162,7 @@ export default function StepReview({
                 <button
                   type="button"
                   className="text-destructive underline underline-offset-2"
-                  onClick={() => onJump({ field: "vin", label: "Fotos", section: "fotos" })}
+                  onClick={() => onJump({ field: "fotos", label: "Fotos", section: "fotos" })}
                 >
                   Fotos fehlen — jetzt hochladen
                 </button>
@@ -240,6 +242,29 @@ export default function StepReview({
           <p className="text-sm text-destructive">
             Zum Veröffentlichen fehlt noch: {missing.join(", ")}.
           </p>
+        )}
+        {publishError && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 space-y-2">
+            <p className="text-sm font-medium text-destructive flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              Mobile.de hat das Inserat abgelehnt: {publishError.message}
+            </p>
+            {publishError.fields.length > 0 && (
+              <ul className="space-y-1 text-sm">
+                {publishError.fields.map((f) => (
+                  <li key={f.field}>
+                    <button
+                      type="button"
+                      className="text-destructive underline underline-offset-2"
+                      onClick={() => onJump(f)}
+                    >
+                      {f.label} ergänzen
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </Card>
     </div>

@@ -22,6 +22,7 @@ import {
   REQUIRED_FIELDS,
   isFieldFilled,
   labelFor,
+  PORTAL_VEHICLE_CATEGORIES,
 } from "@/lib/mobileAdForm";
 
 export type SectionId = "basis" | "technik" | "ausstattung" | "preis";
@@ -175,7 +176,7 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Modellbezeichnung</Label>
+            <Label>{req("Modellbezeichnung")}</Label>
             <Input
               value={form.modelDescription}
               onChange={(e) => onChange({ modelDescription: e.target.value })}
@@ -184,8 +185,22 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
           </div>
           <div className="space-y-2">
             <Label>{req("Fahrzeugart")}</Label>
-            <Select value={form.category} onValueChange={(v) => onChange({ category: v })}>
+            <Select value={form.portalCategory} onValueChange={(v) => onChange({ portalCategory: v })}>
               <SelectTrigger><SelectValue placeholder="Fahrzeugart wählen" /></SelectTrigger>
+              <SelectContent>
+                {PORTAL_VEHICLE_CATEGORIES.map((c) => (
+                  <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Steuert Filter und Kategorieseiten im Portal sowie die Vorauswahl des Mobile.de-Kontos.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>{req("Karosserieform (Mobile.de)")}</Label>
+            <Select value={form.category} onValueChange={(v) => onChange({ category: v })}>
+              <SelectTrigger><SelectValue placeholder="Karosserieform wählen" /></SelectTrigger>
               <SelectContent>
                 {refdata.categories.map((c) => (
                   <SelectItem key={c.key} value={c.key}>{labelFor(CATEGORY_LABELS, c.key, c.name)}</SelectItem>

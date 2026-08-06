@@ -1,7 +1,21 @@
 // Gemeinsame Logik für das Mobile.de-Fahrzeugformular (Assistent + Inserats-Editor).
 import { supabase } from "@/integrations/supabase/client";
+import {
+  REQUIRED_AD_FIELDS,
+  checkRequiredAdFields,
+  labelForApiField,
+  fieldForApi,
+  PORTAL_VEHICLE_CATEGORIES,
+  type AdFieldSection,
+} from "../../supabase/functions/_shared/mobile-ad-required";
+
+export {
+  REQUIRED_AD_FIELDS, labelForApiField, fieldForApi, PORTAL_VEHICLE_CATEGORIES,
+};
+export type { AdFieldSection };
 
 export type RefItem = { key: string; name: string };
+
 
 export const FUEL_LABELS: Record<string, string> = {
   PETROL: "Benzin",
@@ -121,6 +135,8 @@ export interface FormState {
   modelDescription: string;
   trimLine: string;
   category: string;
+  /** Portal-Fahrzeugart (vehicles.vehicle_category) — NICHT der Mobile.de-Schlüssel */
+  portalCategory: string;
   mileage: string;
   regYear: string;
   regMonth: string;
@@ -177,7 +193,7 @@ export interface FormState {
 
 export const EMPTY: FormState = {
   make: "", model: "", modelDescription: "", trimLine: "",
-  category: "", mileage: "", regYear: "", regMonth: "",
+  category: "", portalCategory: "", mileage: "", regYear: "", regMonth: "",
   doors: "", seats: "",
   fuel: "", gearbox: "", power: "", cubicCapacity: "",
   cylinders: "", fuelCapacity: "", driveType: "",
@@ -245,6 +261,7 @@ export function payloadToForm(payload: Record<string, unknown> | null | undefine
     modelDescription: asStr(get(payload, ["vehicle", "model-description"])),
     trimLine: asStr(get(payload, ["vehicle", "trimLine"])),
     category: asStr(get(payload, ["vehicle", "category", "key"])),
+    portalCategory: asStr(get(payload, ["_portalCategory"])),
     mileage: asStr(get(payload, ["vehicle", "mileage"])),
     regYear, regMonth,
     doors: asStr(get(payload, ["vehicle", "doors", "key"])),
@@ -382,6 +399,7 @@ export function mobileAdToFormFlat(
     modelDescription: asStr(pick(m.modelDescription, veh["model-description"], veh.modelDescription)),
     trimLine: asStr(pick(m.trimLine, veh.trimLine)),
     category: asKey(pick(m.category, veh.category)),
+    portalCategory: asStr(pick(d._portalCategory, "")),
     mileage: asStr(pick(m.mileage, veh.mileage)),
     regYear, regMonth,
     doors: asKey(pick(m.doors, veh.doors)),
@@ -520,6 +538,8 @@ export function buildVehiclePayload(form: FormState): Record<string, unknown> {
 
   return {
     vehicleClass: "Car",
+    // Portal-Fahrzeugart getrennt vom Mobile.de-Kategorieschlüssel mitführen.
+    _portalCategory: form.portalCategory || undefined,
     vehicle,
     price: {
       consumerPriceGross: String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""),
@@ -533,46 +553,56 @@ export function buildVehiclePayload(form: FormState): Record<string, unknown> {
 
 /** Ein einzelnes Pflichtfeld des Mobile.de-Inserats. */
 export interface RequiredField {
-  field: keyof FormState | "consumerPriceGross";
+  field: string;
   label: string;
   /** Abschnitt in Schritt 3 bzw. "fotos" */
-  section: "fotos" | "basis" | "technik" | "ausstattung" | "preis";
+  section: AdFieldSection;
+  /** Mobile.de-Payload-Schlüssel (null = reines Portalfeld) */
+  api?: string | null;
 }
 
-export const REQUIRED_FIELDS: RequiredField[] = [
-  { field: "make", label: "Marke", section: "basis" },
-  { field: "model", label: "Modell", section: "basis" },
-  { field: "category", label: "Fahrzeugart", section: "basis" },
-  { field: "mileage", label: "Kilometerstand", section: "basis" },
-  { field: "regYear", label: "Erstzulassung", section: "basis" },
-  { field: "fuel", label: "Kraftstoff", section: "technik" },
-  { field: "gearbox", label: "Getriebe", section: "technik" },
-  { field: "power", label: "Leistung (kW)", section: "technik" },
-  { field: "cubicCapacity", label: "Hubraum", section: "technik" },
-  { field: "consumerPriceGross", label: "Preis", section: "preis" },
-  { field: "vatRate", label: "Mehrwertsteuer", section: "preis" },
-];
+/** Abgeleitet aus der gemeinsamen Liste — keine zweite Pflichtfeldliste! */
+export const REQUIRED_FIELDS: RequiredField[] = REQUIRED_AD_FIELDS.map((f) => ({
+  field: f.form,
+  label: f.label,
+  section: f.section,
+  api: f.api,
+}));
 
-export function isFieldFilled(form: FormState, field: RequiredField["field"]): boolean {
-  if (field === "regYear") return Boolean(form.regYear && form.regMonth);
-  if (field === "consumerPriceGross") {
-    const clean = String(form.consumerPriceGross || "").replace(/[^0-9]/g, "");
-    return Boolean(clean) && clean !== "0";
-  }
-  const v = form[field as keyof FormState];
-  return typeof v === "string" ? v.trim().length > 0 : Boolean(v);
+/** Formularwerte in der Form, wie die gemeinsame Prüfung sie erwartet. */
+export function requiredValuesFromForm(form: FormState): Record<string, unknown> {
+  return {
+    ...form,
+    regYear: form.regYear && form.regMonth
+      ? `${form.regYear}${String(form.regMonth).padStart(2, "0")}`
+      : "",
+    damageUnrepaired: form.damageUnrepaired === "true",
+  };
 }
 
 /** Liefert alle fehlenden Pflichtangaben. */
-export function missingRequired(form: FormState): RequiredField[] {
-  return REQUIRED_FIELDS.filter((r) => !isFieldFilled(form, r.field));
+export function missingRequired(
+  form: FormState,
+  opts?: { skipPortalOnly?: boolean },
+): RequiredField[] {
+  const missing = checkRequiredAdFields(requiredValuesFromForm(form), {
+    by: "form",
+    skipPortalOnly: opts?.skipPortalOnly,
+  });
+  const keys = new Set(missing.map((m) => m.form));
+  return REQUIRED_FIELDS.filter((r) => keys.has(r.field));
 }
 
-/** Kompatible Kurzform: erste fehlende Pflichtangabe als Meldung. */
+export function isFieldFilled(form: FormState, field: RequiredField["field"]): boolean {
+  return !missingRequired(form).some((r) => r.field === field);
+}
+
+/** Kompatible Kurzform: erste fehlende Pflichtangabe als Meldung (ohne Portalfelder). */
 export function validateForm(form: FormState): string | null {
-  const missing = missingRequired(form);
+  const missing = missingRequired(form, { skipPortalOnly: true });
   return missing.length ? `${missing[0].label} fehlt` : null;
 }
+
 
 /** Kernfelder für die normalen vehicles-Spalten. */
 export function buildVehicleColumnsFor(
@@ -587,8 +617,9 @@ export function buildVehicleColumnsFor(
     brand: makeName || null,
     model: modelName || null,
     model_description: form.modelDescription || null,
-    category: form.category || null,
-    vehicle_category: form.category || null,
+    // category/body_type = Mobile.de-Karosserieform, vehicle_category = Portal-Fahrzeugart
+    category: form.category ? labelFor(CATEGORY_LABELS, form.category, form.category) : null,
+    vehicle_category: form.portalCategory || undefined,
     body_type: form.category || null,
     year: form.regYear || null,
     mileage: form.mileage ? parseInt(String(form.mileage).replace(/[^0-9]/g, ""), 10) : null,
