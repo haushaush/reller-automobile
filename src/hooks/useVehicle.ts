@@ -52,6 +52,7 @@ async function fetchVehicle(id: string): Promise<Vehicle> {
     .from("vehicles")
     .select(VEHICLE_COLUMNS)
     .eq("is_test", false)
+    .is("archived_at", null)
     .eq("id", id)
     .single();
 

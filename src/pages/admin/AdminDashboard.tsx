@@ -59,22 +59,29 @@ export default function AdminDashboard() {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
       const [active, reserved, soldMonth, inquiries, drafts, tasks] = await Promise.all([
-        supabase.from("vehicles").select("*", { count: "exact", head: true }).eq("is_sold", false),
         supabase
           .from("vehicles")
           .select("*", { count: "exact", head: true })
           .eq("is_sold", false)
+          .is("archived_at", null),
+        supabase
+          .from("vehicles")
+          .select("*", { count: "exact", head: true })
+          .eq("is_sold", false)
+          .is("archived_at", null)
           .not("reserved_at", "is", null),
         supabase
           .from("vehicles")
           .select("*", { count: "exact", head: true })
           .eq("is_sold", true)
+          .is("archived_at", null)
           .gte("sold_at", monthStart),
         supabase.from("inquiries").select("*", { count: "exact", head: true }).eq("status", "new"),
         supabase
           .from("vehicles")
           .select("*", { count: "exact", head: true })
           .eq("is_sold", false)
+          .is("archived_at", null)
           .eq("publish_status", "draft"),
         supabase
           .from("listing_tasks")

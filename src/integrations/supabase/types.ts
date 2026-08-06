@@ -1189,6 +1189,45 @@ export type Database = {
           },
         ]
       }
+      vehicle_deletion_log: {
+        Row: {
+          action: string
+          id: string
+          mobile_ad_ids: string[]
+          performed_at: string
+          performed_by: string | null
+          price: number | null
+          reason: string | null
+          snapshot: Json
+          title: string
+          vehicle_id: string
+        }
+        Insert: {
+          action: string
+          id?: string
+          mobile_ad_ids?: string[]
+          performed_at?: string
+          performed_by?: string | null
+          price?: number | null
+          reason?: string | null
+          snapshot?: Json
+          title: string
+          vehicle_id: string
+        }
+        Update: {
+          action?: string
+          id?: string
+          mobile_ad_ids?: string[]
+          performed_at?: string
+          performed_by?: string | null
+          price?: number | null
+          reason?: string | null
+          snapshot?: Json
+          title?: string
+          vehicle_id?: string
+        }
+        Relationships: []
+      }
       vehicle_exposes: {
         Row: {
           created_at: string
@@ -1347,6 +1386,9 @@ export type Database = {
       }
       vehicles: {
         Row: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           body_type: string | null
           body_type_key: string | null
           body_type_label: string | null
@@ -1423,6 +1465,9 @@ export type Database = {
           year: string | null
         }
         Insert: {
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           body_type?: string | null
           body_type_key?: string | null
           body_type_label?: string | null
@@ -1499,6 +1544,9 @@ export type Database = {
           year?: string | null
         }
         Update: {
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           body_type?: string | null
           body_type_key?: string | null
           body_type_label?: string | null

@@ -101,6 +101,7 @@ export default function StoryGenerator({ embedded = false }: { embedded?: boolea
         "id, title, brand, model_description, price, image_urls, custom_image_urls, hidden_image_urls, image_order, is_sold, category, body_type, year, mileage, fuel, power, gearbox, exterior_color, creation_date, synced_at, vehicle_category",
       )
       .eq("is_sold", false)
+      .is("archived_at", null)
       .order("created_at", { ascending: false })
       .limit(200);
 

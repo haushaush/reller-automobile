@@ -98,6 +98,7 @@ async function fetchVehicles(): Promise<Vehicle[]> {
     .from("vehicles")
     .select(VEHICLE_COLUMNS)
     .eq("is_test", false)
+    .is("archived_at", null)
     .order("synced_at", { ascending: false });
 
   if (error) throw error;

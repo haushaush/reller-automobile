@@ -27,6 +27,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import PlatformBadges from "@/components/admin/PlatformBadges";
 import VehicleStatusDialog from "@/components/admin/VehicleStatusDialog";
 import BulkStatusDialog from "@/components/admin/BulkStatusDialog";
+import VehicleLifecycleDialog, {
+  type LifecycleMode,
+} from "@/components/admin/VehicleLifecycleDialog";
 import {
   accountShortLabel,
   expectedAccountKey,
@@ -137,10 +140,11 @@ interface AdminVehicleRow {
   publish_status: string | null;
   mobile_de_id: string | null;
   mobile_ad_id: string | null;
+  archived_at: string | null;
 }
 
 const SELECT_COLUMNS =
-  "id,title,brand,model,vehicle_category,year,mileage,price,currency,power,fuel,fuel_label,gearbox,gearbox_label,is_sold,reserved_at,is_featured,synced_at,created_at,updated_at,image_urls,custom_image_urls,hidden_image_urls,image_order,publish_status,mobile_de_id,mobile_ad_id";
+  "id,title,brand,model,vehicle_category,year,mileage,price,currency,power,fuel,fuel_label,gearbox,gearbox_label,is_sold,reserved_at,is_featured,synced_at,created_at,updated_at,image_urls,custom_image_urls,hidden_image_urls,image_order,publish_status,mobile_de_id,mobile_ad_id,archived_at";
 
 type SortKey = "price" | "year" | "mileage" | "standtage" | "created_at";
 
@@ -163,7 +167,8 @@ type QuickFilter =
   | "reserved"
   | "sold"
   | "attention"
-  | "account_mismatch";
+  | "account_mismatch"
+  | "archived";
 
 const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "all", label: "Alle" },
@@ -172,6 +177,7 @@ const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "sold", label: "Verkauft" },
   { value: "attention", label: "Braucht Aufmerksamkeit" },
   { value: "account_mismatch", label: "Konto passt nicht zur Fahrzeugart" },
+  { value: "archived", label: "Archiviert" },
 ];
 
 interface Filters {
@@ -346,6 +352,7 @@ export default function VehiclesAdmin() {
     setStatusFor(v);
   }, []);
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [lifecycle, setLifecycle] = useState<null | { mode: LifecycleMode; ids: string[] }>(null);
   const [pendingAction, setPendingAction] = useState<null | {
     label: string;
     description: string;
@@ -489,6 +496,10 @@ export default function VehiclesAdmin() {
         if (vinIds.length) ors.push(`id.in.(${vinIds.join(",")})`);
         query = query.or(ors.join(","));
       }
+
+      // Archivierte Fahrzeuge erscheinen nur im Filter „Archiviert“
+      if (filters.quick === "archived") query = query.not("archived_at", "is", null);
+      else query = query.is("archived_at", null);
 
       switch (filters.quick) {
         case "not_listed":
@@ -817,9 +828,34 @@ export default function VehiclesAdmin() {
         <DropdownMenuItem onSelect={() => toggleFeatured(v)}>
           {v.is_featured ? "Hervorhebung entfernen" : "Auf Startseite hervorheben"}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {v.archived_at ? (
+          <DropdownMenuItem onSelect={() => setLifecycle({ mode: "restore", ids: [v.id] })}>
+            Zurückholen
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onSelect={() => setLifecycle({ mode: "archive", ids: [v.id] })}>
+            Archivieren
+          </DropdownMenuItem>
+        )}
+        {canOfferDelete(v) && (
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onSelect={() => setLifecycle({ mode: "delete", ids: [v.id] })}
+          >
+            Endgültig löschen
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
+
+  /** Endgültiges Löschen nur anbieten, wenn offensichtlich zulässig. */
+  const canOfferDelete = (v: AdminVehicleRow) => {
+    if (v.is_sold) return false;
+    const listings = listingMap?.get(v.id) ?? [];
+    return !listings.some((l) => l.status === "live");
+  };
 
   const optionalCell = (v: AdminVehicleRow, key: OptionalColumn) => {
     switch (key) {
@@ -1154,6 +1190,20 @@ export default function VehiclesAdmin() {
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={selected.length > 25}
+              title={selected.length > 25 ? "Höchstens 25 Fahrzeuge je Vorgang" : undefined}
+              onClick={() => setLifecycle({ mode: "archive", ids: [...selected] })}
+            >
+              Archivieren
+            </Button>
+            {selected.length > 25 && (
+              <span className="text-xs text-muted-foreground">
+                Archivieren ist auf 25 Fahrzeuge je Vorgang begrenzt
+              </span>
+            )}
             <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
               Auswahl aufheben
             </Button>
@@ -1453,6 +1503,19 @@ export default function VehiclesAdmin() {
           refresh();
         }}
       />
+
+      {lifecycle && (
+        <VehicleLifecycleDialog
+          open={!!lifecycle}
+          onOpenChange={(o) => !o && setLifecycle(null)}
+          mode={lifecycle.mode}
+          vehicleIds={lifecycle.ids}
+          onDone={() => {
+            setSelected([]);
+            refresh();
+          }}
+        />
+      )}
 
       <AlertDialog open={!!pendingAction} onOpenChange={(o) => !o && setPendingAction(null)}>
         <AlertDialogContent>
