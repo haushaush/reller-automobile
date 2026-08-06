@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import LeadApiCard from "@/components/admin/LeadApiCard";
+import PlatformAccountsCard from "@/components/admin/PlatformAccountsCard";
 
 const STORY_RECIPIENTS_KEY = "story_email_recipients";
 const STORY_CONTACT_PHONE_KEY = "story_contact_phone";
@@ -371,6 +372,8 @@ export default function Settings() {
           <Link to="/admin/einstellungen/benachrichtigungen">Öffnen</Link>
         </Button>
       </Card>
+
+      <PlatformAccountsCard />
 
       <LeadApiCard />
 
