@@ -154,12 +154,12 @@ type Db = ReturnType<typeof createClient>;
 async function collectInfo(admin: Db, ids: string[]): Promise<VehicleInfo[]> {
   const { data: vehicles } = await admin
     .from("vehicles")
-    .select("id, title, price, currency, is_sold, sold_at, archived_at, mobile_ad_id, brand, model, year, mileage, vehicle_category, mobile_de_id")
+    .select("*")
     .in("id", ids);
 
   const { data: listings } = await admin
     .from("listings")
-    .select("vehicle_id, platform, status, external_ad_id, account_key")
+    .select("vehicle_id, platform, status, external_ad_id, external_url, account_key")
     .in("vehicle_id", ids);
 
   const { data: accounts } = await admin
@@ -170,6 +170,8 @@ async function collectInfo(admin: Db, ids: string[]): Promise<VehicleInfo[]> {
     .from("inquiry_vehicles").select("vehicle_id").in("vehicle_id", ids);
   const { data: leadRows } = await admin
     .from("leads").select("vehicle_id").in("vehicle_id", ids);
+  const { data: vinRows } = await admin
+    .from("vehicle_private_data").select("vehicle_id, vin").in("vehicle_id", ids);
 
   const accountLabel = (key: string | null) => {
     const a = (accounts ?? []).find((x) => (x as Json).account_key === key) as Json | undefined;
@@ -198,16 +200,20 @@ async function collectInfo(admin: Db, ids: string[]): Promise<VehicleInfo[]> {
       .map((l) => ({
         platform: PLATFORM_LABELS[String(l.platform)] ?? String(l.platform),
         adId: (l.external_ad_id as string | null) ?? null,
+        url: (l.external_url as string | null) ?? null,
       }));
 
     const inquiryCount = ((inqRows ?? []) as Json[]).filter((r) => r.vehicle_id === id).length;
     const leadCount = ((leadRows ?? []) as Json[]).filter((r) => r.vehicle_id === id).length;
-    const anyLive = rows.some((l) => l.status === "live");
+    const vin =
+      (((vinRows ?? []) as Json[]).find((r) => r.vehicle_id === id)?.vin as string | null) ?? null;
 
+    // Nur verkaufte Fahrzeuge sind vom endgültigen Löschen ausgenommen.
+    // Inserate werden beim Löschen beendet, Anfragen bleiben ohne Fahrzeugbezug bestehen.
     const blockers: string[] = [];
-    if (inquiryCount + leadCount > 0) blockers.push(`${inquiryCount + leadCount} Anfrage(n)/Lead(s) zugeordnet`);
-    if (v.is_sold === true) blockers.push("Fahrzeug ist als verkauft markiert (Verkaufshistorie bleibt erhalten)");
-    if (anyLive) blockers.push("Es besteht noch ein aktives Inserat");
+    if (v.is_sold === true) {
+      blockers.push("Fahrzeug ist als verkauft markiert – bitte archivieren (Verkaufshistorie)");
+    }
 
     return {
       vehicleId: id,
@@ -221,10 +227,237 @@ async function collectInfo(admin: Db, ids: string[]): Promise<VehicleInfo[]> {
       leadCount,
       canDelete: blockers.length === 0,
       blockers,
-      _snapshot: v,
+      _snapshot: { ...v, vin },
     } as VehicleInfo & { _snapshot: Json };
   });
 }
+
+/* ---------------------------------------------------------------------------
+ * Endgültiges Löschen
+ * ------------------------------------------------------------------------- */
+
+function pathFromValue(value: string, bucket: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed.replace(/^\/+/, "");
+  try {
+    const url = new URL(trimmed);
+    const idx = url.pathname.indexOf("/storage/v1/object/");
+    if (idx < 0) return null;
+    const rest = url.pathname.slice(idx + "/storage/v1/object/".length)
+      .replace(/^(public|sign|authenticated)\//, "");
+    if (!rest.startsWith(`${bucket}/`)) return null;
+    return decodeURIComponent(rest.slice(bucket.length + 1));
+  } catch {
+    return null;
+  }
+}
+
+async function listPrefix(admin: Db, bucket: string, prefix: string): Promise<string[]> {
+  const { data } = await admin.storage.from(bucket).list(prefix, { limit: 1000 });
+  return (data ?? []).filter((f) => f.id !== null).map((f) => `${prefix}/${f.name}`);
+}
+
+/** Kopiert das erste verfügbare Bild als Beleg in den Bucket „deletion-log“. */
+async function copyThumbnail(admin: Db, v: Json, logId: string): Promise<string | null> {
+  const candidates = [
+    ...(((v.custom_image_urls as string[] | null) ?? [])),
+    ...(((v.image_urls as string[] | null) ?? [])),
+  ].filter(Boolean);
+  const src = candidates[0];
+  if (!src) return null;
+  try {
+    let blob: Blob | null = null;
+    const storyPath = pathFromValue(src, "vehicle-stories");
+    if (storyPath) {
+      const { data } = await admin.storage.from("vehicle-stories").download(storyPath);
+      blob = data ?? null;
+    }
+    if (!blob && /^https?:\/\//i.test(src)) {
+      const res = await fetch(src);
+      if (res.ok) blob = await res.blob();
+    }
+    if (!blob) return null;
+    const target = `${logId}.jpg`;
+    const { error } = await admin.storage
+      .from("deletion-log")
+      .upload(target, blob, { contentType: blob.type || "image/jpeg", upsert: true });
+    if (error) return null;
+    return target;
+  } catch (e) {
+    console.warn("Vorschaubild konnte nicht gesichert werden:", (e as Error).message);
+    return null;
+  }
+}
+
+async function hardDelete(
+  admin: Db,
+  authHeader: string,
+  v: VehicleInfo & { _snapshot?: Json },
+  userId: string,
+  reason: string,
+): Promise<string[]> {
+  const snap = (v._snapshot ?? {}) as Json;
+  const id = v.vehicleId;
+  const messages: string[] = [];
+  const payload = (snap.mobile_payload ?? {}) as Json;
+  const internalNumber =
+    (((payload.vehicle as Json | undefined)?.internalNumber ?? payload.internalNumber) as
+      | string
+      | null) ?? null;
+
+  // a) Abbild schreiben, bevor irgendetwas entfernt wird
+  const { data: logRow, error: logErr } = await admin
+    .from("vehicle_deletion_log")
+    .insert({
+      vehicle_id: id,
+      title: v.title,
+      brand: snap.brand ?? null,
+      model: snap.model ?? null,
+      model_description: snap.model_description ?? null,
+      vehicle_category: snap.vehicle_category ?? null,
+      first_registration: snap.year ?? null,
+      mileage: snap.mileage ?? null,
+      vin: snap.vin ?? null,
+      internal_number: internalNumber,
+      price: v.price,
+      mobile_ad_ids: v.mobileListings.map((m) => m.adId).filter(Boolean) as string[],
+      mobile_ad_refs: v.mobileListings,
+      platforms: v.manualListings,
+      was_sold: v.isSold,
+      was_archived: !!v.archivedAt,
+      vehicle_created_at: snap.created_at ?? null,
+      action: "deleted",
+      reason,
+      performed_by: userId,
+      snapshot: snap,
+    } as never)
+    .select("id")
+    .single();
+  if (logErr || !logRow) throw new Error(`Löschprotokoll konnte nicht geschrieben werden: ${logErr?.message}`);
+  const logId = String((logRow as Json).id);
+
+  const thumb = await copyThumbnail(admin, snap, logId);
+  if (thumb) {
+    await admin.from("vehicle_deletion_log").update({ thumbnail_path: thumb } as never).eq("id", logId);
+  }
+
+  // b) Mobile.de beenden — schlägt das fehl, wird abgebrochen
+  if (v.mobileListings.length > 0) {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-mobile-ad`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: authHeader },
+      body: JSON.stringify({ vehicleId: id }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // Abbild wieder entfernen — es wurde nichts gelöscht
+      if (thumb) await admin.storage.from("deletion-log").remove([thumb]);
+      await admin.from("vehicle_deletion_log").delete().eq("id", logId);
+      throw new Error(
+        `Mobile.de-Inserat konnte nicht beendet werden – nichts gelöscht: ${
+          (out as Json)?.error ?? res.status
+        }`,
+      );
+    }
+    messages.push(`${v.mobileListings.length} Mobile.de-Inserat(e) beendet`);
+  }
+
+  // Aufgaben für manuelle Plattformen — ohne Fahrzeugbezug, mit eigenem Text
+  for (const m of v.manualListings) {
+    await admin.from("listing_tasks").insert({
+      vehicle_id: null,
+      listing_id: null,
+      action: "end_listing",
+      platform: m.platform === "AutoScout24" ? "autoscout24" : "kleinanzeigen",
+      ad_title: v.title,
+      ad_url: (m as { url?: string | null }).url ?? null,
+      reason: `Fahrzeug „${v.title}“ wurde endgültig gelöscht – Inserat auf ${m.platform} bitte selbst beenden${
+        m.adId ? ` (Inserat ${m.adId})` : ""
+      }.`,
+    } as never);
+  }
+  if (v.manualListings.length) {
+    messages.push(`${v.manualListings.length} Aufgabe(n) für manuelle Plattformen erstellt`);
+  }
+
+  // c) Dateien im Storage entfernen
+  const removed = await removeStorage(admin, id, snap);
+  if (removed) messages.push(`${removed} Datei(en) entfernt`);
+
+  // d) Verknüpfungen zu Anfragen lösen (Anfragen selbst bleiben bestehen)
+  const { error: linkErr } = await admin.from("inquiry_vehicles").delete().eq("vehicle_id", id);
+  if (linkErr) throw new Error(`Anfragen konnten nicht entkoppelt werden: ${linkErr.message}`);
+  await admin.from("leads").update({ vehicle_id: null } as never).eq("vehicle_id", id);
+  if (v.inquiryCount + v.leadCount > 0) {
+    messages.push(`${v.inquiryCount + v.leadCount} Anfrage(n) bleiben ohne Fahrzeugbezug erhalten`);
+  }
+
+  // e) Fahrzeugzeile löschen
+  const { error: delErr } = await admin.from("vehicles").delete().eq("id", id);
+  if (delErr) throw new Error(`Löschen fehlgeschlagen: ${delErr.message}`);
+
+  messages.unshift("Endgültig gelöscht");
+  return messages;
+}
+
+async function removeStorage(admin: Db, id: string, snap: Json): Promise<number> {
+  let count = 0;
+  const del = async (bucket: string, paths: string[]) => {
+    const unique = [...new Set(paths.filter(Boolean))];
+    if (!unique.length) return;
+    const { error } = await admin.storage.from(bucket).remove(unique);
+    if (error) console.warn(`Storage ${bucket}:`, error.message);
+    else count += unique.length;
+  };
+
+  try {
+    // Eigene Fahrzeugbilder (privat + öffentlich gespiegelt)
+    await del("mobile-ad-images", await listPrefix(admin, "mobile-ad-images", `drafts/${id}`));
+    await del(
+      "vehicle-stories",
+      await listPrefix(admin, "vehicle-stories", `custom-vehicle-images/drafts/${id}`),
+    );
+    const custom = ((snap.custom_image_urls as string[] | null) ?? [])
+      .map((u) => pathFromValue(u, "vehicle-stories"))
+      .filter(Boolean) as string[];
+    await del("vehicle-stories", custom);
+
+    // Storys
+    const { data: stories } = await admin
+      .from("vehicle_stories").select("story_image_url").eq("vehicle_id", id);
+    await del(
+      "vehicle-stories",
+      ((stories ?? []) as Json[])
+        .map((s) => pathFromValue(String(s.story_image_url ?? ""), "vehicle-stories"))
+        .filter(Boolean) as string[],
+    );
+
+    // Collagen
+    const { data: collages } = await admin
+      .from("vehicle_collages").select("storage_path, image_url").eq("vehicle_id", id);
+    await del(
+      "vehicle-stories",
+      ((collages ?? []) as Json[])
+        .map((c) => pathFromValue(String(c.storage_path ?? c.image_url ?? ""), "vehicle-stories"))
+        .filter(Boolean) as string[],
+    );
+
+    // Exposés
+    const { data: exposes } = await admin
+      .from("vehicle_exposes").select("pdf_url").eq("vehicle_id", id);
+    await del(
+      "vehicle-exposes",
+      ((exposes ?? []) as Json[])
+        .map((e) => pathFromValue(String(e.pdf_url ?? ""), "vehicle-exposes"))
+        .filter(Boolean) as string[],
+    );
+  } catch (e) {
+    console.warn("Storage-Aufräumen unvollständig:", (e as Error).message);
+  }
+  return count;
+}
+
 
 async function writeLog(
   admin: Db, v: VehicleInfo, action: string, reason: string | null, userId: string,
