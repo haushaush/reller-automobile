@@ -59,7 +59,7 @@ function isBlankDraft(form: FormState, imagePaths: string[]): boolean {
 /** Liest den Fehlertext aus der Antwort einer Edge Function (non-2xx). */
 async function readFunctionError(
   error: unknown,
-): Promise<{ error?: string; missingFields?: { form: string; label: string; section: string }[] } | null> {
+): Promise<PublishResponse | null> {
   const ctx = (error as { context?: unknown } | null)?.context;
   if (!ctx || typeof (ctx as Response).json !== "function") return null;
   try {
