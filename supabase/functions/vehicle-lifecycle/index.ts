@@ -110,19 +110,35 @@ Deno.serve(async (req) => {
       if (vehicleIds.length !== 1) return json(400, { error: "Endgültiges Löschen ist nur einzeln möglich" });
       const v = info[0];
       const confirmTitle = String(body.confirmTitle ?? "").trim();
-      if (!v.canDelete) {
-        return json(400, { error: `Löschen nicht möglich: ${v.blockers.join(" · ")}` });
+      if (!v) return json(404, { error: "Fahrzeug nicht gefunden" });
+      if (v.isSold) {
+        return json(400, {
+          error:
+            "Verkaufte Fahrzeuge können nicht endgültig gelöscht werden – sie sind die Grundlage der Verkaufshistorie. Bitte archivieren.",
+        });
+      }
+      if (!reason || reason.trim().length < 3) {
+        return json(400, { error: "Bitte einen Löschgrund angeben" });
       }
       if (confirmTitle !== v.title.trim()) {
         return json(400, { error: "Der eingegebene Fahrzeugtitel stimmt nicht überein" });
       }
-      await writeLog(admin, v, "deleted", reason, userId);
-      const { error } = await admin.from("vehicles").delete().eq("id", v.vehicleId);
-      if (error) return json(500, { error: `Löschen fehlgeschlagen: ${error.message}` });
-      return json(200, {
-        results: [{ vehicleId: v.vehicleId, title: v.title, success: true, message: "Endgültig gelöscht" }],
-      });
+      try {
+        const messages = await hardDelete(admin, authHeader, v, userId, reason);
+        return json(200, {
+          results: [
+            { vehicleId: v.vehicleId, title: v.title, success: true, message: messages.join(" · ") },
+          ],
+        });
+      } catch (e) {
+        return json(200, {
+          results: [
+            { vehicleId: v.vehicleId, title: v.title, success: false, message: (e as Error).message },
+          ],
+        });
+      }
     }
+
 
     return json(400, { error: "Unbekannte Aktion" });
   } catch (err) {
