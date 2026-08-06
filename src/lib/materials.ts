@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { saveBlob, isImageFile, type SaveResult } from "@/lib/download";
 
 /** Bildproxy für Fremdbilder ohne CORS-Freigabe. */
 const FETCH_IMAGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-image`;
@@ -112,34 +113,22 @@ export async function buildCollageBlob(imageUrls: string[]): Promise<Blob> {
 }
 
 /**
- * Speichert eine Datei so, wie es das Gerät erlaubt: auf dem Handy über den
- * Teilen-Dialog (nur so landet ein Bild in der Fotogalerie), sonst als Download.
+ * Speichert eine Datei über die zentrale Weiche in @/lib/download:
+ * Bild auf Touch-Gerät → Teilen-Dialog, sonst immer direkter Download.
  */
-export async function shareOrDownloadBlob(blob: Blob, filename: string): Promise<"shared" | "downloaded"> {
-  const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
-  const nav = navigator as Navigator & {
-    canShare?: (data: { files: File[] }) => boolean;
-    share?: (data: { files?: File[]; title?: string }) => Promise<void>;
-  };
-  if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
-    await nav.share({ files: [file], title: filename });
-    return "shared";
-  }
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  return "downloaded";
+export async function shareOrDownloadBlob(blob: Blob, filename: string): Promise<SaveResult> {
+  return saveBlob(blob, filename);
 }
 
 /** Lädt eine Bild-URL herunter bzw. teilt sie. */
-export async function shareOrDownloadUrl(url: string, filename: string) {
-  const blob = await loadImageBlob(url);
-  return shareOrDownloadBlob(blob, filename);
+export async function shareOrDownloadUrl(url: string, filename: string): Promise<SaveResult> {
+  return shareOrDownloadBlob(await loadImageBlob(url), filename);
+}
+
+/** true, wenn das Material ein Bild ist (Story, Collage). */
+export function isImageMaterial(kind: MaterialKind, path?: string | null): boolean {
+  if (kind === "expose") return false;
+  return isImageFile(path ?? `x.${DEFAULT_EXT[kind]}`);
 }
 
 export function safeFileName(input: string): string {
@@ -149,7 +138,8 @@ export function safeFileName(input: string): string {
     .replace(/[^a-zA-Z0-9._-]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
-    .slice(0, 80);
+    .slice(0, 80)
+    .toLowerCase();
 }
 
 /** Lädt eine Collage in den Story-Bucket und legt den Datensatz an (Pfad, keine URL). */
@@ -189,9 +179,9 @@ const DEFAULT_EXT: Record<MaterialKind, string> = {
 };
 
 const FILE_LABEL: Record<MaterialKind, string> = {
-  story: "Story",
-  expose: "Expose",
-  collage: "Collage",
+  story: "story",
+  expose: "expose",
+  collage: "collage",
 };
 
 /** Gültigkeit signierter Links in Sekunden (60 Minuten). */
@@ -273,7 +263,7 @@ export function materialFileName(
  * Lädt eine Datei per fetch als Blob und speichert bzw. teilt sie.
  * Nötig, weil das download-Attribut bei fremden Domains ignoriert wird.
  */
-export async function downloadFromUrl(url: string, filename: string): Promise<"shared" | "downloaded"> {
+export async function downloadFromUrl(url: string, filename: string): Promise<SaveResult> {
   let response: Response;
   try {
     response = await fetch(url);
