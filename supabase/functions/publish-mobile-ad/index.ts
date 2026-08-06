@@ -858,11 +858,16 @@ Deno.serve((req) => withAccountLock(async () => {
           publish_error: [warnMsg, skippedNote].filter(Boolean).join(" ").slice(0, 2000),
         } as never)
         .eq("id", vehicleId);
+      await syncMobileListing(admin, vehicleId, {
+        status: "live", error_message: warnMsg, account_key: ACCOUNT.account_key,
+      });
       return json(200, {
         ok: true,
+        success: true,
         warning: true,
         mobileAdId: null,
         message: warnMsg,
+        mobileWarnings,
         detailPageUrl,
         uploadedImages: refs.length,
         skippedImages: skipped,
