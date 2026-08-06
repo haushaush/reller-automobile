@@ -127,6 +127,34 @@ async function uploadOneImage(jpeg: Uint8Array, filename: string): Promise<strin
   return String(ref);
 }
 
+/**
+ * Liest aus einer Mobile.de-Anzeige die Bild-URLs (größte verfügbare
+ * Repräsentation je Bild) heraus, damit Portal und Inserat dieselben
+ * Bilder zeigen.
+ */
+export function extractAdImageUrls(ad: unknown): string[] {
+  const images = (ad as { images?: unknown })?.images;
+  if (!Array.isArray(images)) return [];
+  const urls: string[] = [];
+  for (const img of images) {
+    const entry = img as {
+      ref?: string;
+      representations?: { url?: string; size?: string }[];
+      url?: string;
+    };
+    const reps = Array.isArray(entry?.representations) ? entry.representations : [];
+    const preferred =
+      reps.find((r) => r?.size === "XXXL")?.url ??
+      reps.find((r) => r?.size === "XXL")?.url ??
+      reps.find((r) => r?.size === "L")?.url ??
+      reps.find((r) => typeof r?.url === "string")?.url ??
+      entry?.url ??
+      (typeof entry?.ref === "string" && /^https?:\/\//.test(entry.ref) ? entry.ref : undefined);
+    if (preferred && /^https?:\/\//.test(preferred)) urls.push(preferred);
+  }
+  return Array.from(new Set(urls));
+}
+
 // Robust extractor for the Mobile.de ad ID from create-ad responses.
 // Tries multiple JSON keys and both relative + absolute Location header URLs.
 export function extractMobileAdId(
