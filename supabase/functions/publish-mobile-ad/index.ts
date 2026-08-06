@@ -764,9 +764,10 @@ Deno.serve((req) => withAccountLock(async () => {
       body: JSON.stringify(adBody),
     });
     const createText = await createRes.text();
-    console.log(`Create ad -> status ${createRes.status}`);
+    const createOk = createRes.status >= 200 && createRes.status < 300;
+    console.log(`Create ad -> status ${createRes.status} (ok=${createOk}) location=${createRes.headers.get("Location") ?? "(none)"}`);
 
-    if (!createRes.ok) {
+    if (!createOk) {
       let parsed: unknown = createText;
       try { parsed = JSON.parse(createText); } catch { /* keep text */ }
       const human =
@@ -783,7 +784,25 @@ Deno.serve((req) => withAccountLock(async () => {
       });
     }
 
+    // Warnungen aus der Antwort sind KEIN Fehler — sie werden nur gemeldet.
+    const mobileWarnings: string[] = [];
+    try {
+      const parsedOk = JSON.parse(createText) as { warnings?: unknown };
+      const list = Array.isArray(parsedOk?.warnings) ? parsedOk.warnings : [];
+      for (const w of list) {
+        const entry = w as { key?: string; message?: string; args?: { key?: string; value?: string }[] };
+        const path = entry.args?.find((a) => a?.key === "path")?.value;
+        if (entry.key === "missing-field" && path) {
+          mobileWarnings.push(`Optionale Angabe fehlt: ${path}`);
+        } else {
+          mobileWarnings.push(entry.message || entry.key || JSON.stringify(w));
+        }
+      }
+    } catch { /* keine JSON-Antwort */ }
+    if (mobileWarnings.length) console.log("Mobile.de Hinweise:", mobileWarnings.join(" | "));
+
     // ── Step 3: success ───────────────────────────────────────
+
     const { mobileAdId, source: idSource } = extractMobileAdId(createRes, createText);
     let detailPageUrl: string | undefined;
     try {
