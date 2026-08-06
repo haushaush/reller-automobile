@@ -78,6 +78,11 @@ export default function VehicleWizard() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [imagePaths, setImagePaths] = useState<string[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  /** Storage-Pfad → öffentliche URL (Anzeige im Portal) */
+  const [publicUrls, setPublicUrls] = useState<Record<string, string>>({});
+  const publicUrlsRef = useRef<Record<string, string>>({});
+  publicUrlsRef.current = publicUrls;
+
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(Boolean(params.vehicleId));
