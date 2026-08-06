@@ -536,7 +536,7 @@ export interface RequiredField {
   field: keyof FormState | "consumerPriceGross";
   label: string;
   /** Abschnitt in Schritt 3 bzw. "fotos" */
-  section: "fotos" | "basis" | "technik" | "preis";
+  section: "fotos" | "basis" | "technik" | "ausstattung" | "preis";
 }
 
 export const REQUIRED_FIELDS: RequiredField[] = [
