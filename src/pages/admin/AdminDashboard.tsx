@@ -178,18 +178,12 @@ export default function AdminDashboard() {
       to: "/admin/fahrzeuge?status=sold",
     },
     {
-      label: "Zu erledigen",
+      label: "Offene Aufgaben",
       value: stats.openTasks,
       icon: ListChecks,
       to: "/admin/zu-erledigen",
     },
     { label: "Offene Anfragen", value: stats.openInquiries, icon: Mail, to: "/admin/anfragen" },
-    {
-      label: "Entwürfe",
-      value: stats.drafts,
-      icon: FileEdit,
-      to: "/admin/fahrzeuge?publish=draft",
-    },
   ];
 
   return (
