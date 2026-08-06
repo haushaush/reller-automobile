@@ -1187,7 +1187,111 @@ export default function VehiclesAdmin() {
     }
   };
 
+  const portalRow: { value: PortalFilter; label: string }[] = [
+    { value: "mobile_de", label: "Mobile.de" },
+    { value: "autoscout24", label: "AutoScout24" },
+    { value: "kleinanzeigen", label: "Kleinanzeigen" },
+    { value: "portal_only", label: "Nur im Portal" },
+  ];
+
+  const showMobileAccounts =
+    filters.portal === "mobile_de" || filters.portal.startsWith("mobile_de:");
+
+  /** Zwei Filterreihen: Zustand und Portal */
+  const quickFilterRows = (
+    <div className="mt-6 space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {QUICK_FILTERS.map((qf) => (
+          <Button
+            key={qf.value}
+            size="sm"
+            variant={filters.quick === qf.value ? "default" : "outline"}
+            className="rounded-full"
+            onClick={() =>
+              updateFilters(
+                qf.value === "deleted" ? { ...EMPTY_FILTERS, quick: "deleted" } : { quick: qf.value },
+              )
+            }
+          >
+            {qf.label}
+            <span className="ml-2 text-xs opacity-70">{quickCounts[qf.value] ?? 0}</span>
+          </Button>
+        ))}
+        {EXTRA_QUICK_FILTERS.filter((qf) => qf.value === filters.quick).map((qf) => (
+          <Button key={qf.value} size="sm" variant="default" className="rounded-full">
+            {qf.label}
+          </Button>
+        ))}
+      </div>
+
+      {filters.quick !== "deleted" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Nach Portal</span>
+          <Button
+            size="sm"
+            variant={filters.portal === "all" ? "default" : "outline"}
+            className="rounded-full"
+            onClick={() => updateFilters({ portal: "all" })}
+          >
+            Alle
+          </Button>
+          {portalRow.map((p) => (
+            <Button
+              key={p.value}
+              size="sm"
+              variant={
+                filters.portal === p.value ||
+                (p.value === "mobile_de" && filters.portal.startsWith("mobile_de:"))
+                  ? "default"
+                  : "outline"
+              }
+              className="rounded-full"
+              onClick={() => updateFilters({ portal: p.value })}
+            >
+              {p.label}
+              <span className="ml-2 text-xs opacity-70">{portalCounts(p.value)}</span>
+            </Button>
+          ))}
+          {showMobileAccounts &&
+            mobileAccounts.map((a) => {
+              const value = `mobile_de:${a.account_key}`;
+              return (
+                <Button
+                  key={a.account_key}
+                  size="sm"
+                  variant={filters.portal === value ? "secondary" : "ghost"}
+                  className="rounded-full"
+                  onClick={() => updateFilters({ portal: value })}
+                >
+                  {accountShortLabel(accounts, a.account_key)}
+                  <span className="ml-2 text-xs opacity-70">{portalCounts(value)}</span>
+                </Button>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
+
+  if (filters.quick === "deleted") {
+    return (
+      <div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Fahrzeuge</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Endgültig entfernte Fahrzeuge — nur zur Nachvollziehbarkeit.
+          </p>
+        </div>
+        {quickFilterRows}
+        <div className="mt-6">
+          <DeletedVehiclesList />
+        </div>
+      </div>
+    );
+  }
+
   return (
+
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
