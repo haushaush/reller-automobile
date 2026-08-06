@@ -135,6 +135,8 @@ export interface FormState {
   modelDescription: string;
   trimLine: string;
   category: string;
+  /** Portal-Fahrzeugart (vehicles.vehicle_category) — NICHT der Mobile.de-Schlüssel */
+  portalCategory: string;
   mileage: string;
   regYear: string;
   regMonth: string;
@@ -191,7 +193,7 @@ export interface FormState {
 
 export const EMPTY: FormState = {
   make: "", model: "", modelDescription: "", trimLine: "",
-  category: "", mileage: "", regYear: "", regMonth: "",
+  category: "", portalCategory: "", mileage: "", regYear: "", regMonth: "",
   doors: "", seats: "",
   fuel: "", gearbox: "", power: "", cubicCapacity: "",
   cylinders: "", fuelCapacity: "", driveType: "",
@@ -259,6 +261,7 @@ export function payloadToForm(payload: Record<string, unknown> | null | undefine
     modelDescription: asStr(get(payload, ["vehicle", "model-description"])),
     trimLine: asStr(get(payload, ["vehicle", "trimLine"])),
     category: asStr(get(payload, ["vehicle", "category", "key"])),
+    portalCategory: asStr(get(payload, ["_portalCategory"])),
     mileage: asStr(get(payload, ["vehicle", "mileage"])),
     regYear, regMonth,
     doors: asStr(get(payload, ["vehicle", "doors", "key"])),
@@ -396,6 +399,7 @@ export function mobileAdToFormFlat(
     modelDescription: asStr(pick(m.modelDescription, veh["model-description"], veh.modelDescription)),
     trimLine: asStr(pick(m.trimLine, veh.trimLine)),
     category: asKey(pick(m.category, veh.category)),
+    portalCategory: asStr(pick(d._portalCategory, "")),
     mileage: asStr(pick(m.mileage, veh.mileage)),
     regYear, regMonth,
     doors: asKey(pick(m.doors, veh.doors)),
@@ -534,6 +538,8 @@ export function buildVehiclePayload(form: FormState): Record<string, unknown> {
 
   return {
     vehicleClass: "Car",
+    // Portal-Fahrzeugart getrennt vom Mobile.de-Kategorieschlüssel mitführen.
+    _portalCategory: form.portalCategory || undefined,
     vehicle,
     price: {
       consumerPriceGross: String(form.consumerPriceGross || "").replace(/[^0-9]/g, ""),
@@ -611,8 +617,9 @@ export function buildVehicleColumnsFor(
     brand: makeName || null,
     model: modelName || null,
     model_description: form.modelDescription || null,
-    category: form.category || null,
-    vehicle_category: form.category || null,
+    // category/body_type = Mobile.de-Karosserieform, vehicle_category = Portal-Fahrzeugart
+    category: form.category ? labelFor(CATEGORY_LABELS, form.category, form.category) : null,
+    vehicle_category: form.portalCategory || undefined,
     body_type: form.category || null,
     year: form.regYear || null,
     mileage: form.mileage ? parseInt(String(form.mileage).replace(/[^0-9]/g, ""), 10) : null,
