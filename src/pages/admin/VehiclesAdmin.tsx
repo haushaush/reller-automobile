@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { saveText } from "@/lib/download";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -775,12 +776,11 @@ export default function VehiclesAdmin() {
           .join(";"),
       );
       const csv = "\uFEFF" + [header.map(cell).join(";"), ...body].join("\r\n");
-      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `fahrzeuge-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await saveText(
+        csv,
+        `fahrzeuge-${new Date().toISOString().slice(0, 10)}.csv`,
+        "text/csv;charset=utf-8",
+      );
       toast.success(`${all.length} Fahrzeug(e) exportiert`);
     } catch (e) {
       toast.error(`Export fehlgeschlagen: ${(e as Error).message}`);

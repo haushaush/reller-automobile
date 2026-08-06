@@ -3,6 +3,8 @@ import { FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadBlob } from "@/lib/download";
+import { materialFileName } from "@/lib/materials";
 import { generateExposeBlob, logExposeFailure, EXPOSE_ERROR_HINT } from "@/lib/exposePdf";
 import type { Vehicle } from "@/hooks/useVehicles";
 
@@ -19,17 +21,15 @@ const DownloadExposeButton = ({ vehicle }: DownloadExposeButtonProps) => {
     try {
       const blob = await generateExposeBlob(vehicle);
 
-      // Trigger local download immediately so the user always gets the file.
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const brand = vehicle.brand || "Fahrzeug";
-      const model = vehicle.model || vehicle.model_description || "";
-      a.href = url;
-      a.download = `${brand}-${model}-Expose.pdf`.replace(/\s+/g, "-");
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // PDF: immer direkter Download — auch auf dem Handy (Dateien, nicht Galerie).
+      downloadBlob(
+        blob,
+        materialFileName("expose", {
+          brand: vehicle.brand,
+          model: vehicle.model || vehicle.model_description,
+          fallback: vehicle.title,
+        }),
+      );
 
       toast.success("Exposé wurde heruntergeladen", { id: toastId });
 
