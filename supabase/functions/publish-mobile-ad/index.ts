@@ -571,6 +571,20 @@ Deno.serve((req) => withAccountLock(async () => {
 
     const payload = (vehicle.mobile_payload ?? {}) as Record<string, unknown>;
     const imagePaths = Array.isArray(payload._imagePaths) ? (payload._imagePaths as string[]) : [];
+
+    // Feste, eindeutige Kennung je Fahrzeug: verhindert Doppel-Inserate bei
+    // Wiederholungsversuchen (Mobile.de antwortet dann mit 303 auf die vorhandene Anzeige).
+    let insertionRequestId = typeof payload._insertionRequestId === "string"
+      ? payload._insertionRequestId
+      : "";
+    if (!insertionRequestId) {
+      insertionRequestId = `veh-${vehicleId}`;
+      await admin.from("vehicles").update({
+        mobile_payload: { ...payload, _insertionRequestId: insertionRequestId } as never,
+      } as never).eq("id", vehicleId);
+      payload._insertionRequestId = insertionRequestId;
+    }
+    console.log(`X-Mobile-Insertion-Request-Id=${insertionRequestId}`);
     console.log(`Publishing vehicle ${vehicleId}, ${imagePaths.length} image(s)`);
 
     const logPush = async (
@@ -756,15 +770,22 @@ Deno.serve((req) => withAccountLock(async () => {
     const createUrl = `${API_BASE}/sellers/${SELLER_ID}/ads`;
     const createRes = await fetch(createUrl, {
       method: "POST",
+      // Kein automatisches Folgen: 303 verweist auf die bereits vorhandene Anzeige.
+      redirect: "manual",
       headers: {
         Authorization: basicAuth(),
         "Content-Type": MOBILE_MIME,
         Accept: MOBILE_MIME,
+        "X-Mobile-Insertion-Request-Id": insertionRequestId,
       },
       body: JSON.stringify(adBody),
     });
     const createText = await createRes.text();
-    const createOk = createRes.status >= 200 && createRes.status < 300;
+    const alreadyCreated = createRes.status === 303;
+    if (alreadyCreated) {
+      console.log(`Mobile.de meldet 303 – Anzeige existiert bereits (Location=${createRes.headers.get("Location") ?? "(none)"}).`);
+    }
+    const createOk = (createRes.status >= 200 && createRes.status < 300) || alreadyCreated;
     console.log(`Create ad -> status ${createRes.status} (ok=${createOk}) location=${createRes.headers.get("Location") ?? "(none)"}`);
 
     if (!createOk) {
