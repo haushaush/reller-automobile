@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   Car,
   BadgeEuro,
+  ArrowUpFromLine,
+  ArrowDownToLine,
 } from "lucide-react";
 
 interface IssueRow {
