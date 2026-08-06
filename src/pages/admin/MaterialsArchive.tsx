@@ -67,7 +67,7 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
         .order("updated_at", { ascending: false }),
       supabase
         .from("vehicle_collages")
-        .select("id, vehicle_id, image_url, created_at")
+        .select("id, vehicle_id, image_url, storage_path, created_at")
         .order("created_at", { ascending: false }),
     ]);
 
@@ -78,40 +78,49 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
         ...(collages.data ?? []).map((r) => r.vehicle_id),
       ]),
     ];
-    const titles = new Map<string, string>();
+    const vehicles = new Map<string, { title: string; brand: string | null; model: string | null }>();
     if (ids.length > 0) {
-      const { data: vs } = await supabase.from("vehicles").select("id, title").in("id", ids);
-      for (const v of vs ?? []) titles.set(v.id, v.title);
+      const { data: vs } = await supabase
+        .from("vehicles")
+        .select("id, title, brand, model")
+        .in("id", ids);
+      for (const v of vs ?? []) {
+        vehicles.set(v.id, { title: v.title, brand: v.brand, model: v.model });
+      }
     }
-    const title = (r: { vehicle_id: string }) => titles.get(r.vehicle_id) ?? "Fahrzeug";
+    const info = (vehicleId: string) =>
+      vehicles.get(vehicleId) ?? { title: "Fahrzeug", brand: null, model: null };
 
     const all: MaterialRow[] = [
       ...(stories.data ?? []).map((s) => ({
         key: `story-${s.id}`,
         kind: "story" as const,
         vehicleId: s.vehicle_id,
-        vehicleTitle: title(s),
+        vehicleTitle: info(s.vehicle_id).title,
+        vehicleBrand: info(s.vehicle_id).brand,
+        vehicleModel: info(s.vehicle_id).model,
         createdAt: s.generated_at,
-        url: s.story_image_url,
-        path: null,
+        path: storagePathFromValue(s.story_image_url, MATERIAL_BUCKETS.story),
       })),
       ...(exposes.data ?? []).map((e) => ({
         key: `expose-${e.id}`,
         kind: "expose" as const,
         vehicleId: e.vehicle_id,
-        vehicleTitle: title(e),
+        vehicleTitle: info(e.vehicle_id).title,
+        vehicleBrand: info(e.vehicle_id).brand,
+        vehicleModel: info(e.vehicle_id).model,
         createdAt: e.updated_at,
-        url: null,
-        path: e.pdf_url,
+        path: storagePathFromValue(e.pdf_url, MATERIAL_BUCKETS.expose),
       })),
       ...(collages.data ?? []).map((c) => ({
         key: `collage-${c.id}`,
         kind: "collage" as const,
         vehicleId: c.vehicle_id,
-        vehicleTitle: title(c),
+        vehicleTitle: info(c.vehicle_id).title,
+        vehicleBrand: info(c.vehicle_id).brand,
+        vehicleModel: info(c.vehicle_id).model,
         createdAt: c.created_at,
-        url: c.image_url,
-        path: null,
+        path: storagePathFromValue(c.storage_path ?? c.image_url, MATERIAL_BUCKETS.collage),
       })),
     ];
 
@@ -119,6 +128,7 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
     setRows(all);
     setLoading(false);
   }, []);
+
 
   useEffect(() => {
     load();
