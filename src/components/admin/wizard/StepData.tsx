@@ -184,6 +184,28 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
             />
           </div>
           <div className="space-y-2">
+            <Label>Modellreihe</Label>
+            <Input
+              value={form.modelRange}
+              onChange={(e) => onChange({ modelRange: e.target.value })}
+              placeholder="z. B. Golf VII"
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional — Mobile.de weist sonst auf die fehlende Angabe hin.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Ausstattungslinie</Label>
+            <Input
+              value={form.trimLine}
+              onChange={(e) => onChange({ trimLine: e.target.value })}
+              placeholder="z. B. Highline"
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional — Mobile.de weist sonst auf die fehlende Angabe hin.
+            </p>
+          </div>
+          <div className="space-y-2">
             <Label>{req("Fahrzeugart")}</Label>
             <Select value={form.portalCategory} onValueChange={(v) => onChange({ portalCategory: v })}>
               <SelectTrigger><SelectValue placeholder="Fahrzeugart wählen" /></SelectTrigger>
