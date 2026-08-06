@@ -433,6 +433,8 @@ export type Database = {
       listing_tasks: {
         Row: {
           action: Database["public"]["Enums"]["listing_task_action"]
+          ad_title: string | null
+          ad_url: string | null
           created_at: string
           dismissed_at: string | null
           done_at: string | null
@@ -440,11 +442,14 @@ export type Database = {
           id: string
           is_demo: boolean
           listing_id: string | null
+          platform: Database["public"]["Enums"]["listing_platform"] | null
           reason: string | null
-          vehicle_id: string
+          vehicle_id: string | null
         }
         Insert: {
           action: Database["public"]["Enums"]["listing_task_action"]
+          ad_title?: string | null
+          ad_url?: string | null
           created_at?: string
           dismissed_at?: string | null
           done_at?: string | null
@@ -452,11 +457,14 @@ export type Database = {
           id?: string
           is_demo?: boolean
           listing_id?: string | null
+          platform?: Database["public"]["Enums"]["listing_platform"] | null
           reason?: string | null
-          vehicle_id: string
+          vehicle_id?: string | null
         }
         Update: {
           action?: Database["public"]["Enums"]["listing_task_action"]
+          ad_title?: string | null
+          ad_url?: string | null
           created_at?: string
           dismissed_at?: string | null
           done_at?: string | null
@@ -464,8 +472,9 @@ export type Database = {
           id?: string
           is_demo?: boolean
           listing_id?: string | null
+          platform?: Database["public"]["Enums"]["listing_platform"] | null
           reason?: string | null
-          vehicle_id?: string
+          vehicle_id?: string | null
         }
         Relationships: [
           {
@@ -1192,39 +1201,81 @@ export type Database = {
       vehicle_deletion_log: {
         Row: {
           action: string
+          brand: string | null
+          first_registration: string | null
           id: string
+          internal_number: string | null
+          mileage: number | null
           mobile_ad_ids: string[]
+          mobile_ad_refs: Json
+          model: string | null
+          model_description: string | null
           performed_at: string
           performed_by: string | null
+          platforms: Json
           price: number | null
           reason: string | null
           snapshot: Json
+          thumbnail_path: string | null
           title: string
+          vehicle_category: string | null
+          vehicle_created_at: string | null
           vehicle_id: string
+          vin: string | null
+          was_archived: boolean
+          was_sold: boolean
         }
         Insert: {
           action: string
+          brand?: string | null
+          first_registration?: string | null
           id?: string
+          internal_number?: string | null
+          mileage?: number | null
           mobile_ad_ids?: string[]
+          mobile_ad_refs?: Json
+          model?: string | null
+          model_description?: string | null
           performed_at?: string
           performed_by?: string | null
+          platforms?: Json
           price?: number | null
           reason?: string | null
           snapshot?: Json
+          thumbnail_path?: string | null
           title: string
+          vehicle_category?: string | null
+          vehicle_created_at?: string | null
           vehicle_id: string
+          vin?: string | null
+          was_archived?: boolean
+          was_sold?: boolean
         }
         Update: {
           action?: string
+          brand?: string | null
+          first_registration?: string | null
           id?: string
+          internal_number?: string | null
+          mileage?: number | null
           mobile_ad_ids?: string[]
+          mobile_ad_refs?: Json
+          model?: string | null
+          model_description?: string | null
           performed_at?: string
           performed_by?: string | null
+          platforms?: Json
           price?: number | null
           reason?: string | null
           snapshot?: Json
+          thumbnail_path?: string | null
           title?: string
+          vehicle_category?: string | null
+          vehicle_created_at?: string | null
           vehicle_id?: string
+          vin?: string | null
+          was_archived?: boolean
+          was_sold?: boolean
         }
         Relationships: []
       }
