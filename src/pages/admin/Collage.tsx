@@ -546,7 +546,7 @@ export default function Collage() {
 
       const blob = await pdf(doc).toBlob();
       const ts = new Date().toISOString().slice(0, 10);
-      saveAs(blob, `Reller-Collage-${ts}.pdf`);
+      downloadBlob(blob, `reller-collage-${ts}.pdf`);
       if (failed > 0) {
         toast.warning(`PDF erstellt — ${failed} Bild(er) fehlgeschlagen`);
       } else {
@@ -787,7 +787,7 @@ export default function Collage() {
               size="sm"
               variant="outline"
               className="gap-2"
-              title="Collage als Bild sichern — auf dem Handy über „In Fotos sichern“ in die Galerie"
+              title={isTouch ? GALLERY_HINT : "Collage als Bild herunterladen"}
             >
               {busy === "image" ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
