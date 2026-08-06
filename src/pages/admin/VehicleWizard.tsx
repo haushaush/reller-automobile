@@ -77,6 +77,8 @@ export default function VehicleWizard() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [focusSection, setFocusSection] = useState<SectionId | null>(null);
   const [publishError, setPublishError] = useState<PublishError | null>(null);
+  const [published, setPublished] = useState(false);
+  const [priceConfirm, setPriceConfirm] = useState<string | null>(null);
 
   const [accounts, setAccounts] = useState<PlatformAccountRow[]>([]);
   const [accountKey, setAccountKey] = useState("");
