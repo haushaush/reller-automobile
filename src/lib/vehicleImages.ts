@@ -38,3 +38,12 @@ export function resolveVehicleImages(v: VehicleImageSource | null | undefined): 
     })
     .map((e) => e.url);
 }
+
+/**
+ * Gemeinsame Ermittlung des Titelbilds: erst eigene Uploads (in der
+ * festgelegten Reihenfolge), dann Mobile.de-Bilder, ausgeblendete jeweils
+ * übersprungen. Liefert null, wenn kein Bild vorhanden ist (→ Platzhalter).
+ */
+export function primaryVehicleImage(v: VehicleImageSource | null | undefined): string | null {
+  return resolveVehicleImages(v)[0] ?? null;
+}
