@@ -74,35 +74,22 @@ export default function BulkStatusDialog({ open, onOpenChange, vehicleIds, onDon
   const apply = async () => {
     setRunning(true);
     try {
-      const now = new Date().toISOString();
-      const patch =
-        target === "sold"
-          ? { is_sold: true, sold_at: now, reserved_at: null, reserved_note: null }
-          : target === "reserved"
-            ? { is_sold: false, sold_at: null, reserved_at: now }
-            : { is_sold: false, sold_at: null, reserved_at: null, reserved_note: null };
-
-      if (target === "sold") {
-        for (const l of mobileLive) {
-          const { error: fnErr } = await supabase.functions.invoke("delete-mobile-ad", {
-            body: { vehicleId: l.vehicle_id, markSold: true },
-          });
-          if (fnErr) {
-            toast.error(`Mobile.de-Inserat konnte nicht beendet werden: ${fnErr.message}`);
-            continue;
-          }
-          await supabase
-            .from("listings")
-            .update({ status: "ended", error_message: null } as never)
-            .eq("id", l.id);
+      // Streng nacheinander: die Seller-API verträgt keine parallelen Aufrufe.
+      let failed = 0;
+      for (const id of vehicleIds) {
+        const { data, error } = await supabase.functions.invoke("set-mobile-ad-status", {
+          body: { vehicleId: id, target },
+        });
+        const result = (data ?? {}) as { ok?: boolean; error?: string };
+        if (error || result.ok === false) {
+          failed++;
+          toast.error(
+            `Ein Fahrzeug konnte nicht an Mobile.de übertragen werden: ${
+              error?.message ?? result.error ?? "unbekannter Fehler"
+            }`,
+          );
         }
       }
-
-      const { error } = await supabase
-        .from("vehicles")
-        .update(patch as never)
-        .in("id", vehicleIds);
-      if (error) throw error;
 
       await logVehicleAudit(vehicleIds, [
         {
@@ -123,11 +110,18 @@ export default function BulkStatusDialog({ open, onOpenChange, vehicleIds, onDon
         );
       }
 
-      toast.success(
-        tasks > 0
-          ? `${vehicleIds.length} Fahrzeug(e) geändert. ${tasks} Handgriff(e) wurden notiert.`
-          : `${vehicleIds.length} Fahrzeug(e) geändert.`,
-      );
+      if (failed > 0) {
+        toast.warning(
+          `${vehicleIds.length} Fahrzeug(e) im Portal geändert, ${failed} davon noch nicht an Mobile.de übertragen.`,
+        );
+      } else {
+        toast.success(
+          tasks > 0
+            ? `${vehicleIds.length} Fahrzeug(e) geändert. ${tasks} Handgriff(e) wurden notiert.`
+            : `${vehicleIds.length} Fahrzeug(e) geändert.`,
+        );
+      }
+
       onOpenChange(false);
       onDone?.();
     } catch (e) {
