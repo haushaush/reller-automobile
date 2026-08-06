@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,17 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Inbox, Loader2, Plus, PhoneMissed, RefreshCw } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { Car, Inbox, Loader2, Phone, Plus, PhoneMissed, RefreshCw } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import ManualLeadDialog from "@/components/admin/ManualLeadDialog";
+import LeadSourceBadge from "@/components/admin/LeadSourceBadge";
+import { resolveVehicleImages } from "@/lib/vehicleImages";
 import {
   LEAD_SOURCE_LABELS,
   LEAD_STATUS_LABELS,
   extractMessage,
   isMissedCallEvent,
-  leadSourceIcon,
-  leadSourceTone,
   type LeadStatus,
 } from "@/lib/leads";
 
@@ -35,7 +35,9 @@ interface InboxItem {
   source: string;
   name: string;
   contact: string;
+  phone: string | null;
   vehicleTitle: string | null;
+  vehicleImage: string | null;
   snippet: string;
   receivedAt: string;
   status: string;
@@ -43,6 +45,12 @@ interface InboxItem {
   assignedTo: string | null;
   missedCall: boolean;
 }
+
+/** Telefonnummer für den Anruf-Link säubern. */
+function telHref(phone: string): string {
+  return `tel:${phone.replace(/[^\d+]/g, "")}`;
+}
+
 
 const INQUIRY_STATUS_LABELS: Record<string, string> = {
   new: "Neu",
@@ -61,6 +69,8 @@ export default function InquiriesAdmin() {
   const [visibleCount, setVisibleCount] = useState(25);
   const [userId, setUserId] = useState<string | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
+  const navigate = useNavigate();
+
   const [fetching, setFetching] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -88,45 +98,82 @@ export default function InquiriesAdmin() {
       }
     });
 
+    // Fahrzeuge zu Anfragen (Leads direkt, Website-Anfragen über die Zuordnungstabelle)
+    const inquiryIds = (inquiryRows ?? []).map((i) => i.id);
+    const { data: inquiryVehicleRows } = inquiryIds.length
+      ? await supabase
+          .from("inquiry_vehicles")
+          .select("inquiry_id, vehicle_id")
+          .in("inquiry_id", inquiryIds)
+      : { data: [] as { inquiry_id: string; vehicle_id: string }[] };
+
+    const vehicleByInquiry = new Map<string, string>();
+    (inquiryVehicleRows ?? []).forEach((row) => {
+      if (!vehicleByInquiry.has(row.inquiry_id)) vehicleByInquiry.set(row.inquiry_id, row.vehicle_id);
+    });
+
     const vehicleIds = Array.from(
-      new Set((leadRows ?? []).map((l) => l.vehicle_id).filter(Boolean) as string[]),
+      new Set([
+        ...((leadRows ?? []).map((l) => l.vehicle_id).filter(Boolean) as string[]),
+        ...vehicleByInquiry.values(),
+      ]),
     );
     const { data: vehicleRows } = vehicleIds.length
-      ? await supabase.from("vehicles").select("id, title").in("id", vehicleIds)
-      : { data: [] as { id: string; title: string }[] };
-    const vehicleTitles = new Map((vehicleRows ?? []).map((v) => [v.id, v.title]));
+      ? await supabase
+          .from("vehicles")
+          .select("id, title, image_urls, custom_image_urls, hidden_image_urls, image_order")
+          .in("id", vehicleIds)
+      : { data: [] };
+    const vehicleMap = new Map(
+      (vehicleRows ?? []).map((v) => [
+        v.id,
+        { title: v.title as string, image: resolveVehicleImages(v)[0] ?? null },
+      ]),
+    );
 
-    const leadItems: InboxItem[] = (leadRows ?? []).map((l) => ({
-      key: `lead-${l.id}`,
-      kind: "lead",
-      id: l.id,
-      source: l.source,
-      name: l.buyer_name ?? "Unbekannter Interessent",
-      contact: l.buyer_email ?? l.buyer_phone ?? "",
-      vehicleTitle: l.vehicle_id ? (vehicleTitles.get(l.vehicle_id) ?? null) : null,
-      snippet: snippetByLead.get(l.id) ?? (missedByLead.get(l.id) ? "Verpasster Anruf" : "—"),
-      receivedAt: l.last_event_at,
-      status: l.status,
-      statusLabel: LEAD_STATUS_LABELS[l.status as LeadStatus] ?? l.status,
-      assignedTo: l.assigned_to,
-      missedCall: missedByLead.get(l.id) === true,
-    }));
+    const leadItems: InboxItem[] = (leadRows ?? []).map((l) => {
+      const vehicle = l.vehicle_id ? vehicleMap.get(l.vehicle_id) : undefined;
+      return {
+        key: `lead-${l.id}`,
+        kind: "lead",
+        id: l.id,
+        source: l.source,
+        name: l.buyer_name ?? "Unbekannter Interessent",
+        contact: l.buyer_email ?? l.buyer_phone ?? "",
+        phone: l.buyer_phone ?? null,
+        vehicleTitle: vehicle?.title ?? null,
+        vehicleImage: vehicle?.image ?? null,
+        snippet: snippetByLead.get(l.id) ?? (missedByLead.get(l.id) ? "Verpasster Anruf" : "—"),
+        receivedAt: l.last_event_at,
+        status: l.status,
+        statusLabel: LEAD_STATUS_LABELS[l.status as LeadStatus] ?? l.status,
+        assignedTo: l.assigned_to,
+        missedCall: missedByLead.get(l.id) === true,
+      };
+    });
 
-    const inquiryItems: InboxItem[] = (inquiryRows ?? []).map((i) => ({
-      key: `inq-${i.id}`,
-      kind: "inquiry",
-      id: i.id,
-      source: "WEBSITE",
-      name: `${i.first_name} ${i.last_name}`.trim(),
-      contact: i.email,
-      vehicleTitle: null,
-      snippet: i.message ?? "—",
-      receivedAt: i.created_at,
-      status: i.status,
-      statusLabel: INQUIRY_STATUS_LABELS[i.status] ?? i.status,
-      assignedTo: null,
-      missedCall: false,
-    }));
+    const inquiryItems: InboxItem[] = (inquiryRows ?? []).map((i) => {
+      const vid = vehicleByInquiry.get(i.id);
+      const vehicle = vid ? vehicleMap.get(vid) : undefined;
+      return {
+        key: `inq-${i.id}`,
+        kind: "inquiry",
+        id: i.id,
+        source: "WEBSITE",
+        name: `${i.first_name} ${i.last_name}`.trim(),
+        contact: i.email,
+        phone: i.phone ?? null,
+        vehicleTitle: vehicle?.title ?? null,
+        vehicleImage: vehicle?.image ?? null,
+        snippet: i.message ?? "—",
+        receivedAt: i.created_at,
+        status: i.status,
+        statusLabel: INQUIRY_STATUS_LABELS[i.status] ?? i.status,
+        assignedTo: null,
+        missedCall: false,
+      };
+    });
+
 
     setItems(
       [...leadItems, ...inquiryItems].sort(
@@ -240,51 +287,89 @@ export default function InquiriesAdmin() {
       ) : (
         <div className="space-y-2">
           {filtered.slice(0, visibleCount).map((item) => {
-            const Icon = item.missedCall ? PhoneMissed : leadSourceIcon(item.source);
             const to =
               item.kind === "lead" ? `/admin/anfragen/lead/${item.id}` : `/admin/anfragen/${item.id}`;
             return (
-              <Link key={item.key} to={to} className="block">
-                <Card className="p-3 transition-colors hover:bg-muted/40 sm:p-4">
-                  <div className="flex gap-3">
+              <Card
+                key={item.key}
+                role="link"
+                tabIndex={0}
+                onClick={() => navigate(to)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigate(to);
+                  }
+                }}
+                className="cursor-pointer p-3 transition-colors hover:bg-muted/40 sm:p-4"
+              >
+                <div className="flex gap-3">
+                  {/* Quadratisches Vorschaubild, grauer Platzhalter ohne Fahrzeug */}
+                  {item.vehicleImage ? (
+                    <img
+                      src={item.vehicleImage}
+                      alt={item.vehicleTitle ?? "Fahrzeug"}
+                      loading="lazy"
+                      className="h-16 w-16 flex-shrink-0 rounded-md object-cover sm:h-20 sm:w-20"
+                    />
+                  ) : (
                     <div
-                      className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md ${
-                        item.missedCall ? "bg-destructive/10 text-destructive" : leadSourceTone(item.source)
-                      }`}
-                      title={LEAD_SOURCE_LABELS[item.source] ?? item.source}
+                      className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground sm:h-20 sm:w-20"
+                      aria-label="Kein Fahrzeug zugeordnet"
                     >
-                      <Icon className="h-4 w-4" />
+                      <Car className="h-6 w-6" />
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{item.name}</span>
-                        <Badge variant="outline" className="text-[10px]">
-                          {LEAD_SOURCE_LABELS[item.source] ?? item.source}
+                  )}
+
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="truncate text-sm font-medium">
+                      {item.vehicleTitle ?? (
+                        <span className="text-muted-foreground">Kein Fahrzeug zugeordnet</span>
+                      )}
+                    </p>
+                    <p className="truncate text-sm text-muted-foreground">{item.name}</p>
+                    {item.phone ? (
+                      <a
+                        href={telHref(item.phone)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                        {item.phone}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Keine Telefonnummer</span>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <LeadSourceBadge source={item.source} />
+                      {item.missedCall && (
+                        <Badge variant="destructive" className="text-[10px]">
+                          <PhoneMissed className="mr-1 h-3 w-3" /> Verpasster Anruf
                         </Badge>
-                        {item.missedCall && (
-                          <Badge variant="destructive" className="text-[10px]">
-                            Verpasster Anruf
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="truncate text-sm text-muted-foreground">
-                        {item.vehicleTitle ? `${item.vehicleTitle} · ` : ""}
-                        {item.snippet}
-                      </p>
-                    </div>
-                    <div className="flex flex-shrink-0 flex-col items-end gap-1 text-right">
-                      <Badge variant={item.status === "IN_PROGRESS" || item.status === "new" ? "default" : "secondary"}>
-                        {item.statusLabel}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(item.receivedAt), { addSuffix: true, locale: de })}
-                      </span>
+                      )}
                     </div>
                   </div>
-                </Card>
-              </Link>
+
+                  <div className="flex flex-shrink-0 flex-col items-end gap-1 text-right">
+                    <Badge
+                      variant={
+                        item.status === "IN_PROGRESS" || item.status === "new" ? "default" : "secondary"
+                      }
+                    >
+                      {item.statusLabel}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(item.receivedAt), "dd.MM.yyyy", { locale: de })}
+                    </span>
+                    <span className="hidden text-[11px] text-muted-foreground sm:block">
+                      {formatDistanceToNow(new Date(item.receivedAt), { addSuffix: true, locale: de })}
+                    </span>
+                  </div>
+                </div>
+              </Card>
             );
           })}
+
 
           {filtered.length > visibleCount && (
             <Button variant="outline" onClick={() => setVisibleCount((c) => c + 25)} className="mt-4 w-full">

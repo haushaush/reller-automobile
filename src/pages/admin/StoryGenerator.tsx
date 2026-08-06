@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Image as ImageIcon, Check, ExternalLink, Send } from "lucide-react";
+import { Loader2, Image as ImageIcon, Check } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import FilterBar, { Filters } from "@/components/FilterBar";
 import ActiveFilters from "@/components/ActiveFilters";
 import {
@@ -15,6 +14,9 @@ import {
 } from "@/lib/mobileDeLabels";
 import { useFuzzySearch } from "@/hooks/useFuzzySearch";
 import { calculateRelevanceScore } from "@/lib/relevanceScore";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import MaterialDialog from "@/components/admin/MaterialDialog";
 
 interface VehicleStory {
   id: string;
@@ -43,10 +45,13 @@ interface VehicleWithStory {
   creation_date: string | null;
   synced_at: string | null;
   vehicle_category: string | null;
+  custom_image_urls: string[] | null;
+  hidden_image_urls: string[] | null;
+  image_order: string[] | null;
   story?: VehicleStory;
+  /** true, sobald mindestens ein Material (Story, Exposé oder Collage) vorliegt. */
+  hasMaterial: boolean;
 }
-
-type FilterMode = "all" | "with_story" | "without_story";
 
 const defaultFilters: Filters = {
   search: "",
@@ -83,9 +88,9 @@ const selectFilterKeys: (keyof Filters)[] = [
 export default function StoryGenerator({ embedded = false }: { embedded?: boolean } = {}) {
   const [vehicles, setVehicles] = useState<VehicleWithStory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [filter, setFilter] = useState<FilterMode>("without_story");
+  const [showWithout, setShowWithout] = useState(true);
+  const [showWith, setShowWith] = useState(false);
+  const [dialogVehicle, setDialogVehicle] = useState<VehicleWithStory | null>(null);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
 
   const loadVehicles = async () => {
@@ -93,7 +98,7 @@ export default function StoryGenerator({ embedded = false }: { embedded?: boolea
     const { data: vehiclesData } = await supabase
       .from("vehicles")
       .select(
-        "id, title, brand, model_description, price, image_urls, is_sold, category, body_type, year, mileage, fuel, power, gearbox, exterior_color, creation_date, synced_at, vehicle_category",
+        "id, title, brand, model_description, price, image_urls, custom_image_urls, hidden_image_urls, image_order, is_sold, category, body_type, year, mileage, fuel, power, gearbox, exterior_color, creation_date, synced_at, vehicle_category",
       )
       .eq("is_sold", false)
       .order("created_at", { ascending: false })
@@ -103,14 +108,22 @@ export default function StoryGenerator({ embedded = false }: { embedded?: boolea
       .from("vehicle_stories")
       .select("id, vehicle_id, story_image_url, generated_at, sent_to_dealer");
 
+    const [{ data: exposeData }, { data: collageData }] = await Promise.all([
+      supabase.from("vehicle_exposes").select("vehicle_id"),
+      supabase.from("vehicle_collages").select("vehicle_id"),
+    ]);
+
     const storiesMap = new Map<string, VehicleStory>(
       (storiesData ?? []).map((s) => [s.vehicle_id, s as VehicleStory]),
     );
+    const withExpose = new Set((exposeData ?? []).map((e) => e.vehicle_id));
+    const withCollage = new Set((collageData ?? []).map((c) => c.vehicle_id));
 
     setVehicles(
       (vehiclesData ?? []).map((v) => ({
-        ...(v as Omit<VehicleWithStory, "story">),
+        ...(v as Omit<VehicleWithStory, "story" | "hasMaterial">),
         story: storiesMap.get(v.id),
+        hasMaterial: storiesMap.has(v.id) || withExpose.has(v.id) || withCollage.has(v.id),
       })),
     );
     setIsLoading(false);
@@ -179,7 +192,7 @@ export default function StoryGenerator({ embedded = false }: { embedded?: boolea
     setFilters(defaultFilters);
   }, []);
 
-  const searched = useFuzzySearch(vehicles as never, filters.search) as VehicleWithStory[];
+  const searched = useFuzzySearch(vehicles as never, filters.search) as unknown as VehicleWithStory[];
   const isSearchActive = filters.search.trim().length >= 2;
 
   const filtered = useMemo(() => {
@@ -258,51 +271,19 @@ export default function StoryGenerator({ embedded = false }: { embedded?: boolea
       });
     }
 
-    // Story-Status-Filter ZUSÄTZLICH anwenden
-    if (filter === "with_story") result = result.filter((v) => v.story);
-    else if (filter === "without_story") result = result.filter((v) => !v.story);
+    // Material-Schalter ZUSÄTZLICH anwenden
+    result = result.filter((v) => (v.hasMaterial ? showWith : showWithout));
 
     return result;
-  }, [filters, searched, isSearchActive, filter]);
-
-  const toggleSelection = (id: string) => {
-    const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedIds(next);
-  };
-
-  const selectAllWithoutStory = () => {
-    setSelectedIds(new Set(filtered.filter((v) => !v.story).map((v) => v.id)));
-  };
-
-  const generateStories = async () => {
-    if (selectedIds.size === 0) {
-      toast.error("Bitte mindestens ein Fahrzeug auswählen");
-      return;
-    }
-    setIsGenerating(true);
-    const { data, error } = await supabase.functions.invoke("generate-story", {
-      body: { vehicleIds: Array.from(selectedIds) },
-    });
-    setIsGenerating(false);
-    if (error) {
-      toast.error("Story-Generierung fehlgeschlagen", { description: error.message });
-      return;
-    }
-    const generated = (data as { generated?: number } | null)?.generated ?? 0;
-    toast.success(`${generated} Story${generated !== 1 ? "s" : ""} erstellt`);
-    setSelectedIds(new Set());
-    await loadVehicles();
-  };
+  }, [filters, searched, isSearchActive, showWith, showWithout]);
 
   return (
     <div className="pb-40 md:pb-24">
       {!embedded && (
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight">Storys erstellen</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Marketing-Materialien</h1>
           <p className="text-muted-foreground mt-1">
-            Erstellt Bilder im Hochformat (1080×1920) für WhatsApp und Instagram
+            Storys, PDF-Exposés und Fotocollagen erstellen
           </p>
         </div>
       )}
@@ -329,65 +310,23 @@ export default function StoryGenerator({ embedded = false }: { embedded?: boolea
           onRemove={handleRemoveFilter}
           onResetAll={handleResetAll}
         />
-        <div className="flex gap-2">
-          <Button
-            variant={filter === "without_story" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilter("without_story")}
-          >
-            Ohne Story
-          </Button>
-          <Button
-            variant={filter === "with_story" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilter("with_story")}
-          >
-            Mit Story
-          </Button>
-          <Button
-            variant={filter === "all" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilter("all")}
-          >
-            Alle
-          </Button>
+        <div className="flex flex-wrap items-center gap-5">
+          <div className="flex items-center gap-2">
+            <Switch id="mat-without" checked={showWithout} onCheckedChange={setShowWithout} />
+            <Label htmlFor="mat-without" className="text-sm">Fahrzeuge ohne Material</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch id="mat-with" checked={showWith} onCheckedChange={setShowWith} />
+            <Label htmlFor="mat-with" className="text-sm">Fahrzeuge mit Material</Label>
+          </div>
         </div>
+
       </div>
 
-      {selectedIds.size > 0 && (
-        <Card className="fixed bottom-20 md:bottom-6 left-3 right-3 md:left-1/2 md:right-auto md:-translate-x-1/2 md:max-w-2xl z-30 p-4 shadow-2xl border-2 border-primary bg-card/95 backdrop-blur">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-base font-semibold">
-              {selectedIds.size} Fahrzeug{selectedIds.size !== 1 ? "e" : ""} ausgewählt
-            </p>
-            <div className="flex gap-2 flex-shrink-0">
-              <Button variant="ghost" size="default" className="h-11" onClick={() => setSelectedIds(new Set())}>
-                Aufheben
-              </Button>
-              <Button onClick={generateStories} disabled={isGenerating} size="default" className="h-11 px-4">
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Erstelle...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" /> Stories erstellen ({selectedIds.size})
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {filtered.some((v) => !v.story) && selectedIds.size === 0 && (
-        <Button variant="outline" size="sm" onClick={selectAllWithoutStory} className="mb-4">
-          Alle ohne Story auswählen
-        </Button>
-      )}
-
       <p className="text-sm text-muted-foreground mb-4">
-        {isLoading ? "Lade Fahrzeuge..." : `${filtered.length} Fahrzeug${filtered.length !== 1 ? "e" : ""} gefunden`}
+        {isLoading
+          ? "Lade Fahrzeuge..."
+          : `${filtered.length} Fahrzeug${filtered.length !== 1 ? "e" : ""} gefunden`}
       </p>
 
       {isLoading ? (
@@ -402,15 +341,17 @@ export default function StoryGenerator({ embedded = false }: { embedded?: boolea
       ) : (
         <div className="space-y-2">
           {filtered.map((vehicle) => (
-            <Card key={vehicle.id} className="p-4">
+            <Card
+              key={vehicle.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => setDialogVehicle(vehicle)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setDialogVehicle(vehicle);
+              }}
+              className="cursor-pointer p-4 transition-colors hover:bg-muted/50"
+            >
               <div className="flex items-start gap-4">
-                {!vehicle.story && (
-                  <Checkbox
-                    checked={selectedIds.has(vehicle.id)}
-                    onCheckedChange={() => toggleSelection(vehicle.id)}
-                    className="mt-1"
-                  />
-                )}
                 {vehicle.image_urls?.[0] && (
                   <img
                     src={vehicle.image_urls[0]}
@@ -425,27 +366,28 @@ export default function StoryGenerator({ embedded = false }: { embedded?: boolea
                   <div className="text-sm text-muted-foreground">
                     {vehicle.price ? `${vehicle.price.toLocaleString("de-DE")} €` : "Auf Anfrage"}
                   </div>
-                  {vehicle.story && (
-                    <div className="flex items-center gap-3 mt-2">
-                      <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                        <Check className="h-3 w-3" /> Story erstellt
+                  <div className="mt-2 text-xs">
+                    {vehicle.hasMaterial ? (
+                      <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" /> Material vorhanden
                       </span>
-                      <a
-                        href={vehicle.story.story_image_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                      >
-                        Ansehen <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  )}
+                    ) : (
+                      <span className="text-muted-foreground">Noch kein Material</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </Card>
           ))}
         </div>
       )}
+
+      <MaterialDialog
+        vehicle={dialogVehicle}
+        open={!!dialogVehicle}
+        onOpenChange={(o) => !o && setDialogVehicle(null)}
+        onChanged={loadVehicles}
+      />
     </div>
   );
 }

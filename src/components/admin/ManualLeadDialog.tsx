@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Car, Loader2, X } from "lucide-react";
+import { useFuzzySearch } from "@/hooks/useFuzzySearch";
+import { resolveVehicleImages } from "@/lib/vehicleImages";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +34,16 @@ interface Props {
 interface VehicleOption {
   id: string;
   title: string;
+  brand: string | null;
+  model: string | null;
+  model_description: string | null;
+  price: number | null;
+  mobile_de_id: string | null;
+  image_urls: string[] | null;
+  custom_image_urls: string[] | null;
+  hidden_image_urls: string[] | null;
+  image_order: string[] | null;
+  vin?: string | null;
 }
 
 export default function ManualLeadDialog({ open, onOpenChange, onCreated }: Props) {
@@ -42,24 +55,42 @@ export default function ManualLeadDialog({ open, onOpenChange, onCreated }: Prop
   const [message, setMessage] = useState("");
   const [receivedAt, setReceivedAt] = useState(() => new Date().toISOString().slice(0, 16));
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
+  const [vehicleQuery, setVehicleQuery] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    supabase
-      .from("vehicles")
-      .select("id, title")
-      .eq("is_sold", false)
-      .order("created_at", { ascending: false })
-      .limit(200)
-      .then(({ data }) => setVehicles((data ?? []) as VehicleOption[]));
+    (async () => {
+      const { data } = await supabase
+        .from("vehicles")
+        .select(
+          "id, title, brand, model, model_description, price, mobile_de_id, image_urls, custom_image_urls, hidden_image_urls, image_order",
+        )
+        .eq("is_sold", false)
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      const rows = (data ?? []) as VehicleOption[];
+      const { data: vinRows } = await supabase
+        .from("vehicle_private_data")
+        .select("vehicle_id, vin");
+      const vinMap = new Map((vinRows ?? []).map((r) => [r.vehicle_id, r.vin]));
+      setVehicles(rows.map((v) => ({ ...v, vin: vinMap.get(v.id) ?? null })));
+    })();
   }, [open]);
+
+  const matches = useFuzzySearch(vehicles as never, vehicleQuery) as unknown as VehicleOption[];
+  const suggestions =
+    vehicleQuery.trim().length >= 2 ? matches.slice(0, 10) : ([] as VehicleOption[]);
+  const selectedVehicle = vehicles.find((v) => v.id === vehicleId) ?? null;
+
 
   const reset = () => {
     setName("");
     setEmail("");
     setPhone("");
     setVehicleId("none");
+    setVehicleQuery("");
+
     setMessage("");
     setReceivedAt(new Date().toISOString().slice(0, 16));
   };
@@ -152,21 +183,88 @@ export default function ManualLeadDialog({ open, onOpenChange, onCreated }: Prop
           </div>
 
           <div>
-            <Label>Fahrzeug</Label>
-            <Select value={vehicleId} onValueChange={setVehicleId}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Kein Fahrzeug" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Kein Fahrzeug</SelectItem>
-                {vehicles.map((v) => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {v.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="lead-vehicle">Fahrzeug</Label>
+            {selectedVehicle ? (
+              <div className="mt-1 flex items-center gap-3 rounded-md border p-2">
+                {resolveVehicleImages(selectedVehicle)[0] ? (
+                  <img
+                    src={resolveVehicleImages(selectedVehicle)[0]}
+                    alt={selectedVehicle.title}
+                    className="h-12 w-12 rounded object-cover"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded bg-muted">
+                    <Car className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{selectedVehicle.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedVehicle.price
+                      ? `${selectedVehicle.price.toLocaleString("de-DE")} €`
+                      : "Preis auf Anfrage"}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setVehicleId("none");
+                    setVehicleQuery("");
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-1 space-y-2">
+                <Input
+                  id="lead-vehicle"
+                  value={vehicleQuery}
+                  onChange={(e) => setVehicleQuery(e.target.value)}
+                  placeholder="Titel, Marke, Modell, interne Nummer oder VIN…"
+                />
+                {vehicleQuery.trim().length >= 2 && (
+                  <div className="max-h-56 overflow-y-auto rounded-md border">
+                    {suggestions.length === 0 ? (
+                      <p className="p-3 text-sm text-muted-foreground">Kein Fahrzeug gefunden</p>
+                    ) : (
+                      suggestions.map((v) => {
+                        const img = resolveVehicleImages(v)[0];
+                        return (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => setVehicleId(v.id)}
+                            className="flex w-full items-center gap-3 border-b p-2 text-left last:border-b-0 hover:bg-muted/60"
+                          >
+                            {img ? (
+                              <img src={img} alt={v.title} className="h-10 w-10 rounded object-cover" />
+                            ) : (
+                              <div className="flex h-10 w-10 items-center justify-center rounded bg-muted">
+                                <Car className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm">{v.title}</span>
+                              <span className="block text-xs text-muted-foreground">
+                                {v.price ? `${v.price.toLocaleString("de-DE")} €` : "Preis auf Anfrage"}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Ohne Auswahl wird die Anfrage ohne Fahrzeug gespeichert („Kein Fahrzeug“).
+                </p>
+              </div>
+            )}
           </div>
+
 
           <div>
             <Label htmlFor="lead-date">Eingang</Label>
