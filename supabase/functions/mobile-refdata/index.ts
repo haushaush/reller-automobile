@@ -316,7 +316,12 @@ Deno.serve(async (req) => {
       if (!items.some((i) => i.key === "OTHER")) {
         items.push({ key: "OTHER", name: "Differenzbesteuert" });
       }
+    } else if (kind !== "makes" && kind !== "models") {
+      // Deutsche Bezeichnungen sicherstellen; unübersetzte Schlüssel lesbar machen.
+      items = localize(kind, items);
     }
+
+
 
     return new Response(JSON.stringify({ items }), {
       status: 200,
