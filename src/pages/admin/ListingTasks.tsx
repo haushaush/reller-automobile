@@ -170,7 +170,7 @@ export default function ListingTasks() {
       const { data, error } = await supabase
         .from("listing_tasks")
         .select(
-          "id, action, reason, created_at, vehicle_id, is_demo, listings(id, platform, external_url), vehicles(title, price, currency, is_sold, sold_at, reserved_at, updated_at, image_urls, custom_image_urls, hidden_image_urls, image_order, mobile_payload)",
+          "id, action, reason, created_at, vehicle_id, is_demo, platform, ad_title, ad_url, listings(id, platform, external_url), vehicles(title, price, currency, is_sold, sold_at, reserved_at, updated_at, image_urls, custom_image_urls, hidden_image_urls, image_order, mobile_payload)",
         )
         .is("done_at", null)
         .is("dismissed_at", null)
@@ -183,10 +183,15 @@ export default function ListingTasks() {
   const priceVehicleIds = useMemo(
     () =>
       Array.from(
-        new Set(tasks.filter((t) => t.action === "update_price").map((t) => t.vehicle_id)),
+        new Set(
+          tasks
+            .filter((t) => t.action === "update_price" && t.vehicle_id)
+            .map((t) => t.vehicle_id as string),
+        ),
       ),
     [tasks],
   );
+
 
   // Preisverlauf nur für Preisaufgaben — daraus ergibt sich der alte Preis.
   const { data: priceMap = new Map<string, PriceChange>() } = useQuery({
