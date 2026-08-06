@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
+  AlertTriangle,
   Download,
   FileText,
   Image as ImageIcon,
@@ -23,12 +24,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  MATERIAL_BUCKETS,
   MATERIAL_HINTS,
   MATERIAL_LABELS,
   buildCollageBlob,
+  createSignedMaterialUrl,
+  describeStorageError,
+  downloadFromUrl,
+  materialFileName,
   safeFileName,
-  shareOrDownloadBlob,
-  shareOrDownloadUrl,
+  storagePathFromValue,
   uploadCollage,
   type MaterialKind,
 } from "@/lib/materials";
@@ -40,6 +45,7 @@ export interface MaterialVehicle {
   id: string;
   title: string;
   brand?: string | null;
+  model?: string | null;
   image_urls?: string[] | null;
   custom_image_urls?: string[] | null;
   hidden_image_urls?: string[] | null;
@@ -49,13 +55,21 @@ export interface MaterialVehicle {
 interface MaterialState {
   exists: boolean;
   createdAt: string | null;
-  /** Direkt anzeigbare Vorschau (Bild) bzw. Datei-URL. */
-  url: string | null;
-  /** Storage-Pfad, nur beim Exposé relevant. */
+  /** Storage-Pfad im jeweiligen Bucket. */
   path: string | null;
+  /** Signierter Link (60 Minuten), erst nach dem Prüfen gesetzt. */
+  signedUrl: string | null;
+  /** Datei im Bucket nicht mehr auffindbar. */
+  missing: boolean;
 }
 
-const EMPTY: MaterialState = { exists: false, createdAt: null, url: null, path: null };
+const EMPTY: MaterialState = {
+  exists: false,
+  createdAt: null,
+  path: null,
+  signedUrl: null,
+  missing: false,
+};
 
 const ICONS: Record<MaterialKind, typeof ImageIcon> = {
   story: ImageIcon,
@@ -79,7 +93,7 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
   });
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<MaterialKind | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ kind: MaterialKind; url: string } | null>(null);
 
   const load = useCallback(async () => {
     if (!vehicle) return;
@@ -98,7 +112,7 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
         .limit(1),
       supabase
         .from("vehicle_collages")
-        .select("image_url, created_at")
+        .select("image_url, storage_path, created_at")
         .eq("vehicle_id", vehicle.id)
         .order("created_at", { ascending: false })
         .limit(1),
@@ -108,19 +122,37 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
     const expose = exposeRes.data?.[0];
     const collage = collageRes.data?.[0];
 
-    setState({
-      story: story
-        ? { exists: true, createdAt: story.generated_at, url: story.story_image_url, path: null }
-        : EMPTY,
-      expose: expose
-        ? { exists: true, createdAt: expose.updated_at, url: null, path: expose.pdf_url }
-        : EMPTY,
+    const raw: Record<MaterialKind, { value: string | null; createdAt: string | null } | null> = {
+      story: story ? { value: story.story_image_url, createdAt: story.generated_at } : null,
+      expose: expose ? { value: expose.pdf_url, createdAt: expose.updated_at } : null,
       collage: collage
-        ? { exists: true, createdAt: collage.created_at, url: collage.image_url, path: null }
-        : EMPTY,
-    });
+        ? { value: collage.storage_path ?? collage.image_url, createdAt: collage.created_at }
+        : null,
+    };
+
+    const next = { story: EMPTY, expose: EMPTY, collage: EMPTY } as Record<MaterialKind, MaterialState>;
+    await Promise.all(
+      (Object.keys(raw) as MaterialKind[]).map(async (kind) => {
+        const entry = raw[kind];
+        if (!entry) return;
+        const path = storagePathFromValue(entry.value, MATERIAL_BUCKETS[kind]);
+        if (!path) {
+          next[kind] = { exists: true, createdAt: entry.createdAt, path: null, signedUrl: null, missing: true };
+          return;
+        }
+        try {
+          const signedUrl = await createSignedMaterialUrl(MATERIAL_BUCKETS[kind], path);
+          next[kind] = { exists: true, createdAt: entry.createdAt, path, signedUrl, missing: false };
+        } catch {
+          next[kind] = { exists: true, createdAt: entry.createdAt, path, signedUrl: null, missing: true };
+        }
+      }),
+    );
+
+    setState(next);
     setLoading(false);
   }, [vehicle]);
+
 
   useEffect(() => {
     if (open) load();
