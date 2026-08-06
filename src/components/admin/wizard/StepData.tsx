@@ -239,13 +239,19 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
                   {months.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={form.regYear} onValueChange={(v) => onChange({ regYear: v })}>
-                <SelectTrigger><SelectValue placeholder="Jahr" /></SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {years.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <YearCombobox value={form.regYear} onChange={(v) => onChange({ regYear: v })} />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Baujahr</Label>
+            <YearCombobox
+              value={form.constructionYear}
+              onChange={(v) => onChange({ constructionYear: v })}
+              placeholder="optional"
+            />
+            <p className="text-xs text-muted-foreground">
+              Nur ausfüllen, wenn das Baujahr von der Erstzulassung abweicht (häufig bei Oldtimern).
+            </p>
           </div>
           <div className="space-y-2">
             <Label>{req("Kilometerstand")}</Label>
@@ -267,18 +273,33 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Unfallschaden</Label>
+            <Label>{req("Unfallschaden")}</Label>
             <Select
-              value={form.damageUnrepaired}
-              onValueChange={(v) => onChange({ damageUnrepaired: v as FormState["damageUnrepaired"] })}
+              value={accidentStateOf(form)}
+              onValueChange={(v) => onChange(accidentStatePatch(v as AccidentState))}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="bitte wählen" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="false">Unfallfrei / repariert</SelectItem>
-                <SelectItem value="true">Unfallschaden nicht repariert</SelectItem>
+                {ACCIDENT_STATE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-2">
+            <Label>{req("Fahrbereit")}</Label>
+            <Select
+              value={form.roadworthy}
+              onValueChange={(v) => onChange({ roadworthy: v as FormState["roadworthy"] })}
+            >
+              <SelectTrigger><SelectValue placeholder="bitte wählen" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">Ja, fahrbereit</SelectItem>
+                <SelectItem value="false">Nein, nicht fahrbereit</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-2">
             <Label>Interne Nummer</Label>
             <Input value={form.internalNumber} onChange={(e) => onChange({ internalNumber: e.target.value })} />
