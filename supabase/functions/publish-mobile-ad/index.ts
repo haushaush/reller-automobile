@@ -1,9 +1,9 @@
 // Publishes a mobile_ad_drafts row as a real ad on Mobile.de Seller-API.
 // Admin-only. Uploads images first (JPEG, <=2MB), then creates the ad with image refs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// imagescript: pure-TS image lib that runs in Deno without native deps
-import { decode as decodeImage, Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
+import { uploadVehicleImages, storeImageRefs } from "../_shared/mobile-images.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+
 import { emitNotificationEvent } from "../_shared/emit-event.ts";
 import {
   resolveMobileAccount,
