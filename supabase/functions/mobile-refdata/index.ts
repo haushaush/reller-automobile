@@ -47,14 +47,17 @@ function parseRefdataXml(xml: string): RefItem[] {
 }
 
 async function fetchRef(path: string, optional = false): Promise<RefItem[] | null> {
-  const url = `${REFDATA_BASE}${path}`;
+  // Mobile.de liefert lokalisierte Bezeichnungen, wenn die Sprache angefragt wird.
+  const url = `${REFDATA_BASE}${path}${path.includes("?") ? "&" : "?"}lang=de`;
   const auth = btoa(`${MOBILE_USER}:${MOBILE_PASS}`);
   const res = await fetch(url, {
     headers: {
       Authorization: `Basic ${auth}`,
       Accept: "application/xml",
+      "Accept-Language": "de-DE,de;q=0.9",
     },
   });
+
   if (!res.ok) {
     const body = await res.text();
     if (optional && (res.status === 404 || res.status === 403)) {
