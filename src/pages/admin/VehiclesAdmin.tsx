@@ -545,9 +545,15 @@ export default function VehiclesAdmin() {
       const dbKey = sortKey === "standtage" ? "created_at" : sortKey;
       const ascending = sortKey === "standtage" ? sortDir === "desc" : sortDir === "asc";
 
+      // nullsFirst: false → Zeilen ohne Wert (z. B. Preis/EZ bei neuen
+      // Portalfahrzeugen) landen immer am Ende, nie zufällig dazwischen.
+      // id als Zweitsortierung sorgt für eine stabile Reihenfolge.
       query = query
         .order(dbKey, { ascending, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false })
         .range(offset, offset + size - 1);
+
 
       const { data: rows, count, error } = await query;
       if (error) throw error;
