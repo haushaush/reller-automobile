@@ -130,6 +130,88 @@ export function isAccountLocked(listing: Pick<ListingRow, "status"> | null | und
   return ["publishing", "live", "paused", "ended"].includes(listing.status);
 }
 
+/* ---------- Mobile.de-Konten: Kurzbezeichnung, Farbe, Abweichung ---------- */
+
+/** Farbvarianten für die Kontokennung am Plattform-Badge */
+export const ACCOUNT_BADGE_COLORS: { value: string; label: string; className: string }[] = [
+  { value: "slate", label: "Grau", className: "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100" },
+  { value: "amber", label: "Bernstein", className: "bg-amber-200 text-amber-900 dark:bg-amber-700 dark:text-amber-50" },
+  { value: "sky", label: "Blau", className: "bg-sky-200 text-sky-900 dark:bg-sky-700 dark:text-sky-50" },
+  { value: "emerald", label: "Grün", className: "bg-emerald-200 text-emerald-900 dark:bg-emerald-700 dark:text-emerald-50" },
+  { value: "violet", label: "Violett", className: "bg-violet-200 text-violet-900 dark:bg-violet-700 dark:text-violet-50" },
+];
+
+export function accountBadgeClass(color: string | null | undefined): string {
+  return (
+    ACCOUNT_BADGE_COLORS.find((c) => c.value === (color ?? "slate"))?.className ??
+    ACCOUNT_BADGE_COLORS[0].className
+  );
+}
+
+export function findAccount(
+  accounts: PlatformAccountRow[],
+  platform: ListingPlatform,
+  accountKey: string | null | undefined,
+): PlatformAccountRow | undefined {
+  if (!accountKey) return undefined;
+  return accounts.find((a) => a.platform === platform && a.account_key === accountKey);
+}
+
+/** Kurzbezeichnung, z. B. „Hauptkonto“ */
+export function accountShortLabel(
+  accounts: PlatformAccountRow[],
+  accountKey: string | null | undefined,
+  platform: ListingPlatform = "mobile_de",
+): string | null {
+  const a = findAccount(accounts, platform, accountKey);
+  if (!a) return accountKey ?? null;
+  return (a.short_label as string | null) ?? a.label ?? a.account_key;
+}
+
+/**
+ * Ausgeschriebene Kontoangabe für Tooltips: „Konto: Unfallkonto (478640)“.
+ * Wichtig: nie nur „Unfall“ schreiben — sonst wird es mit der Fahrzeugart
+ * „Unfallfahrzeug“ verwechselt.
+ */
+export function accountFullLabel(
+  accounts: PlatformAccountRow[],
+  accountKey: string | null | undefined,
+  platform: ListingPlatform = "mobile_de",
+): string | null {
+  if (!accountKey) return null;
+  const a = findAccount(accounts, platform, accountKey);
+  const short = accountShortLabel(accounts, accountKey, platform) ?? accountKey;
+  return a?.seller_id ? `${short} (${a.seller_id})` : short;
+}
+
+/** Konto, das laut Fahrzeugart erwartet würde */
+export function expectedAccountKey(
+  accounts: PlatformAccountRow[],
+  vehicleCategory: string | null | undefined,
+): string | null {
+  return suggestAccountKey(accounts, vehicleCategory);
+}
+
+/** Passt das genutzte Konto nicht zur Fahrzeugart? */
+export function isAccountCategoryMismatch(
+  accounts: PlatformAccountRow[],
+  accountKey: string | null | undefined,
+  vehicleCategory: string | null | undefined,
+): boolean {
+  if (!accountKey || !vehicleCategory) return false;
+  const expected = expectedAccountKey(accounts, vehicleCategory);
+  if (!expected) return false;
+  return expected !== accountKey;
+}
+
+/** Der Abgleich schreibt seinen Lauf als scope — auf Kontoschlüssel abbilden */
+export function scopeToAccountKey(scope: string | null | undefined): string | null {
+  if (!scope) return null;
+  if (scope === "accident" || scope === "unfall") return "unfall";
+  if (scope === "search" || scope === "standard" || scope === "seller") return "standard";
+  return null;
+}
+
 export function accountLabel(
   accounts: PlatformAccountRow[],
   platform: ListingPlatform,
