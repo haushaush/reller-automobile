@@ -575,8 +575,14 @@ export function requiredValuesFromForm(form: FormState): Record<string, unknown>
 }
 
 /** Liefert alle fehlenden Pflichtangaben. */
-export function missingRequired(form: FormState): RequiredField[] {
-  const missing = checkRequiredAdFields(requiredValuesFromForm(form), { by: "form" });
+export function missingRequired(
+  form: FormState,
+  opts?: { skipPortalOnly?: boolean },
+): RequiredField[] {
+  const missing = checkRequiredAdFields(requiredValuesFromForm(form), {
+    by: "form",
+    skipPortalOnly: opts?.skipPortalOnly,
+  });
   const keys = new Set(missing.map((m) => m.form));
   return REQUIRED_FIELDS.filter((r) => keys.has(r.field));
 }
@@ -585,9 +591,9 @@ export function isFieldFilled(form: FormState, field: RequiredField["field"]): b
   return !missingRequired(form).some((r) => r.field === field);
 }
 
-/** Kompatible Kurzform: erste fehlende Pflichtangabe als Meldung. */
+/** Kompatible Kurzform: erste fehlende Pflichtangabe als Meldung (ohne Portalfelder). */
 export function validateForm(form: FormState): string | null {
-  const missing = missingRequired(form);
+  const missing = missingRequired(form, { skipPortalOnly: true });
   return missing.length ? `${missing[0].label} fehlt` : null;
 }
 
