@@ -84,7 +84,10 @@ export default function AdminLayout() {
   const NavContent = () => (
     <>
       <div className="border-b border-border p-6">
-        <h2 className="text-lg font-semibold">Verwaltung</h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-lg font-semibold">Verwaltung</h2>
+          <ThemeToggle />
+        </div>
         <p className="mt-1 truncate text-xs text-muted-foreground">{user?.email}</p>
       </div>
 
