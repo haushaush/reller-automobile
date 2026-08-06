@@ -98,6 +98,8 @@ export default function VehicleWizard() {
 
   const [accounts, setAccounts] = useState<PlatformAccountRow[]>([]);
   const [accountKey, setAccountKey] = useState("");
+  const [accountTouched, setAccountTouched] = useState(false);
+
   const [manual, setManual] = useState({ autoscout24: false, kleinanzeigen: false });
 
   const refdata = useMobileRefdata(form.make);
@@ -125,10 +127,19 @@ export default function VehicleWizard() {
     })();
   }, []);
 
+  /* Vorschlag anhand der Fahrzeugart. Solange das Konto nicht von Hand
+   * geändert wurde, folgt die Auswahl der Fahrzeugart automatisch. */
+  const suggestedAccountKey = useMemo(
+    () => (accounts.length ? suggestAccountKey(accounts, form.portalCategory) || "" : ""),
+    [accounts, form.portalCategory],
+  );
+
   useEffect(() => {
     if (accounts.length === 0) return;
-    setAccountKey((cur) => cur || suggestAccountKey(accounts, form.portalCategory) || "");
-  }, [accounts, form.portalCategory]);
+    if (accountTouched) return;
+    setAccountKey(suggestedAccountKey || accounts[0]?.account_key || "");
+  }, [accounts, suggestedAccountKey, accountTouched]);
+
 
   /* ── Bestehenden Entwurf laden ── */
   const loadVehicle = useCallback(async (id: string) => {
@@ -536,7 +547,9 @@ export default function VehicleWizard() {
           previews={previews}
           accounts={accounts}
           accountKey={accountKey}
-          onAccountKey={setAccountKey}
+          suggestedAccountKey={suggestedAccountKey}
+          onAccountKey={(k) => { setAccountTouched(true); setAccountKey(k); }}
+
           manual={manual}
           onManual={(p) => setManual((m) => ({ ...m, ...p }))}
           saving={saving || published}

@@ -47,14 +47,17 @@ function parseRefdataXml(xml: string): RefItem[] {
 }
 
 async function fetchRef(path: string, optional = false): Promise<RefItem[] | null> {
-  const url = `${REFDATA_BASE}${path}`;
+  // Mobile.de liefert lokalisierte Bezeichnungen, wenn die Sprache angefragt wird.
+  const url = `${REFDATA_BASE}${path}${path.includes("?") ? "&" : "?"}lang=de`;
   const auth = btoa(`${MOBILE_USER}:${MOBILE_PASS}`);
   const res = await fetch(url, {
     headers: {
       Authorization: `Basic ${auth}`,
       Accept: "application/xml",
+      "Accept-Language": "de-DE,de;q=0.9",
     },
   });
+
   if (!res.ok) {
     const body = await res.text();
     if (optional && (res.status === 404 || res.status === 403)) {
@@ -104,6 +107,71 @@ const FALLBACK_LISTS: Record<string, RefItem[]> = {
     { key: "AUTOMATIC_PARKING", name: "Automatisches Einparken" },
   ],
 };
+
+// Ergänzende deutsche Bezeichnungen. Werden NUR benutzt, wenn Mobile.de für
+// einen Schlüssel keine lokalisierte Bezeichnung liefert (name === key).
+const GERMAN_OVERRIDES: Record<string, Record<string, string>> = {
+  "exterior-colors": {
+    BLACK: "Schwarz", WHITE: "Weiß", SILVER: "Silber", GREY: "Grau", GRAY: "Grau",
+    BLUE: "Blau", RED: "Rot", GREEN: "Grün", BROWN: "Braun", BEIGE: "Beige",
+    YELLOW: "Gelb", ORANGE: "Orange", GOLD: "Gold", VIOLET: "Violett",
+    PURPLE: "Violett", BRONZE: "Bronze",
+  },
+  "interior-colors": {
+    BLACK: "Schwarz", WHITE: "Weiß", GREY: "Grau", GRAY: "Grau", BEIGE: "Beige",
+    BROWN: "Braun", BLUE: "Blau", RED: "Rot", YELLOW: "Gelb", GREEN: "Grün",
+    ORANGE: "Orange", OTHER: "Andere",
+  },
+  "interior-types": {
+    CLOTH: "Stoff", PART_LEATHER: "Teilleder", FULL_LEATHER: "Vollleder",
+    VELOUR: "Velours", ALCANTARA: "Alcantara", OTHER: "Andere",
+  },
+  fuels: {
+    PETROL: "Benzin", DIESEL: "Diesel", LPG: "Autogas (LPG)", CNG: "Erdgas (CNG)",
+    ELECTRICITY: "Elektro", HYBRID: "Hybrid (Benzin/Elektro)",
+    HYBRID_DIESEL: "Hybrid (Diesel/Elektro)", HYDROGENIUM: "Wasserstoff",
+    ETHANOL: "Ethanol (E85)", OTHER: "Andere",
+  },
+  gearboxes: {
+    MANUAL_GEAR: "Schaltgetriebe", SEMIAUTOMATIC_GEAR: "Halbautomatik",
+    AUTOMATIC_GEAR: "Automatik",
+  },
+  climatisations: {
+    NO_CLIMATISATION: "Keine Klimatisierung",
+    MANUAL_CLIMATISATION: "Klimaanlage",
+    AUTOMATIC_CLIMATISATION: "Klimaautomatik",
+    "2_ZONE_AUTOMATIC_AIR_CONDITIONING": "2-Zonen-Klimaautomatik",
+    "3_ZONE_AUTOMATIC_AIR_CONDITIONING": "3-Zonen-Klimaautomatik",
+    "4_ZONE_AUTOMATIC_AIR_CONDITIONING": "4-Zonen-Klimaautomatik",
+  },
+};
+
+/** Nicht übersetzte Schlüssel lesbar machen: OFF_ROAD → „Off Road“. */
+function humanizeKey(key: string): string {
+  return key
+    .toLowerCase()
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function localize(kind: string, items: RefItem[]): RefItem[] {
+  const dict = GERMAN_OVERRIDES[kind] ?? {};
+  const untranslated: string[] = [];
+  const out = items.map((i) => {
+    if (i.name && i.name !== i.key) return i;
+    if (dict[i.key]) return { key: i.key, name: dict[i.key] };
+    untranslated.push(i.key);
+    return { key: i.key, name: humanizeKey(i.key) };
+  });
+  if (untranslated.length) {
+    console.warn(`mobile-refdata: keine deutsche Bezeichnung für ${kind}: ${untranslated.join(", ")}`);
+  }
+  return out;
+}
+
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -203,6 +271,13 @@ Deno.serve(async (req) => {
       case "exterior-colors":
         path = "/colors";
         break;
+      case "interior-colors":
+        path = "/interior-colors";
+        break;
+      case "interior-types":
+        path = "/interior-types";
+        break;
+
       case "climatisations":
         path = "/climatisations";
         break;
@@ -241,7 +316,12 @@ Deno.serve(async (req) => {
       if (!items.some((i) => i.key === "OTHER")) {
         items.push({ key: "OTHER", name: "Differenzbesteuert" });
       }
+    } else if (kind !== "makes" && kind !== "models") {
+      // Deutsche Bezeichnungen sicherstellen; unübersetzte Schlüssel lesbar machen.
+      items = localize(kind, items);
     }
+
+
 
     return new Response(JSON.stringify({ items }), {
       status: 200,

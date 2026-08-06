@@ -125,6 +125,35 @@ export const TODO_ENUM_FIELDS: { key: string; label: string }[] = [
   { key: "corneringLight", label: "Kurvenlicht" },
 ];
 
+/* ── Unfallzustand: drei Zustände, zwei Wahrheitswerte ───────────────────── */
+export type AccidentState = "none" | "repaired" | "unrepaired";
+
+export const ACCIDENT_STATE_OPTIONS: { value: AccidentState; label: string }[] = [
+  { value: "none", label: "Unfallfrei" },
+  { value: "repaired", label: "Unfallschaden, repariert" },
+  { value: "unrepaired", label: "Unfallschaden, nicht repariert" },
+];
+
+/** Formularzustand → eine der drei Auswahlmöglichkeiten (leer = noch offen). */
+export function accidentStateOf(form: {
+  accidentDamaged: "" | "true" | "false";
+  damageUnrepaired: "false" | "true";
+}): AccidentState | "" {
+  if (form.accidentDamaged === "") return "";
+  if (form.accidentDamaged === "false") return "none";
+  return form.damageUnrepaired === "true" ? "unrepaired" : "repaired";
+}
+
+/** Auswahl → die beiden Wahrheitswerte des Anzeigenobjekts. */
+export function accidentStatePatch(state: AccidentState): {
+  accidentDamaged: "true" | "false";
+  damageUnrepaired: "true" | "false";
+} {
+  if (state === "none") return { accidentDamaged: "false", damageUnrepaired: "false" };
+  if (state === "repaired") return { accidentDamaged: "true", damageUnrepaired: "false" };
+  return { accidentDamaged: "true", damageUnrepaired: "true" };
+}
+
 export const labelFor = (map: Record<string, string>, key: string, fallback: string) =>
   map[key] ?? fallback ?? key;
 
@@ -141,6 +170,9 @@ export interface FormState {
   mileage: string;
   regYear: string;
   regMonth: string;
+  /** Baujahr — bei Oldtimern oft abweichend von der Erstzulassung */
+  constructionYear: string;
+
   doors: string;
   seats: string;
   // Motor / Technik
@@ -195,6 +227,7 @@ export interface FormState {
 export const EMPTY: FormState = {
   make: "", model: "", modelDescription: "", trimLine: "", modelRange: "",
   category: "", portalCategory: "", mileage: "", regYear: "", regMonth: "",
+  constructionYear: "",
   doors: "", seats: "",
   fuel: "", gearbox: "", power: "", cubicCapacity: "",
   cylinders: "", fuelCapacity: "", driveType: "",
@@ -212,13 +245,80 @@ export const EMPTY: FormState = {
   description: "", consumerPriceGross: "", vatRate: "",
 };
 
+/* ── Referenzdaten mit 24-Stunden-Zwischenspeicher ───────────────────────────
+ * Die deutschen Bezeichnungen kommen von Mobile.de. Damit nicht bei jedem
+ * Formularaufruf neu abgefragt wird, landen sie für 24 Stunden im lokalen
+ * Speicher des Browsers. */
+const REF_TTL_MS = 24 * 60 * 60 * 1000;
+const refMemory = new Map<string, RefItem[]>();
+
+function refCacheKey(kind: string, make?: string) {
+  return `mobile-refdata:v2:${kind}${make ? `:${make}` : ""}`;
+}
+
+function readRefCache(key: string): RefItem[] | null {
+  const mem = refMemory.get(key);
+  if (mem) return mem;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { at: number; items: RefItem[] };
+    if (!parsed?.items || Date.now() - parsed.at > REF_TTL_MS) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    refMemory.set(key, parsed.items);
+    return parsed.items;
+  } catch {
+    return null;
+  }
+}
+
+function writeRefCache(key: string, items: RefItem[]) {
+  refMemory.set(key, items);
+  try {
+    localStorage.setItem(key, JSON.stringify({ at: Date.now(), items }));
+  } catch { /* Speicher voll — Zwischenspeicher ist optional */ }
+}
+
+/** Schlüssel ohne Bezeichnung lesbar darstellen: AUTOMATIC_GEAR → „Automatic Gear“. */
+export function humanizeRefKey(key: string): string {
+  return key
+    .toLowerCase()
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+const missingLabelLogged = new Set<string>();
+
+/** Deutsche Bezeichnung zu einem Schlüssel aus einer Referenzliste. */
+export function refLabel(items: RefItem[], key: string, kind = "refdata"): string {
+  if (!key) return "";
+  const hit = items.find((i) => i.key === key);
+  if (hit?.name) return hit.name;
+  const id = `${kind}:${key}`;
+  if (!missingLabelLogged.has(id)) {
+    missingLabelLogged.add(id);
+    console.warn(`Keine deutsche Bezeichnung für ${kind}-Schlüssel "${key}"`);
+  }
+  return humanizeRefKey(key);
+}
+
 export async function loadRef(kind: string, make?: string): Promise<RefItem[]> {
+  const key = refCacheKey(kind, make);
+  const cached = readRefCache(key);
+  if (cached) return cached;
   const { data, error } = await supabase.functions.invoke("mobile-refdata", {
     body: { kind, make },
   });
   if (error) throw error;
-  return (data as { items: RefItem[] })?.items ?? [];
+  const items = (data as { items: RefItem[] })?.items ?? [];
+  if (items.length) writeRefCache(key, items);
+  return items;
 }
+
 
 export function payloadToForm(payload: Record<string, unknown> | null | undefined): FormState {
   if (!payload) return EMPTY;
@@ -259,6 +359,7 @@ export function payloadToForm(payload: Record<string, unknown> | null | undefine
   return {
     make: asStr(get(payload, ["vehicle", "make", "key"])),
     model: asStr(get(payload, ["vehicle", "model", "key"])),
+    constructionYear: asStr(get(payload, ["vehicle", "constructionYear"])),
     modelDescription: asStr(get(payload, ["vehicle", "model-description"])),
     trimLine: asStr(get(payload, ["vehicle", "trimLine"])),
     modelRange: asStr(get(payload, ["vehicle", "modelRange"])),
@@ -398,6 +499,7 @@ export function mobileAdToFormFlat(
   return {
     make: asKey(pick(m.make, veh.make)),
     model: asKey(pick(m.model, veh.model)),
+    constructionYear: asStr(pick(m.constructionYear, veh.constructionYear)),
     modelDescription: asStr(pick(m.modelDescription, veh["model-description"], veh.modelDescription)),
     trimLine: asStr(pick(m.trimLine, veh.trimLine)),
     modelRange: asStr(pick(m.modelRange, veh.modelRange)),
@@ -482,6 +584,8 @@ export function buildVehiclePayload(form: FormState): Record<string, unknown> {
   };
 
   if (form.trimLine) vehicle.trimLine = form.trimLine;
+  const cy = intIf(form.constructionYear);
+  if (cy !== undefined) vehicle.constructionYear = cy;
   if (form.modelRange) vehicle.modelRange = form.modelRange;
   if (form.doors) vehicle.doors = { key: form.doors };
   const seats = intIf(form.seats); if (seats !== undefined) vehicle.seats = seats;
@@ -581,6 +685,9 @@ export function requiredValuesFromForm(form: FormState): Record<string, unknown>
       ? `${form.regYear}${String(form.regMonth).padStart(2, "0")}`
       : "",
     damageUnrepaired: form.damageUnrepaired === "true",
+    accidentDamaged:
+      form.accidentDamaged === "" ? undefined : form.accidentDamaged === "true",
+    roadworthy: form.roadworthy === "" ? undefined : form.roadworthy === "true",
   };
 }
 
