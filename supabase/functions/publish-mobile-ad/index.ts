@@ -833,21 +833,31 @@ Deno.serve((req) => withAccountLock(async () => {
     console.log(`Create ad -> status ${createRes.status} (ok=${createOk}) location=${createRes.headers.get("Location") ?? "(none)"}`);
 
     if (!createOk) {
-      let parsed: unknown = createText;
-      try { parsed = JSON.parse(createText); } catch { /* keep text */ }
-      const human =
-        typeof parsed === "object" && parsed && "errors" in (parsed as Record<string, unknown>)
-          ? JSON.stringify((parsed as Record<string, unknown>).errors)
-          : createText.slice(0, 500);
-      console.error(`Create ad failed ${createRes.status}: ${createText.slice(0, 800)}`);
-      await failVehicle(human);
-      await logPush("publish", adBody, createRes.status, createText);
-      return json(createRes.status, {
-        error: "Mobile.de hat das Inserat abgelehnt",
-        status: createRes.status,
-        details: parsed,
+      // Fehlerobjekt strukturiert auswerten — deutsche Texte aus den
+      // Referenzdaten, Feldpfade auf die Eingabefelder des Assistenten.
+      const texts = await loadMobileErrorTexts(MOBILE_USER, MOBILE_PASS);
+      const issues: AdIssue[] = parseMobileErrors(createText, {
+        texts,
+        onUnknownKey: (key) =>
+          console.error(`Unbekannter Mobile.de-Fehlerschlüssel ohne Übersetzung: "${key}"`),
+      });
+      const summary = summarizeIssues(issues);
+      const errorId = messageCode(`publish:${createRes.status}`, summary);
+      // Technischer Text nur ins Protokoll, nie auf den Bildschirm.
+      console.error(`[${errorId}] Create ad failed ${createRes.status}: ${createText.slice(0, 800)}`);
+      for (const i of issues) console.error(`[${i.code}] ${i.key} path=${i.path ?? "-"} value=${i.value ?? "-"}`);
+      await failVehicle(issues.map((i) => i.message).join(" · ") || summary);
+      await logPush("publish", adBody, createRes.status, `[${errorId}] ${createText}`);
+      return json(400, {
+        error: summary,
+        errorId,
+        issues: issues.map((i) => ({
+          key: i.key, path: i.path, value: i.value, message: i.message,
+          code: i.code, field: i.field,
+        })),
       });
     }
+
 
     // Warnungen aus der Antwort sind KEIN Fehler — sie werden nur gemeldet.
     const mobileWarnings: string[] = [];
