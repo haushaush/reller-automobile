@@ -476,9 +476,14 @@ Deno.serve((req) => withAccountLock(async () => {
       warnings,
     });
   } catch (err) {
-    console.error("update-mobile-ad fatal:", err);
-    return new Response(JSON.stringify({ error: String((err as Error).message || err) }), {
+    const errorId = messageCode("update:fatal", String((err as Error).message || err));
+    console.error(`[${errorId}] update-mobile-ad fatal:`, err);
+    return new Response(JSON.stringify({
+      error: "Die Änderungen konnten nicht an Mobile.de übertragen werden. Bitte erneut versuchen.",
+      errorId,
+    }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
 }));
