@@ -114,49 +114,28 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
   };
 
 
-  const featureGrid = (items: { key: string; label: string }[]) => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-      {items.map((f) => (
-        <div key={f.key} className="flex items-center gap-2">
-          <Checkbox
-            id={`w-${f.key}`}
-            checked={!!form.features[f.key]}
-            onCheckedChange={(c) =>
-              onChange({ features: { ...form.features, [f.key]: c === true } })
-            }
-          />
-          <Label htmlFor={`w-${f.key}`} className="cursor-pointer text-sm font-normal">
-            {f.label}
-          </Label>
-        </div>
-      ))}
-    </div>
+  const equipmentGroups = useMemo(
+    () => [
+      { id: "komfort", title: "Komfort und Multimedia", items: COMFORT_FEATURES },
+      { id: "sicherheit", title: "Sicherheit und Assistenz", items: SAFETY_FEATURES },
+    ],
+    [],
   );
 
-  const [equipOpen, setEquipOpen] = useState<string[]>(["komfort"]);
-  const toggleEquip = (id: string) =>
-    setEquipOpen((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  const selectedFeatureCount = useMemo(
+    () => equipmentGroups.reduce(
+      (n, g) => n + g.items.filter((i) => form.features[i.key]).length,
+      0,
+    ),
+    [equipmentGroups, form.features],
+  );
 
-  const equipGroup = (id: string, title: string, items: { key: string; label: string }[]) => {
-    const count = items.filter((i) => form.features[i.key]).length;
-    const isOpen = equipOpen.includes(id);
-    return (
-      <div className="border rounded-md">
-        <button
-          type="button"
-          onClick={() => toggleEquip(id)}
-          className="w-full flex items-center justify-between p-3 text-left text-sm font-medium"
-        >
-          <span>{title}</span>
-          <span className="flex items-center gap-2 text-muted-foreground font-normal">
-            {count > 0 && <span>{count} ausgewählt</span>}
-            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-          </span>
-        </button>
-        {isOpen && <div className="p-3 pt-0">{featureGrid(items)}</div>}
-      </div>
-    );
+  const resetFeatures = () => {
+    const next = { ...form.features };
+    for (const g of equipmentGroups) for (const i of g.items) delete next[i.key];
+    onChange({ features: next });
   };
+
 
   return (
     <div className="space-y-4">
