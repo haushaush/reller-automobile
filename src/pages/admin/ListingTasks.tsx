@@ -52,7 +52,11 @@ interface TaskRow {
   action: ListingTaskAction;
   reason: string | null;
   created_at: string;
-  vehicle_id: string;
+  vehicle_id: string | null;
+  /** Nur bei Aufgaben ohne Fahrzeugbezug (Fahrzeug wurde endgültig gelöscht) */
+  platform: ListingPlatform | null;
+  ad_title: string | null;
+  ad_url: string | null;
   is_demo: boolean;
   listings: {
     id: string;
@@ -107,6 +111,8 @@ function taskHeadline(action: ListingTaskAction, platform: ListingPlatform | nul
 /** Grund als vollständiger Satz mit Datum. */
 function taskReason(t: TaskRow, price: PriceChange | null): string {
   const v = t.vehicles;
+  // Aufgaben ohne Fahrzeugbezug tragen ihren Grund als eigenen Text.
+  if (!t.vehicle_id) return t.reason ?? "Das zugehörige Fahrzeug wurde endgültig gelöscht.";
   switch (t.action) {
     case "end_listing": {
       const d = dateDe(v?.sold_at) ?? dateDe(t.created_at);
@@ -164,7 +170,7 @@ export default function ListingTasks() {
       const { data, error } = await supabase
         .from("listing_tasks")
         .select(
-          "id, action, reason, created_at, vehicle_id, is_demo, listings(id, platform, external_url), vehicles(title, price, currency, is_sold, sold_at, reserved_at, updated_at, image_urls, custom_image_urls, hidden_image_urls, image_order, mobile_payload)",
+          "id, action, reason, created_at, vehicle_id, is_demo, platform, ad_title, ad_url, listings(id, platform, external_url), vehicles(title, price, currency, is_sold, sold_at, reserved_at, updated_at, image_urls, custom_image_urls, hidden_image_urls, image_order, mobile_payload)",
         )
         .is("done_at", null)
         .is("dismissed_at", null)
@@ -177,10 +183,15 @@ export default function ListingTasks() {
   const priceVehicleIds = useMemo(
     () =>
       Array.from(
-        new Set(tasks.filter((t) => t.action === "update_price").map((t) => t.vehicle_id)),
+        new Set(
+          tasks
+            .filter((t) => t.action === "update_price" && t.vehicle_id)
+            .map((t) => t.vehicle_id as string),
+        ),
       ),
     [tasks],
   );
+
 
   // Preisverlauf nur für Preisaufgaben — daraus ergibt sich der alte Preis.
   const { data: priceMap = new Map<string, PriceChange>() } = useQuery({
@@ -220,7 +231,7 @@ export default function ListingTasks() {
     });
     const byPlatform = new Map<ListingPlatform | "unbekannt", TaskRow[]>();
     for (const t of sorted) {
-      const key = t.listings?.platform ?? "unbekannt";
+      const key = t.listings?.platform ?? t.platform ?? "unbekannt";
       byPlatform.set(key, [...(byPlatform.get(key) ?? []), t]);
     }
     return [...PLATFORM_GROUP_ORDER, "unbekannt" as const]
@@ -319,8 +330,8 @@ export default function ListingTasks() {
                   const days = differenceInCalendarDays(new Date(), new Date(t.created_at));
                   const stale = days >= STALE_DAYS;
                   const v = t.vehicles;
-                  const platform = t.listings?.platform ?? null;
-                  const price = priceMap.get(t.vehicle_id) ?? null;
+                  const platform = t.listings?.platform ?? t.platform ?? null;
+                  const price = t.vehicle_id ? priceMap.get(t.vehicle_id) ?? null : null;
                   const newPrice =
                     t.action === "update_price" ? price?.current ?? v?.price ?? null : null;
                   const oldPrice = t.action === "update_price" ? price?.previous ?? null : null;
@@ -382,33 +393,41 @@ export default function ListingTasks() {
                         <p className="mt-2 text-sm font-medium">{target}</p>
                       )}
 
-                      {/* 3) Fahrzeug als Nebeninformation */}
-                      <Link
-                        to={`/admin/fahrzeuge/${t.vehicle_id}`}
-                        className="mt-3 flex items-center gap-3 rounded-md p-1 text-xs text-muted-foreground hover:bg-muted/60"
-                      >
-                        {thumb ? (
-                          <img
-                            src={thumb}
-                            alt=""
-                            loading="lazy"
-                            className="h-9 w-14 shrink-0 rounded object-cover"
-                          />
-                        ) : (
-                          <span className="h-9 w-14 shrink-0 rounded bg-muted" />
-                        )}
-                        <span className="truncate">
-                          {v?.title ?? "Fahrzeug"}
-                          {intNo ? ` · Nr. ${intNo}` : ""}
-                        </span>
-                      </Link>
+                      {/* 3) Fahrzeug als Nebeninformation — gelöschte Fahrzeuge nur als Text */}
+                      {t.vehicle_id ? (
+                        <Link
+                          to={`/admin/fahrzeuge/${t.vehicle_id}`}
+                          className="mt-3 flex items-center gap-3 rounded-md p-1 text-xs text-muted-foreground hover:bg-muted/60"
+                        >
+                          {thumb ? (
+                            <img
+                              src={thumb}
+                              alt=""
+                              loading="lazy"
+                              className="h-9 w-14 shrink-0 rounded object-cover"
+                            />
+                          ) : (
+                            <span className="h-9 w-14 shrink-0 rounded bg-muted" />
+                          )}
+                          <span className="truncate">
+                            {v?.title ?? "Fahrzeug"}
+                            {intNo ? ` · Nr. ${intNo}` : ""}
+                          </span>
+                        </Link>
+                      ) : (
+                        <p className="mt-3 rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
+                          {t.ad_title ?? "Fahrzeug"} · endgültig gelöscht, kein Fahrzeugdatensatz
+                          mehr vorhanden
+                        </p>
+                      )}
+
 
                       {/* 4) Erst der Weg zum Ziel, dann das Abhaken */}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {t.listings?.external_url ? (
+                        {t.listings?.external_url || t.ad_url ? (
                           <Button asChild size="sm">
                             <a
-                              href={t.listings.external_url}
+                              href={(t.listings?.external_url ?? t.ad_url) as string}
                               target="_blank"
                               rel="noreferrer"
                             >

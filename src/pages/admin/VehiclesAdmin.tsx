@@ -30,6 +30,8 @@ import PlatformBadges from "@/components/admin/PlatformBadges";
 import VehicleStatusDialog from "@/components/admin/VehicleStatusDialog";
 import DuplicateVehicleDialog from "@/components/admin/DuplicateVehicleDialog";
 import BulkStatusDialog from "@/components/admin/BulkStatusDialog";
+import DeletedVehiclesList from "@/components/admin/DeletedVehiclesList";
+
 import VehicleLifecycleDialog, {
   type LifecycleMode,
 } from "@/components/admin/VehicleLifecycleDialog";
@@ -37,6 +39,8 @@ import {
   accountShortLabel,
   expectedAccountKey,
   loadListingOverview,
+  publicListingUrl,
+
   vehicleSaleStatus,
   SALE_STATUS_LABELS,
   type VehicleSaleStatus,
@@ -51,7 +55,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+
 } from "@/components/ui/dropdown-menu";
 import {
   Select,
@@ -171,21 +179,51 @@ type QuickFilter =
   | "sold"
   | "attention"
   | "account_mismatch"
-  | "archived";
+  | "archived"
+  | "deleted";
 
+/** Erste Reihe: Zustand des Fahrzeugs */
 const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "all", label: "Alle" },
-  { value: "not_listed", label: "Nicht inseriert" },
   { value: "reserved", label: "Reserviert" },
   { value: "sold", label: "Verkauft" },
+  { value: "archived", label: "Archiviert" },
+  { value: "deleted", label: "Gelöscht" },
+];
+
+/** Filter, die nur über Verweise aus dem Überblick erreichbar sind */
+const EXTRA_QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
+  { value: "not_listed", label: "Nicht inseriert" },
   { value: "attention", label: "Braucht Aufmerksamkeit" },
   { value: "account_mismatch", label: "Konto passt nicht zur Fahrzeugart" },
-  { value: "archived", label: "Archiviert" },
 ];
+
+const quickLabel = (value: QuickFilter) =>
+  [...QUICK_FILTERS, ...EXTRA_QUICK_FILTERS].find((q) => q.value === value)?.label ?? value;
+
+/** Zweite Reihe: „Nach Portal“ — "all" | "mobile_de" | "mobile_de:<konto>" | "autoscout24" | "kleinanzeigen" | "portal_only" */
+type PortalFilter = string;
+
+const PORTAL_BASE_LABELS: Record<string, string> = {
+  mobile_de: "Mobile.de",
+  autoscout24: "AutoScout24",
+  kleinanzeigen: "Kleinanzeigen",
+  portal_only: "Nur im Portal",
+};
+
+function portalFilterLabel(value: PortalFilter, accounts: PlatformAccountRow[]): string {
+  if (value.startsWith("mobile_de:")) {
+    const key = value.slice("mobile_de:".length);
+    return `Mobile.de · ${accountShortLabel(accounts, key) ?? key}`;
+  }
+  return PORTAL_BASE_LABELS[value] ?? value;
+}
+
 
 interface Filters {
   q: string;
   quick: QuickFilter;
+  portal: PortalFilter;
   /** Mobile.de-Konto: "all" oder account_key */
   account: string;
   category: string;
@@ -202,6 +240,7 @@ interface Filters {
 const EMPTY_FILTERS: Filters = {
   q: "",
   quick: "all",
+  portal: "all",
   account: "all",
   category: "all",
   publish: "all",
@@ -213,6 +252,7 @@ const EMPTY_FILTERS: Filters = {
   mileageMax: "",
   noImages: false,
 };
+
 
 /* ---------- optionale Spalten ---------- */
 
@@ -467,8 +507,118 @@ export default function VehiclesAdmin() {
     },
   });
 
+  /**
+   * Aktive Inserate je Fahrzeug — Grundlage für die Portal-Schnellfilter
+   * und die Trefferanzahlen.
+   */
+  const { data: portalIndex } = useQuery({
+    queryKey: ["admin-vehicles-portal-index"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("listings")
+        .select("vehicle_id, platform, status, account_key")
+        .in("status", ["live", "paused"] as never)
+        .limit(10000);
+      if (error) throw error;
+      const map = new Map<string, { platform: string; account_key: string | null }[]>();
+      for (const l of (data ?? []) as unknown as {
+        vehicle_id: string;
+        platform: string;
+        account_key: string | null;
+      }[]) {
+        map.set(l.vehicle_id, [
+          ...(map.get(l.vehicle_id) ?? []),
+          { platform: l.platform, account_key: l.account_key },
+        ]);
+      }
+      return map;
+    },
+  });
+
+  /** Zustand aller Fahrzeuge — nur für die Trefferanzahlen der Schnellfilter */
+  const { data: stateIndex } = useQuery({
+    queryKey: ["admin-vehicles-state-index"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("id, is_sold, reserved_at, archived_at")
+        .limit(5000);
+      if (error) throw error;
+      return (data ?? []) as {
+        id: string;
+        is_sold: boolean;
+        reserved_at: string | null;
+        archived_at: string | null;
+      }[];
+    },
+  });
+
+  const { data: deletedCount = 0 } = useQuery({
+    queryKey: ["admin-vehicles-deleted-count"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("vehicle_deletion_log")
+        .select("id", { count: "exact", head: true })
+        .eq("action", "deleted");
+      return count ?? 0;
+    },
+  });
+
+  /** Passt ein Fahrzeug zum gewählten Portalfilter? */
+  const matchesPortal = useCallback(
+    (id: string, portal: PortalFilter) => {
+      if (portal === "all") return true;
+      const rows = portalIndex?.get(id) ?? [];
+      if (portal === "portal_only") return rows.length === 0;
+      if (portal.startsWith("mobile_de:")) {
+        const key = portal.slice("mobile_de:".length);
+        return rows.some((r) => r.platform === "mobile_de" && r.account_key === key);
+      }
+      return rows.some((r) => r.platform === portal);
+    },
+    [portalIndex],
+  );
+
+  /** Passt ein Fahrzeug zur ersten Filterreihe? */
+  const matchesQuick = useCallback(
+    (
+      v: { id: string; is_sold: boolean; reserved_at: string | null; archived_at: string | null },
+      quick: QuickFilter,
+    ) => {
+      if (quick === "archived") return !!v.archived_at;
+      if (v.archived_at) return false;
+      if (quick === "reserved") return !v.is_sold && !!v.reserved_at;
+      if (quick === "sold") return v.is_sold;
+      return true;
+    },
+    [],
+  );
+
+  const quickCounts = useMemo(() => {
+    const out: Record<string, number> = { deleted: deletedCount };
+    for (const qf of QUICK_FILTERS) {
+      if (qf.value === "deleted") continue;
+      out[qf.value] = (stateIndex ?? []).filter(
+        (v) => matchesQuick(v, qf.value) && matchesPortal(v.id, filters.portal),
+      ).length;
+    }
+    return out;
+  }, [stateIndex, filters.portal, matchesQuick, matchesPortal, deletedCount]);
+
+  const portalCounts = useCallback(
+    (portal: PortalFilter) =>
+      (stateIndex ?? []).filter(
+        (v) => matchesQuick(v, filters.quick) && matchesPortal(v.id, portal),
+      ).length,
+    [stateIndex, filters.quick, matchesQuick, matchesPortal],
+  );
+
   const needsAccountIndex =
     filters.account !== "all" || filters.quick === "account_mismatch";
+
 
   const updateFilters = useCallback((patch: Partial<Filters>) => {
     setFilters((f) => ({ ...f, ...patch }));
@@ -523,12 +673,31 @@ export default function VehiclesAdmin() {
           .slice(0, 1000);
       }
 
+      // Portalfilter über die aktiven Inserate
+      let portalIds: string[] | null = null;
+      if (filters.portal !== "all") {
+        portalIds = (stateIndex ?? [])
+          .filter((v) => matchesPortal(v.id, filters.portal))
+          .map((v) => v.id)
+          .slice(0, 1000);
+        if (accountIds !== null) {
+          const allow = new Set(accountIds);
+          portalIds = portalIds.filter((id) => allow.has(id));
+          accountIds = null;
+        }
+      }
+
       if (accountIds !== null && accountIds.length === 0) {
+        return { rows: [] as AdminVehicleRow[], count: 0 };
+      }
+      if (portalIds !== null && portalIds.length === 0) {
         return { rows: [] as AdminVehicleRow[], count: 0 };
       }
 
       let query = supabase.from("vehicles").select(SELECT_COLUMNS, { count: "exact" });
       if (accountIds !== null) query = query.in("id", accountIds);
+      if (portalIds !== null) query = query.in("id", portalIds);
+
 
       if (term) {
         const like = `%${term}%`;
@@ -607,14 +776,27 @@ export default function VehiclesAdmin() {
       if (error) throw error;
       return { rows: (rows as unknown as AdminVehicleRow[]) ?? [], count: count ?? 0 };
     },
-    [filters, sortKey, sortDir, needsAccountIndex, accountIndex],
+    [filters, sortKey, sortDir, needsAccountIndex, accountIndex, stateIndex, matchesPortal],
   );
 
+  const needsPortalIndex = filters.portal !== "all";
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["admin-vehicles", filters, sortValue, page, needsAccountIndex && !!accountIndex],
-    enabled: !needsAccountIndex || !!accountIndex,
+    queryKey: [
+      "admin-vehicles",
+      filters,
+      sortValue,
+      page,
+      needsAccountIndex && !!accountIndex,
+      needsPortalIndex && !!portalIndex && !!stateIndex,
+    ],
+    enabled:
+      filters.quick !== "deleted" &&
+      (!needsAccountIndex || !!accountIndex) &&
+      (!needsPortalIndex || (!!portalIndex && !!stateIndex)),
     queryFn: () => fetchVehicles(page * PAGE_SIZE, PAGE_SIZE),
   });
+
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
   const total = data?.count ?? 0;
@@ -720,18 +902,10 @@ export default function VehiclesAdmin() {
         ),
     });
 
-  const toggleFeatured = async (v: AdminVehicleRow) => {
-    const { error } = await supabase
-      .from("vehicles")
-      .update({ is_featured: !v.is_featured } as never)
-      .eq("id", v.id);
-    if (error) return toast.error(error.message);
-    await logVehicleAudit(v.id, [
-      { action: "feature_toggle", field: "is_featured", newValue: !v.is_featured },
-    ]);
-    toast.success(!v.is_featured ? "Auf Startseite hervorgehoben" : "Hervorhebung entfernt");
-    refresh();
-  };
+  // Hinweis: „Auf Startseite hervorheben“ wurde aus dem Aktionsmenü entfernt.
+  // Die Hervorhebung bleibt in der Fahrzeugdetailseite bearbeitbar.
+
+
 
   const accountKeyFor = (id: string) => accountIndex?.byVehicle.get(id) ?? null;
   const accountNameFor = (id: string) => {
@@ -804,8 +978,14 @@ export default function VehiclesAdmin() {
     if (filters.quick !== "all")
       list.push({
         key: "quick",
-        label: QUICK_FILTERS.find((q) => q.value === filters.quick)!.label,
+        label: quickLabel(filters.quick),
         clear: () => updateFilters({ quick: "all" }),
+      });
+    if (filters.portal !== "all")
+      list.push({
+        key: "portal",
+        label: `Portal: ${portalFilterLabel(filters.portal, accounts)}`,
+        clear: () => updateFilters({ portal: "all" }),
       });
     if (filters.account !== "all")
       list.push({
@@ -895,53 +1075,104 @@ export default function VehiclesAdmin() {
   }, [groupByAccount, rows, accountIndex, accounts]);
   const optionalCount = cols.length;
 
-  const rowMenu = (v: AdminVehicleRow) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Aktionen">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 bg-popover">
-        <DropdownMenuItem asChild>
-          <Link to={`/admin/fahrzeuge/${v.id}`}>Fahrzeug öffnen</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => openStatus(v)}>Status ändern</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setDuplicate({ id: v.id, title: v.title })}>
-          Duplizieren
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => toggleFeatured(v)}>
-          {v.is_featured ? "Hervorhebung entfernen" : "Auf Startseite hervorheben"}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {v.archived_at ? (
-          <DropdownMenuItem onSelect={() => setLifecycle({ mode: "restore", ids: [v.id] })}>
-            Zurückholen
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem onSelect={() => setLifecycle({ mode: "archive", ids: [v.id] })}>
-            Archivieren
-          </DropdownMenuItem>
-        )}
-        {canOfferDelete(v) && (
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onSelect={() => setLifecycle({ mode: "delete", ids: [v.id] })}
-          >
-            Endgültig löschen
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+  /** Öffentlich erreichbare Inserate des Fahrzeugs (nicht der Händlerbereich). */
+  const publicListings = (v: AdminVehicleRow) =>
+    (listingMap?.get(v.id) ?? [])
+      .filter((l) => l.status === "live" || l.status === "paused")
+      .map((l) => ({
+        platform: l.platform,
+        accountKey: l.account_key,
+        url: publicListingUrl(l, v.mobile_ad_id),
+        label:
+          l.platform === "mobile_de"
+            ? `Mobile.de · ${accountShortLabel(accounts, l.account_key) ?? "Konto unbekannt"}`
+            : PORTAL_BASE_LABELS[l.platform] ?? l.platform,
+      }));
 
-  /** Endgültiges Löschen nur anbieten, wenn offensichtlich zulässig. */
-  const canOfferDelete = (v: AdminVehicleRow) => {
-    if (v.is_sold) return false;
-    const listings = listingMap?.get(v.id) ?? [];
-    return !listings.some((l) => l.status === "live");
+  const rowMenu = (v: AdminVehicleRow) => {
+    const live = publicListings(v);
+    const single = live.length === 1 ? live[0] : null;
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label="Aktionen">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-64 bg-popover">
+          <DropdownMenuItem asChild>
+            <Link to={`/admin/fahrzeuge/${v.id}`}>Fahrzeug öffnen</Link>
+          </DropdownMenuItem>
+
+          {live.length === 0 && (
+            <DropdownMenuItem disabled>Inserat anzeigen — nicht inseriert</DropdownMenuItem>
+          )}
+          {single &&
+            (single.url ? (
+              <DropdownMenuItem asChild>
+                <a href={single.url} target="_blank" rel="noopener noreferrer">
+                  Inserat anzeigen
+                </a>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem asChild>
+                <Link to={`/admin/fahrzeuge/${v.id}`}>Inserats-Link hinterlegen</Link>
+              </DropdownMenuItem>
+            ))}
+          {live.length > 1 && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Inserat anzeigen</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="bg-popover">
+                {live.map((l, i) =>
+                  l.url ? (
+                    <DropdownMenuItem key={i} asChild>
+                      <a href={l.url} target="_blank" rel="noopener noreferrer">
+                        {l.label}
+                      </a>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem key={i} asChild>
+                      <Link to={`/admin/fahrzeuge/${v.id}`}>
+                        {l.label} — Inserats-Link hinterlegen
+                      </Link>
+                    </DropdownMenuItem>
+                  ),
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
+
+          <DropdownMenuItem onSelect={() => setDuplicate({ id: v.id, title: v.title })}>
+            Duplizieren
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+          {v.archived_at ? (
+            <DropdownMenuItem onSelect={() => setLifecycle({ mode: "restore", ids: [v.id] })}>
+              Wiederherstellen
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => setLifecycle({ mode: "archive", ids: [v.id] })}>
+              Archivieren (Daten bleiben erhalten)
+            </DropdownMenuItem>
+          )}
+          {v.is_sold ? (
+            <DropdownMenuItem disabled>
+              Endgültig löschen — verkaufte Fahrzeuge nur archivieren
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onSelect={() => setLifecycle({ mode: "delete", ids: [v.id] })}
+            >
+              Endgültig löschen
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
   };
+
 
   const optionalCell = (v: AdminVehicleRow, key: OptionalColumn) => {
     switch (key) {
@@ -958,7 +1189,111 @@ export default function VehiclesAdmin() {
     }
   };
 
+  const portalRow: { value: PortalFilter; label: string }[] = [
+    { value: "mobile_de", label: "Mobile.de" },
+    { value: "autoscout24", label: "AutoScout24" },
+    { value: "kleinanzeigen", label: "Kleinanzeigen" },
+    { value: "portal_only", label: "Nur im Portal" },
+  ];
+
+  const showMobileAccounts =
+    filters.portal === "mobile_de" || filters.portal.startsWith("mobile_de:");
+
+  /** Zwei Filterreihen: Zustand und Portal */
+  const quickFilterRows = (
+    <div className="mt-6 space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {QUICK_FILTERS.map((qf) => (
+          <Button
+            key={qf.value}
+            size="sm"
+            variant={filters.quick === qf.value ? "default" : "outline"}
+            className="rounded-full"
+            onClick={() =>
+              updateFilters(
+                qf.value === "deleted" ? { ...EMPTY_FILTERS, quick: "deleted" } : { quick: qf.value },
+              )
+            }
+          >
+            {qf.label}
+            <span className="ml-2 text-xs opacity-70">{quickCounts[qf.value] ?? 0}</span>
+          </Button>
+        ))}
+        {EXTRA_QUICK_FILTERS.filter((qf) => qf.value === filters.quick).map((qf) => (
+          <Button key={qf.value} size="sm" variant="default" className="rounded-full">
+            {qf.label}
+          </Button>
+        ))}
+      </div>
+
+      {filters.quick !== "deleted" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Nach Portal</span>
+          <Button
+            size="sm"
+            variant={filters.portal === "all" ? "default" : "outline"}
+            className="rounded-full"
+            onClick={() => updateFilters({ portal: "all" })}
+          >
+            Alle
+          </Button>
+          {portalRow.map((p) => (
+            <Button
+              key={p.value}
+              size="sm"
+              variant={
+                filters.portal === p.value ||
+                (p.value === "mobile_de" && filters.portal.startsWith("mobile_de:"))
+                  ? "default"
+                  : "outline"
+              }
+              className="rounded-full"
+              onClick={() => updateFilters({ portal: p.value })}
+            >
+              {p.label}
+              <span className="ml-2 text-xs opacity-70">{portalCounts(p.value)}</span>
+            </Button>
+          ))}
+          {showMobileAccounts &&
+            mobileAccounts.map((a) => {
+              const value = `mobile_de:${a.account_key}`;
+              return (
+                <Button
+                  key={a.account_key}
+                  size="sm"
+                  variant={filters.portal === value ? "secondary" : "ghost"}
+                  className="rounded-full"
+                  onClick={() => updateFilters({ portal: value })}
+                >
+                  {accountShortLabel(accounts, a.account_key)}
+                  <span className="ml-2 text-xs opacity-70">{portalCounts(value)}</span>
+                </Button>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
+
+  if (filters.quick === "deleted") {
+    return (
+      <div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Fahrzeuge</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Endgültig entfernte Fahrzeuge — nur zur Nachvollziehbarkeit.
+          </p>
+        </div>
+        {quickFilterRows}
+        <div className="mt-6">
+          <DeletedVehiclesList />
+        </div>
+      </div>
+    );
+  }
+
   return (
+
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -978,20 +1313,9 @@ export default function VehiclesAdmin() {
         </div>
       </div>
 
-      {/* Schnellfilter */}
-      <div className="mt-6 flex flex-wrap gap-2">
-        {QUICK_FILTERS.map((qf) => (
-          <Button
-            key={qf.value}
-            size="sm"
-            variant={filters.quick === qf.value ? "default" : "outline"}
-            className="rounded-full"
-            onClick={() => updateFilters({ quick: qf.value })}
-          >
-            {qf.label}
-          </Button>
-        ))}
-      </div>
+      {/* Schnellfilter: Zustand und Portal */}
+      {quickFilterRows}
+
 
       {/* Suche + Filter + Sortierung + Spalten */}
       <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center">
