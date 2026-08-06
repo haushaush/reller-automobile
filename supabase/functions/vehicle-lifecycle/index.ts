@@ -18,7 +18,7 @@ interface VehicleInfo {
   isSold: boolean;
   archivedAt: string | null;
   mobileListings: { accountLabel: string; adId: string | null }[];
-  manualListings: { platform: string; adId: string | null }[];
+  manualListings: { platform: string; adId: string | null; url?: string | null }[];
   inquiryCount: number;
   leadCount: number;
   canDelete: boolean;
