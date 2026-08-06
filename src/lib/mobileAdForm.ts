@@ -198,6 +198,7 @@ export interface FormState {
 export const EMPTY: FormState = {
   make: "", model: "", modelDescription: "", trimLine: "", modelRange: "",
   category: "", portalCategory: "", mileage: "", regYear: "", regMonth: "",
+  constructionYear: "",
   doors: "", seats: "",
   fuel: "", gearbox: "", power: "", cubicCapacity: "",
   cylinders: "", fuelCapacity: "", driveType: "",
@@ -329,6 +330,7 @@ export function payloadToForm(payload: Record<string, unknown> | null | undefine
   return {
     make: asStr(get(payload, ["vehicle", "make", "key"])),
     model: asStr(get(payload, ["vehicle", "model", "key"])),
+    constructionYear: asStr(get(payload, ["vehicle", "constructionYear"])),
     modelDescription: asStr(get(payload, ["vehicle", "model-description"])),
     trimLine: asStr(get(payload, ["vehicle", "trimLine"])),
     modelRange: asStr(get(payload, ["vehicle", "modelRange"])),
@@ -468,6 +470,7 @@ export function mobileAdToFormFlat(
   return {
     make: asKey(pick(m.make, veh.make)),
     model: asKey(pick(m.model, veh.model)),
+    constructionYear: asStr(pick(m.constructionYear, veh.constructionYear)),
     modelDescription: asStr(pick(m.modelDescription, veh["model-description"], veh.modelDescription)),
     trimLine: asStr(pick(m.trimLine, veh.trimLine)),
     modelRange: asStr(pick(m.modelRange, veh.modelRange)),
