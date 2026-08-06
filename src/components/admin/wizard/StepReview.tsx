@@ -64,7 +64,13 @@ interface Props {
   onSaveDraft: () => void;
   onPublish: () => void;
   onJump: (field: RequiredField) => void;
-  publishError?: { message: string; fields: RequiredField[] } | null;
+  publishError?: {
+    message: string;
+    errorId?: string;
+    fields: RequiredField[];
+    issues: { message: string; code?: string; field?: RequiredField | null }[];
+  } | null;
+
 }
 
 export default function StepReview({
@@ -255,9 +261,30 @@ export default function StepReview({
           <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 space-y-2">
             <p className="text-sm font-medium text-destructive flex items-start gap-2">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              Mobile.de hat das Inserat abgelehnt: {publishError.message}
+              {publishError.message}
             </p>
-            {publishError.fields.length > 0 && (
+            {publishError.issues.length > 0 && (
+              <ul className="space-y-1 text-sm text-destructive/90">
+                {publishError.issues.map((i, idx) => (
+                  <li key={`${i.code ?? "issue"}-${idx}`}>
+                    {i.message}
+                    {i.field && (
+                      <>
+                        {" "}
+                        <button
+                          type="button"
+                          className="underline underline-offset-2"
+                          onClick={() => onJump(i.field!)}
+                        >
+                          Zum Feld
+                        </button>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {publishError.issues.length === 0 && publishError.fields.length > 0 && (
               <ul className="space-y-1 text-sm">
                 {publishError.fields.map((f) => (
                   <li key={f.field}>
@@ -272,8 +299,14 @@ export default function StepReview({
                 ))}
               </ul>
             )}
+            {publishError.errorId && (
+              <p className="text-xs text-muted-foreground">
+                Kennung für den Support: {publishError.errorId}
+              </p>
+            )}
           </div>
         )}
+
       </Card>
     </div>
   );
