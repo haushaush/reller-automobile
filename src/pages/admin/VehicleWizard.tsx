@@ -125,10 +125,19 @@ export default function VehicleWizard() {
     })();
   }, []);
 
+  /* Vorschlag anhand der Fahrzeugart. Solange das Konto nicht von Hand
+   * geändert wurde, folgt die Auswahl der Fahrzeugart automatisch. */
+  const suggestedAccountKey = useMemo(
+    () => (accounts.length ? suggestAccountKey(accounts, form.portalCategory) || "" : ""),
+    [accounts, form.portalCategory],
+  );
+
   useEffect(() => {
     if (accounts.length === 0) return;
-    setAccountKey((cur) => cur || suggestAccountKey(accounts, form.portalCategory) || "");
-  }, [accounts, form.portalCategory]);
+    if (accountTouched) return;
+    setAccountKey(suggestedAccountKey || accounts[0]?.account_key || "");
+  }, [accounts, suggestedAccountKey, accountTouched]);
+
 
   /* ── Bestehenden Entwurf laden ── */
   const loadVehicle = useCallback(async (id: string) => {
