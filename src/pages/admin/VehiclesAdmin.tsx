@@ -1276,7 +1276,15 @@ export default function VehiclesAdmin() {
             </Button>
           </Card>
         ) : (
-          rows.map((v) => {
+          groups.flatMap((group) => [
+            ...(groupByAccount
+              ? [
+                  <p key={`mhead-${group.key}`} className="pt-2 text-sm font-medium">
+                    {group.label} · {group.rows.length} Fahrzeug(e)
+                  </p>,
+                ]
+              : []),
+            ...group.rows.map((v) => {
             const thumb = thumbFor(v);
             return (
               <Card key={v.id} className="overflow-hidden">
@@ -1347,7 +1355,8 @@ export default function VehiclesAdmin() {
                 </div>
               </Card>
             );
-          })
+            }),
+          ])
         )}
       </div>
 
