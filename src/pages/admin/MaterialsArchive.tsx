@@ -17,9 +17,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  MATERIAL_BUCKETS,
   MATERIAL_LABELS,
-  safeFileName,
-  shareOrDownloadUrl,
+  createSignedMaterialUrl,
+  describeStorageError,
+  downloadFromUrl,
+  materialFileName,
+  storagePathFromValue,
   type MaterialKind,
 } from "@/lib/materials";
 
@@ -28,11 +32,13 @@ interface MaterialRow {
   kind: MaterialKind;
   vehicleId: string;
   vehicleTitle: string;
+  vehicleBrand: string | null;
+  vehicleModel: string | null;
   createdAt: string;
-  /** Bild-URL bzw. beim Exposé der Storage-Pfad. */
-  url: string | null;
+  /** Storage-Pfad im Bucket der jeweiligen Materialart. */
   path: string | null;
 }
+
 
 const ICONS: Record<MaterialKind, typeof ImageIcon> = {
   story: ImageIcon,
