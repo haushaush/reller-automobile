@@ -12,8 +12,20 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const username = Deno.env.get("MOBILE_DE_USERNAME");
-  const password = Deno.env.get("MOBILE_DE_PASSWORD");
+  let scope = "standard";
+  try {
+    const body = await req.json();
+    if (body?.scope === "accident") scope = "accident";
+  } catch {
+    /* ohne Angabe: Standardkonto */
+  }
+
+  const username = Deno.env.get(
+    scope === "accident" ? "MOBILE_DE_ACCIDENT_USERNAME" : "MOBILE_DE_USERNAME",
+  );
+  const password = Deno.env.get(
+    scope === "accident" ? "MOBILE_DE_ACCIDENT_PASSWORD" : "MOBILE_DE_PASSWORD",
+  );
 
   if (!username || !password) {
     return new Response(
@@ -23,7 +35,9 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = "Basic " + btoa(`${username}:${password}`);
-  const customerId = 451040;
+  const customerId = Number(
+    (scope === "accident" ? Deno.env.get("MOBILE_DE_ACCIDENT_SELLER_ID") : null) || 451040,
+  );
   const url = `https://services.mobile.de/seller-api/sellers/${customerId}/ads`;
 
   try {
@@ -48,6 +62,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
+        scope,
         status: res.status,
         contentType,
         bodyPreview,
