@@ -20,7 +20,7 @@ import {
   Loader2,
   Share2,
 } from "lucide-react";
-import { saveBlob, downloadBlob, useIsTouchDevice, saveToastMessage, GALLERY_HINT } from "@/lib/download";
+import { saveBlob, downloadBlob, isTouchDevice, useIsTouchDevice, saveToastMessage, GALLERY_HINT } from "@/lib/download";
 import { toast } from "sonner";
 import FilterBar, { Filters } from "@/components/FilterBar";
 import ActiveFilters from "@/components/ActiveFilters";
@@ -224,15 +224,14 @@ export default function Collage() {
     done: 0,
     total: 0,
   });
+  // Teilen nur auf echten Touch-Geräten anbieten — auf dem Desktop nie.
   const [canShareFiles, setCanShareFiles] = useState(false);
 
   useEffect(() => {
     try {
       const probe = new File(["x"], "probe.txt", { type: "text/plain" });
       const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean };
-      if (typeof nav !== "undefined" && nav.canShare && nav.canShare({ files: [probe] })) {
-        setCanShareFiles(true);
-      }
+      setCanShareFiles(isTouchDevice() && !!nav.canShare?.({ files: [probe] }));
     } catch {
       setCanShareFiles(false);
     }
@@ -816,7 +815,7 @@ export default function Collage() {
             className="gap-2"
           >
             {busy === "single" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Bild speichern
+            {isTouch ? "Teilen / Speichern" : "Herunterladen"}
           </Button>
         )}
         {canShareFiles && (
