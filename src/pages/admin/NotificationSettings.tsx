@@ -216,6 +216,18 @@ export default function NotificationSettings() {
           </div>
         </div>
 
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Übergangsadresse aktiv</AlertTitle>
+          <AlertDescription>
+            Der Versand läuft aktuell noch über die bisher genutzte Absenderadresse. Die Umstellung
+            auf reller-automobile.de steht aus, sobald die Zugangsdaten für den Mailversand
+            vorliegen. Unabhängig davon bleibt gesperrt: {FORBIDDEN} kann nicht als Absender oder
+            Antwortadresse verwendet werden — diese Adresse dient ausschließlich als Empfänger.
+          </AlertDescription>
+        </Alert>
+
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label>Absenderadresse</Label>
