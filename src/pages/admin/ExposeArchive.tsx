@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { generateExposeBlob, logExposeFailure, EXPOSE_ERROR_HINT } from "@/lib/exposePdf";
+import { saveFromUrl } from "@/lib/download";
+import { materialFileName } from "@/lib/materials";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -159,22 +161,8 @@ export default function ExposeArchive() {
     return data.signedUrl;
   };
 
-  const buildFilename = (v: VehicleRow) => {
-    const brand = v.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Fahrzeug";
-    const title = v.title?.substring(0, 40).replace(/[^a-zA-Z0-9]/g, "-") || "Expose";
-    return `Reller-Expose-${brand}-${title}.pdf`;
-  };
-
-  const triggerBrowserDownload = (url: string, filename: string) => {
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.rel = "noopener noreferrer";
-    link.target = "_blank";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const buildFilename = (v: VehicleRow) =>
+    materialFileName("expose", { brand: v.brand, model: v.model, fallback: v.title });
 
   const generateExpose = async (v: VehicleRow) => {
     setBusyId(v.id);
@@ -219,8 +207,8 @@ export default function ExposeArchive() {
       }
 
       const filename = buildFilename(v);
-      const signedUrl = await getSignedUrl(path, filename);
-      triggerBrowserDownload(signedUrl, filename);
+      const signedUrl = await getSignedUrl(path);
+      await saveFromUrl(signedUrl, filename);
       toast.success("Exposé erzeugt und gespeichert");
       await loadData();
     } catch (e) {
@@ -248,8 +236,8 @@ export default function ExposeArchive() {
   const downloadExisting = async (v: VehicleRow, exp: ExposeRow) => {
     try {
       const filename = buildFilename(v);
-      const url = await getSignedUrl(exp.pdf_url, filename);
-      triggerBrowserDownload(url, filename);
+      const url = await getSignedUrl(exp.pdf_url);
+      await saveFromUrl(url, filename);
       toast.success("Download gestartet");
     } catch (e) {
       toast.error("Download fehlgeschlagen", {
