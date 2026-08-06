@@ -296,6 +296,10 @@ export default function VehiclesAdmin() {
     noImages: searchParams.get("noImages") === "1",
   }));
   const [searchInput, setSearchInput] = useState("");
+  const [groupByAccount, setGroupByAccount] = useState(
+    () => localStorage.getItem("admin.vehicles.groupByAccount") === "1",
+  );
+  const [isExporting, setIsExporting] = useState(false);
   const [page, setPage] = useState(0);
   const [sortValue, setSortValue] = useState("created_at:desc");
   const [selected, setSelected] = useState<string[]>([]);
@@ -309,6 +313,69 @@ export default function VehiclesAdmin() {
   const [isRunning, setIsRunning] = useState(false);
 
   const [sortKey, sortDir] = sortValue.split(":") as [SortKey, "asc" | "desc"];
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("admin.vehicles.groupByAccount", groupByAccount ? "1" : "0");
+    } catch {
+      /* Speicher nicht verfügbar */
+    }
+  }, [groupByAccount]);
+
+  /** Stammdaten der Mobile.de-Konten (Kurzname, Farbe, Kundennummer) */
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["platform-accounts"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_accounts")
+        .select("*")
+        .order("sort_order");
+      if (error) throw error;
+      return (data ?? []) as PlatformAccountRow[];
+    },
+  });
+
+  const mobileAccounts = useMemo(
+    () => accounts.filter((a) => a.platform === "mobile_de"),
+    [accounts],
+  );
+
+  /**
+   * Welches Konto trägt welches Fahrzeug — und passt es zur Fahrzeugart?
+   * Wird für Filter, Gruppierung und den Hinweis „falsches Konto“ gebraucht.
+   */
+  const { data: accountIndex } = useQuery({
+    queryKey: ["admin-vehicles-account-index", accounts.length],
+    enabled: accounts.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("listings")
+        .select("vehicle_id, account_key, status, vehicles!inner(vehicle_category)")
+        .eq("platform", "mobile_de")
+        .limit(5000);
+      if (error) throw error;
+      const byVehicle = new Map<string, string>();
+      const mismatch = new Set<string>();
+      for (const row of (data ?? []) as unknown as {
+        vehicle_id: string;
+        account_key: string | null;
+        status: string;
+        vehicles: { vehicle_category: string | null } | null;
+      }[]) {
+        if (!row.account_key) continue;
+        if (row.status === "not_listed") continue;
+        byVehicle.set(row.vehicle_id, row.account_key);
+        const expected = expectedAccountKey(accounts, row.vehicles?.vehicle_category ?? null);
+        if (expected && expected !== row.account_key) mismatch.add(row.vehicle_id);
+      }
+      return { byVehicle, mismatch };
+    },
+  });
+
+  const needsAccountIndex =
+    filters.account !== "all" || filters.quick === "account_mismatch";
 
   const updateFilters = useCallback((patch: Partial<Filters>) => {
     setFilters((f) => ({ ...f, ...patch }));
