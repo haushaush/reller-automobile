@@ -81,11 +81,17 @@ const ISSUE_INFO: Record<string, { label: string; fields: string[]; hint: string
     fields: ["Verkaufsstatus", "Inserat"],
     hint: "Das Fahrzeug ist im Portal als verkauft markiert, das Inserat läuft bei Mobile.de aber weiter. Bitte das Inserat beenden oder den Verkaufsstatus korrigieren. Es wird nichts automatisch beendet.",
   },
+  status_drift: {
+    label: "Reserviert-Kennzeichen weicht ab",
+    fields: ["Reservierung"],
+    hint: "Portal und Mobile.de sind sich beim Kennzeichen „Reserviert“ nicht einig. Bitte den Status im Portal neu setzen – er wird dann an Mobile.de übertragen.",
+  },
   title_drift: {
     label: "Titel stimmt nicht überein",
     fields: ["Titel"],
     hint: "Die Bezeichnung unterscheidet sich zwischen Portal und Mobile.de.",
   },
+
 };
 
 
