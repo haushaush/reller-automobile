@@ -196,6 +196,22 @@ const quickLabel = (value: QuickFilter) =>
 /** Zweite Reihe: „Nach Portal“ — "all" | "mobile_de" | "mobile_de:<konto>" | "autoscout24" | "kleinanzeigen" | "portal_only" */
 type PortalFilter = string;
 
+const PORTAL_BASE_LABELS: Record<string, string> = {
+  mobile_de: "Mobile.de",
+  autoscout24: "AutoScout24",
+  kleinanzeigen: "Kleinanzeigen",
+  portal_only: "Nur im Portal",
+};
+
+function portalFilterLabel(value: PortalFilter, accounts: PlatformAccountRow[]): string {
+  if (value.startsWith("mobile_de:")) {
+    const key = value.slice("mobile_de:".length);
+    return `Mobile.de · ${accountShortLabel(accounts, key) ?? key}`;
+  }
+  return PORTAL_BASE_LABELS[value] ?? value;
+}
+
+
 interface Filters {
   q: string;
   quick: QuickFilter;
