@@ -192,6 +192,31 @@ export function expectedAccountKey(
   return suggestAccountKey(accounts, vehicleCategory);
 }
 
+/**
+ * Ist für diese Plattform eine Schnittstelle angebunden?
+ * Ergibt sich allein aus der Händlerportal-Konfiguration (platform_accounts):
+ * sobald dort ein aktives Konto mit Zugangsdaten hinterlegt ist, gilt die
+ * Plattform als verbunden — ohne Codeänderung.
+ */
+export function connectedAccounts(
+  accounts: PlatformAccountRow[],
+  platform: ListingPlatform,
+): PlatformAccountRow[] {
+  return accounts.filter(
+    (a) =>
+      a.platform === platform &&
+      a.is_active &&
+      Boolean(a.username_secret_name && a.password_secret_name),
+  );
+}
+
+export function isPlatformConnected(
+  accounts: PlatformAccountRow[],
+  platform: ListingPlatform,
+): boolean {
+  return connectedAccounts(accounts, platform).length > 0;
+}
+
 /** Passt das genutzte Konto nicht zur Fahrzeugart? */
 export function isAccountCategoryMismatch(
   accounts: PlatformAccountRow[],

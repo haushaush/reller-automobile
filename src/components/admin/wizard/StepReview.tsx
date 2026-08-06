@@ -1,4 +1,4 @@
-import { AlertCircle, Check, Loader2, Lock, Rocket, Save } from "lucide-react";
+import { AlertCircle, Check, Link2, Loader2, Lock, Rocket, Save, Unlink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,11 +7,46 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import type { PlatformAccountRow } from "@/lib/listings";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  accountShortLabel,
+  isPlatformConnected,
+  type PlatformAccountRow,
+} from "@/lib/listings";
+import AdPreview from "./AdPreview";
 import {
   type FormState, type RequiredField, REQUIRED_FIELDS, isFieldFilled,
   CATEGORY_LABELS, FUEL_LABELS, GEARBOX_LABELS, labelFor,
 } from "@/lib/mobileAdForm";
+
+/**
+ * Kurze Statusanzeige neben dem Plattformnamen. Der Zustand kommt aus der
+ * Portal-Konfiguration — sobald eine Schnittstelle angebunden ist, steht hier
+ * von selbst „Verbunden“.
+ */
+function ConnectionBadge({ connected, detail }: { connected: boolean; detail?: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant={connected ? "secondary" : "outline"}
+          className={`gap-1 font-normal ${connected ? "" : "border-dashed text-muted-foreground"}`}
+        >
+          {connected ? <Link2 className="h-3 w-3" /> : <Unlink className="h-3 w-3" />}
+          {connected ? "Verbunden" : "Verknüpfung fehlt"}
+          {connected && detail ? ` · ${detail}` : ""}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[260px]">
+        <p className="text-xs">
+          {connected
+            ? "Schnittstelle ist angebunden — das Inserat wird automatisch angelegt."
+            : "Keine Schnittstelle angebunden. Das Inserat müssen Sie dort von Hand erstellen — wir legen dafür eine Aufgabe unter „Offene Aufgaben“ an."}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 interface Props {
   form: FormState;
@@ -60,7 +95,17 @@ export default function StepReview({
         <h2 className="text-lg font-medium">Wo soll das Fahrzeug erscheinen?</h2>
 
         <div className="space-y-2">
-          <Label>Mobile.de — Konto</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Label>Mobile.de</Label>
+            <ConnectionBadge
+              connected
+              detail={
+                accountShortLabel(accounts, accountKey) ??
+                mobileAccounts.find((a) => a.account_key === accountKey)?.label ??
+                undefined
+              }
+            />
+          </div>
           <Select value={accountKey} onValueChange={onAccountKey}>
             <SelectTrigger className="max-w-md">
               <SelectValue placeholder="Konto wählen" />
@@ -78,36 +123,30 @@ export default function StepReview({
         </div>
 
         <div className="space-y-3 border-t pt-4">
-          <div className="flex items-start gap-3">
-            <Checkbox
-              id="pf-as24"
-              checked={manual.autoscout24}
-              onCheckedChange={(c) => onManual({ autoscout24: c === true })}
-            />
-            <Label htmlFor="pf-as24" className="font-normal cursor-pointer">
-              AutoScout24
-              <span className="block text-sm text-muted-foreground">
-                Wird als „Nicht inseriert“ angelegt. Das Inserat müssen Sie dort von Hand erstellen —
-                wir legen dafür eine Aufgabe unter „Zu erledigen“ an.
-              </span>
-            </Label>
-          </div>
-          <div className="flex items-start gap-3">
-            <Checkbox
-              id="pf-ka"
-              checked={manual.kleinanzeigen}
-              onCheckedChange={(c) => onManual({ kleinanzeigen: c === true })}
-            />
-            <Label htmlFor="pf-ka" className="font-normal cursor-pointer">
-              Kleinanzeigen
-              <span className="block text-sm text-muted-foreground">
-                Wird als „Nicht inseriert“ angelegt. Das Inserat müssen Sie dort von Hand erstellen —
-                wir legen dafür eine Aufgabe unter „Zu erledigen“ an.
-              </span>
-            </Label>
-          </div>
+          {(
+            [
+              { id: "autoscout24", key: "autoscout24", label: "AutoScout24" },
+              { id: "kleinanzeigen", key: "kleinanzeigen", label: "Kleinanzeigen" },
+            ] as const
+          ).map((p) => {
+            const connected = isPlatformConnected(accounts, p.key);
+            return (
+              <div key={p.id} className="flex items-center gap-3">
+                <Checkbox
+                  id={`pf-${p.id}`}
+                  checked={manual[p.id]}
+                  onCheckedChange={(c) => onManual({ [p.id]: c === true })}
+                />
+                <Label htmlFor={`pf-${p.id}`} className="flex flex-wrap items-center gap-2 font-normal cursor-pointer">
+                  {p.label}
+                  <ConnectionBadge connected={connected} />
+                </Label>
+              </div>
+            );
+          })}
         </div>
       </Card>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6 space-y-3">
@@ -173,6 +212,18 @@ export default function StepReview({
           </div>
         </Card>
       </div>
+
+      <AdPreview
+        form={form}
+        makeName={makeName}
+        modelName={modelName}
+        imagePaths={imagePaths}
+        previews={previews}
+        accounts={accounts}
+        accountKey={accountKey}
+        manual={manual}
+        onJump={onJump}
+      />
 
       <Card className="p-6 space-y-3">
         <div className="flex flex-wrap gap-3">
