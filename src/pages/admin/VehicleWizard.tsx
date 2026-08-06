@@ -32,19 +32,42 @@ const STEPS = [
 
 interface DraftCandidate { id: string; title: string; updated_at: string }
 
+export interface PublishIssue {
+  /** Fertiger deutscher Satz */
+  message: string;
+  /** Kurzkennung für den Support, z. B. MD-7K3Q */
+  code?: string;
+  /** Zugehöriges Eingabefeld, falls zuordenbar */
+  field?: RequiredField | null;
+}
+
 export interface PublishError {
   message: string;
+  /** Kennung der Gesamtmeldung, steht so auch im Protokoll */
+  errorId?: string;
   fields: RequiredField[];
+  issues: PublishIssue[];
+}
+
+interface ResponseIssue {
+  message?: string;
+  code?: string;
+  field?: { form?: string; label?: string; section?: string } | null;
 }
 
 interface PublishResponse {
   ok?: boolean;
   success?: boolean;
   error?: string;
+  errorId?: string;
   needsPriceConfirmation?: boolean;
   mobileWarnings?: string[];
+  alreadyExisted?: boolean;
+  message?: string;
+  issues?: ResponseIssue[];
   missingFields?: { form: string; label: string; section: string }[];
 }
+
 
 /** Wurde im Assistenten überhaupt schon etwas erfasst? */
 function isBlankDraft(form: FormState, imagePaths: string[]): boolean {
