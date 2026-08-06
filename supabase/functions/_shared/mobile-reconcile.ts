@@ -307,6 +307,17 @@ export async function reconcile(
     matched++;
     if (!v) continue;
 
+    if (v.is_sold === true) {
+      const soldAt = v.sold_at ? new Date(String(v.sold_at)).toLocaleDateString("de-DE") : "unbekannt";
+      issues.push({
+        vehicle_id: v.id, mobile_ad_id: ad.mobileAdId, scope,
+        issue_type: "sold_but_listed", severity: "error",
+        detail: `Fahrzeug „${v.title ?? ad.title}“ ist im Portal als verkauft markiert (Verkauft am: ${soldAt}), das Inserat steht auf Konto „${accountKey}“ aber noch online. Bitte prüfen – es wird nichts automatisch beendet.`,
+      });
+    }
+
+
+
     const priceLocal = typeof v.price === "number" ? v.price : null;
     if (ad.price !== null && priceLocal !== null && Math.abs(ad.price - priceLocal) >= 1) {
       issues.push({
