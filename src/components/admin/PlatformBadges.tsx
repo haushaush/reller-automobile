@@ -4,30 +4,55 @@ import {
   LISTING_STATUS_LABELS,
   PLATFORM_LABELS,
   PLATFORM_ORDER,
-  PLATFORM_SHORT,
-  accountBadgeClass,
   accountShortLabel,
   findAccount,
   isAccountCategoryMismatch,
+  type ListingPlatform,
   type ListingStatus,
   type ListingSummary,
   type PlatformAccountRow,
 } from "@/lib/listings";
 
 /**
- * Kompakte Plattform-Kürzel eines Fahrzeugs, eingefärbt nach Status.
- * online = kräftig, pausiert = blass, Fehler = rot, nicht inseriert = grauer Umriss.
- * Bei Mobile.de wird zusätzlich das genutzte Konto angehängt.
+ * Kompakte Plattform-Kürzel eines Fahrzeugs in den offiziellen Markenfarben:
+ * Mobile.de Orange (#FF5A00), AutoScout24 Gelb (#FFED00), Kleinanzeigen Grün (#3AA935).
+ * Alle drei sind helle Farben, deshalb durchgehend dunkle Schrift — das bleibt
+ * in hellem wie dunklem Modus gut lesbar.
+ * Pausiert = blass, Fehler = rot, beendet = grau, nicht inseriert = grauer Umriss.
  */
-const STATUS_CLASSES: Record<ListingStatus, string> = {
-  live: "bg-emerald-600 text-white border-emerald-600",
-  publishing: "bg-sky-500 text-white border-sky-500",
-  draft: "bg-secondary text-secondary-foreground border-transparent",
-  paused: "bg-emerald-600/25 text-emerald-700 dark:text-emerald-300 border-transparent",
-  error: "bg-destructive text-destructive-foreground border-destructive",
-  ended: "bg-muted text-muted-foreground border-transparent",
-  not_listed: "bg-transparent text-muted-foreground border-border border-dashed",
+const BRAND_CLASSES: Record<ListingPlatform, string> = {
+  mobile_de: "bg-[#FF5A00] text-[#1A1A1A] border-[#E24F00]",
+  autoscout24: "bg-[#FFED00] text-[#1A1A1A] border-[#E0D000]",
+  kleinanzeigen: "bg-[#3AA935] text-[#0B1F0A] border-[#2E8A2A]",
 };
+
+/** Kürzel laut Vorgabe: M, AS, KA */
+const SHORT: Record<ListingPlatform, string> = {
+  mobile_de: "M",
+  autoscout24: "AS",
+  kleinanzeigen: "KA",
+};
+
+function badgeClass(platform: ListingPlatform, status: ListingStatus): string {
+  switch (status) {
+    case "not_listed":
+      return "bg-transparent text-muted-foreground border-border border-dashed";
+    case "error":
+      return "bg-destructive text-destructive-foreground border-destructive";
+    case "ended":
+      return "bg-muted text-muted-foreground border-transparent";
+    case "paused":
+      return `${BRAND_CLASSES[platform]} opacity-60`;
+    default:
+      return BRAND_CLASSES[platform];
+  }
+}
+
+/** „Hauptkonto“ → „Haupt“, „Unfallkonto“ → „Unfall“ */
+function accountArt(short: string | null): string | null {
+  if (!short) return null;
+  return short.replace(/konto$/i, "").trim() || short;
+}
 
 interface Props {
   listings: ListingSummary[] | undefined;
@@ -73,9 +98,8 @@ export default function PlatformBadges({
       {visible.map((l) => {
         const account =
           l.platform === "mobile_de" ? findAccount(accounts, "mobile_de", l.account_key) : undefined;
-        const short = account
-          ? accountShortLabel(accounts, l.account_key) ?? ""
-          : null;
+        const short = account ? accountShortLabel(accounts, l.account_key) ?? "" : null;
+        const art = l.status === "not_listed" ? null : accountArt(short);
         const mismatch =
           l.platform === "mobile_de" &&
           l.status !== "not_listed" &&
@@ -88,21 +112,14 @@ export default function PlatformBadges({
                 aria-label={`${PLATFORM_LABELS[l.platform]}: ${LISTING_STATUS_LABELS[l.status]}${
                   short ? ` · Konto: ${short}` : ""
                 }`}
-                className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold leading-none tracking-wide ${
-                  STATUS_CLASSES[l.status]
-                }`}
+                className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold leading-none tracking-wide ${badgeClass(
+                  l.platform,
+                  l.status,
+                )}`}
               >
-                <span>{PLATFORM_SHORT[l.platform]}</span>
-                {short && (
-                  <span
-                    className={`rounded-sm px-1 py-[1px] text-[9px] font-medium ${accountBadgeClass(
-                      account?.badge_color,
-                    )}`}
-                  >
-                    {short.replace(/konto$/i, "")}
-                  </span>
-                )}
-                {mismatch && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                <span>{SHORT[l.platform]}</span>
+                {art && <span className="font-medium opacity-90">{art}</span>}
+                {mismatch && <AlertTriangle className="h-3 w-3 text-amber-600" />}
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[260px]">
