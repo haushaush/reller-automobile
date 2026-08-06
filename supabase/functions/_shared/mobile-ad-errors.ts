@@ -196,12 +196,12 @@ export function parseMobileErrors(
       (typeof e.message === "string" && e.message.trim()) ||
       (typeof e.description === "string" && e.description.trim()) ||
       "";
-    const body = template
+    const sentence = template
       ? template.replace(/\{value\}/g, value ?? "—")
       : rawText || `Mobile.de meldet: ${key}`;
 
     const label = field?.label ?? (path ? normalizeFieldPath(path) : null);
-    const message = label ? `${label}: ${body}` : body;
+    const message = label ? `${label}: ${sentence}` : sentence;
 
     issues.push({
       key, path, value, field, message,
