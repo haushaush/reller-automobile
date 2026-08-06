@@ -440,25 +440,41 @@ export default function VehicleWizard() {
           setPriceConfirm(detail.error || "Bitte den Preis bestätigen.");
           return;
         }
-        const fields = detail?.missingFields ?? [];
+        const toRef = (f?: { form?: string; label?: string; section?: string } | null) =>
+          f?.form && f.label
+            ? { field: f.form, label: f.label, section: f.section as RequiredField["section"] }
+            : null;
+        const issues: PublishIssue[] = (detail?.issues ?? []).map((i) => ({
+          message: i.message ?? "Mobile.de hat die Angabe abgelehnt.",
+          code: i.code,
+          field: toRef(i.field),
+        }));
+        const fields = (detail?.missingFields ?? []).map((f) => ({
+          field: f.form,
+          label: f.label,
+          section: f.section as RequiredField["section"],
+        }));
+        const headline =
+          detail?.error || error?.message || "Das Inserat konnte nicht übertragen werden.";
         setPublishError({
-          message: detail?.error || error?.message || "Veröffentlichen fehlgeschlagen",
-          fields: fields.map((f) => ({
-            field: f.form,
-            label: f.label,
-            section: f.section as RequiredField["section"],
-          })),
+          message: headline,
+          errorId: detail?.errorId,
+          fields,
+          issues,
         });
-        toast.error(detail?.error || error?.message || "Veröffentlichen fehlgeschlagen");
+        toast.error(headline, {
+          description: detail?.errorId ? `Kennung: ${detail.errorId}` : undefined,
+        });
         return;
       }
       setPublishError(null);
       setPublished(true);
       const warnings = d?.mobileWarnings ?? [];
-      toast.success("Fahrzeug wurde bei Mobile.de veröffentlicht.");
+      toast.success(d?.message || "Fahrzeug wurde bei Mobile.de veröffentlicht.");
       if (warnings.length) {
         toast.info(`Hinweise von Mobile.de: ${warnings.join(" · ")}`, { duration: 8000 });
       }
+
       setDirty(false);
       // Liste neu laden, damit das Fahrzeug ohne manuelles Aktualisieren erscheint
       await queryClient.invalidateQueries({ queryKey: ["admin-vehicles"] });
