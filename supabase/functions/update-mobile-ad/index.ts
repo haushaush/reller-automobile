@@ -404,15 +404,28 @@ Deno.serve((req) => withAccountLock(async () => {
     const putText = await putRes.text();
     console.log(`Mobile.de PUT status=${putRes.status}`);
     if (!(putRes.status >= 200 && putRes.status < 300)) {
-      console.error(`PUT failed body=${putText.slice(0, 800)}`);
-      let parsed: unknown = putText;
-      try { parsed = JSON.parse(putText); } catch { /* keep text */ }
-      const human = typeof parsed === "object" && parsed && "errors" in (parsed as Record<string, unknown>)
-        ? JSON.stringify((parsed as Record<string, unknown>).errors) : putText.slice(0, 500);
-      await failVehicle(human);
-      await logPush("update", finalBody, putRes.status, putText);
-      return json(putRes.status, { error: "Mobile.de hat das Update abgelehnt", status: putRes.status, details: parsed });
+      const texts = await loadMobileErrorTexts(MOBILE_USER, MOBILE_PASS);
+      const issues: AdIssue[] = parseMobileErrors(putText, {
+        texts,
+        onUnknownKey: (key) =>
+          console.error(`Unbekannter Mobile.de-Fehlerschlüssel ohne Übersetzung: "${key}"`),
+      });
+      const summary = summarizeIssues(issues);
+      const errorId = messageCode(`update:${putRes.status}`, summary);
+      console.error(`[${errorId}] PUT failed ${putRes.status} body=${putText.slice(0, 800)}`);
+      for (const i of issues) console.error(`[${i.code}] ${i.key} path=${i.path ?? "-"}`);
+      await failVehicle(issues.map((i) => i.message).join(" · ") || summary);
+      await logPush("update", finalBody, putRes.status, `[${errorId}] ${putText}`);
+      return json(400, {
+        error: summary,
+        errorId,
+        issues: issues.map((i) => ({
+          key: i.key, path: i.path, value: i.value, message: i.message,
+          code: i.code, field: i.field,
+        })),
+      });
     }
+
 
     // 5) Verify GET
     let verifiedAd: AdPayload | null = null;
