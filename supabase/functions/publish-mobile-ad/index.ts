@@ -664,36 +664,24 @@ Deno.serve((req) => withAccountLock(async () => {
     }
 
 
-    // ── Step 1: upload images one by one (skip individual failures) ──
-    const refs: string[] = [];
-    const skipped: { index: number; path: string; reason: string }[] = [];
-    for (let i = 0; i < imagePaths.length; i++) {
-      const p = imagePaths[i];
-      try {
-        const { data: file, error: dlErr } = await admin.storage
-          .from("mobile-ad-images")
-          .download(p);
-        if (dlErr || !file) throw new Error(`Storage download failed: ${dlErr?.message}`);
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const origFormat = detectFormat(bytes);
-        const origSize = bytes.byteLength;
-        const jpeg = await ensureJpegUnder2MB(bytes);
-        console.log(
-          `Image ${i + 1}/${imagePaths.length} ${p}: original=${origFormat} ${origSize}B -> jpeg ${jpeg.byteLength}B`,
-        );
-        const filename = (p.split("/").pop() ?? `image_${i}.jpg`).replace(/\.[^.]+$/, ".jpg");
-        const ref = await uploadOneImage(jpeg, filename);
-        refs.push(ref);
-      } catch (e) {
-        const msg = (e as Error).message || String(e);
-        console.error(`Image ${i + 1} (${p}) skipped: ${msg}`);
-        skipped.push({ index: i + 1, path: p, reason: msg });
-      }
+    // ── Schritt 1: Bilder — bereits vorab hochgeladene Referenzen nutzen ──
+    // Der Assistent überträgt die Fotos schon beim Speichern (Schritt 1).
+    // Fehlt eine Referenz, wird sie hier nachgeholt.
+    const knownRefs = (payload._imageRefs ?? {}) as Record<string, string>;
+    const upload = await uploadVehicleImages(admin, basicAuth(), imagePaths, knownRefs);
+    if (upload.uploaded > 0) {
+      await storeImageRefs(admin, vehicleId, upload.refs);
     }
-    console.log(`Image upload summary: imagePaths=${imagePaths.length}, refs=${refs.length}, skipped=${skipped.length}`);
-    if (skipped.length) {
-      console.warn(`Skipped ${skipped.length}/${imagePaths.length} image(s):`, skipped);
-    }
+    const refs: string[] = imagePaths.map((p) => upload.refs[p]).filter(Boolean);
+    const skipped = upload.skipped.map((s) => ({
+      index: imagePaths.indexOf(s.path) + 1,
+      path: s.path,
+      reason: s.reason,
+    }));
+    console.log(
+      `Bilder: gesamt=${imagePaths.length} vorab=${upload.reused} neu=${upload.uploaded} übersprungen=${skipped.length}`,
+    );
+
 
     if (imagePaths.length > 0 && refs.length === 0) {
       const msg = `Kein Bild konnte zu Mobile.de hochgeladen werden. ${skipped.map((s) => `#${s.index}: ${s.reason}`).join("; ")}`;
