@@ -900,18 +900,10 @@ export default function VehiclesAdmin() {
         ),
     });
 
-  const toggleFeatured = async (v: AdminVehicleRow) => {
-    const { error } = await supabase
-      .from("vehicles")
-      .update({ is_featured: !v.is_featured } as never)
-      .eq("id", v.id);
-    if (error) return toast.error(error.message);
-    await logVehicleAudit(v.id, [
-      { action: "feature_toggle", field: "is_featured", newValue: !v.is_featured },
-    ]);
-    toast.success(!v.is_featured ? "Auf Startseite hervorgehoben" : "Hervorhebung entfernt");
-    refresh();
-  };
+  // Hinweis: „Auf Startseite hervorheben“ wurde aus dem Aktionsmenü entfernt.
+  // Die Hervorhebung bleibt in der Fahrzeugdetailseite bearbeitbar.
+
+
 
   const accountKeyFor = (id: string) => accountIndex?.byVehicle.get(id) ?? null;
   const accountNameFor = (id: string) => {
