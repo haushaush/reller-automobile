@@ -171,21 +171,35 @@ type QuickFilter =
   | "sold"
   | "attention"
   | "account_mismatch"
-  | "archived";
+  | "archived"
+  | "deleted";
 
+/** Erste Reihe: Zustand des Fahrzeugs */
 const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "all", label: "Alle" },
-  { value: "not_listed", label: "Nicht inseriert" },
   { value: "reserved", label: "Reserviert" },
   { value: "sold", label: "Verkauft" },
+  { value: "archived", label: "Archiviert" },
+  { value: "deleted", label: "Gelöscht" },
+];
+
+/** Filter, die nur über Verweise aus dem Überblick erreichbar sind */
+const EXTRA_QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
+  { value: "not_listed", label: "Nicht inseriert" },
   { value: "attention", label: "Braucht Aufmerksamkeit" },
   { value: "account_mismatch", label: "Konto passt nicht zur Fahrzeugart" },
-  { value: "archived", label: "Archiviert" },
 ];
+
+const quickLabel = (value: QuickFilter) =>
+  [...QUICK_FILTERS, ...EXTRA_QUICK_FILTERS].find((q) => q.value === value)?.label ?? value;
+
+/** Zweite Reihe: „Nach Portal“ — "all" | "mobile_de" | "mobile_de:<konto>" | "autoscout24" | "kleinanzeigen" | "portal_only" */
+type PortalFilter = string;
 
 interface Filters {
   q: string;
   quick: QuickFilter;
+  portal: PortalFilter;
   /** Mobile.de-Konto: "all" oder account_key */
   account: string;
   category: string;
@@ -202,6 +216,7 @@ interface Filters {
 const EMPTY_FILTERS: Filters = {
   q: "",
   quick: "all",
+  portal: "all",
   account: "all",
   category: "all",
   publish: "all",
@@ -213,6 +228,7 @@ const EMPTY_FILTERS: Filters = {
   mileageMax: "",
   noImages: false,
 };
+
 
 /* ---------- optionale Spalten ---------- */
 
