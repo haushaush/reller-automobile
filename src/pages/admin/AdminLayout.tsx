@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MAIN_NAV, SETTINGS_NAV, type AdminNavEntry } from "@/lib/adminNav";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function AdminLayout() {
   const { user, isAdmin, signOut } = useAuth();
