@@ -199,16 +199,26 @@ export default function VehicleWizard() {
       if (!opts?.silent) toast.info("Noch nichts einzugeben — bitte zuerst Daten erfassen.");
       return null;
     }
+    const publicMap = publicUrlsRef.current;
+    const customUrls = paths.map((p) => publicMap[p]).filter(Boolean);
     const payload = {
       ...buildVehiclePayload(f),
       _imagePaths: paths,
+      _imagePublicUrls: publicMap,
       _wizardStep: opts?.step ?? stateRef.current.step,
     };
-    const columns = buildVehicleColumnsFor(
-      f,
-      refdata.makes.find((m) => m.key === f.make)?.name ?? f.make,
-      refdata.models.find((m) => m.key === f.model)?.name ?? f.model,
-    );
+    const columns = {
+      ...buildVehicleColumnsFor(
+        f,
+        refdata.makes.find((m) => m.key === f.make)?.name ?? f.make,
+        refdata.models.find((m) => m.key === f.model)?.name ?? f.model,
+      ),
+      // Bilder immer direkt am Fahrzeug speichern — unabhängig davon, ob
+      // später veröffentlicht wird.
+      custom_image_urls: customUrls,
+      image_order: customUrls,
+    };
+
     setSaving(true);
     try {
       if (id) {
