@@ -9,6 +9,7 @@ const SELLER_ID = Deno.env.get("MOBILE_DE_ACCIDENT_SELLER_ID") || "451040";
 const LOCK_NAME = "mobile-de-reconcile-accident";
 
 Deno.serve(async (req) => {
+  const dryRun = new URL(req.url).searchParams.get("dry") === "1";
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
@@ -78,7 +79,7 @@ Deno.serve(async (req) => {
     const result = await reconcile(supabase, ads, "accident", {
       accountKey: "unfall",
       claimLegacyVehicles: false,
-      allowUnpublish: !suspiciouslySmall,
+      allowUnpublish: !suspiciouslySmall && !dryRun,
     });
     console.log(`Accident reconcile done: ${JSON.stringify(result)}`);
 
