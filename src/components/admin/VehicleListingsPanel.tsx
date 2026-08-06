@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, ExternalLink, Loader2, Lock } from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2, Lock, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -55,6 +55,40 @@ export default function VehicleListingsPanel({ vehicleId, vehicleCategory }: Pro
   const queryClient = useQueryClient();
   const [savingId, setSavingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, { external_url: string; note: string }>>({});
+  const [retrying, setRetrying] = useState(false);
+
+  const { data: vehicle } = useQuery({
+    queryKey: ["vehicle-sale-status", vehicleId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("is_sold, reserved_at")
+        .eq("id", vehicleId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { is_sold: boolean | null; reserved_at: string | null } | null;
+    },
+  });
+
+  /** Erneuter Versuch, den Portalstatus an Mobile.de zu übertragen. */
+  const retryPush = async () => {
+    setRetrying(true);
+    try {
+      const target = vehicle?.is_sold ? "sold" : vehicle?.reserved_at ? "reserved" : "available";
+      const { data, error } = await supabase.functions.invoke("set-mobile-ad-status", {
+        body: { vehicleId, target },
+      });
+      if (error) throw new Error(error.message);
+      const result = (data ?? {}) as { ok?: boolean; error?: string };
+      if (result.ok === false) throw new Error(result.error ?? "unbekannter Fehler");
+      toast.success("Status wurde an Mobile.de übertragen.");
+      queryClient.invalidateQueries({ queryKey: ["vehicle-listings", vehicleId] });
+    } catch (e) {
+      toast.error(`Übertragung fehlgeschlagen: ${(e as Error).message}`);
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["platform-accounts"],
@@ -232,6 +266,21 @@ export default function VehicleListingsPanel({ vehicleId, vehicleCategory }: Pro
 
             {listing.error_message && (
               <p className="text-xs text-destructive">{listing.error_message}</p>
+            )}
+
+            {platform === "mobile_de" && listing.status === "error" && (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                <p className="text-xs text-destructive">
+                  Änderung noch nicht an Mobile.de übertragen.
+                </p>
+                <Button size="sm" variant="outline" className="ml-auto" disabled={retrying} onClick={retryPush}>
+                  {retrying
+                    ? <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    : <RefreshCw className="mr-2 h-3 w-3" />}
+                  Erneut versuchen
+                </Button>
+              </div>
             )}
 
             {locked && isAccountLocked(listing) && (

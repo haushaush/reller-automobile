@@ -10,6 +10,7 @@ export interface SellerAd {
   price: number | null;
   mileage: number | null;
   detailPageUrl: string | null;
+  reserved: boolean | null;
   title: string;
   raw: Record<string, unknown>;
 }
@@ -43,6 +44,9 @@ function normalizeAd(raw: Record<string, unknown>): SellerAd | null {
     price: toNum(priceObj.consumerPriceGross ?? priceObj.consumerValue ?? raw.price),
     mileage: toNum(raw.mileage),
     detailPageUrl: (raw.detailPageUrl as string) ?? null,
+    reserved: typeof raw.reserved === "boolean"
+      ? raw.reserved
+      : (raw.reserved === "true" ? true : raw.reserved === "false" ? false : null),
     title: [raw.make, raw.model, raw.modelDescription].filter(Boolean).join(" ") || String(id),
     raw,
   };
@@ -224,7 +228,7 @@ export async function reconcile(
 
   const { data: rows } = await supabase
     .from("vehicles")
-    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at, is_test")
+    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at, reserved_at, is_test")
     .eq("is_test", false);
   const vehicles = (rows ?? []) as Array<Record<string, unknown>>;
 
@@ -335,6 +339,20 @@ export async function reconcile(
     }
 
 
+
+    // Reserviert-Kennzeichen: Portal gegen Mobile.de
+    if (ad.reserved !== null && v.is_sold !== true) {
+      const reservedLocal = !!v.reserved_at;
+      if (reservedLocal !== ad.reserved) {
+        issues.push({
+          vehicle_id: v.id, mobile_ad_id: ad.mobileAdId, scope,
+          issue_type: "status_drift", severity: "warning",
+          detail: reservedLocal
+            ? `Portal führt „${v.title ?? ad.title}“ als reserviert, auf Mobile.de ist das Inserat nicht als reserviert gekennzeichnet.`
+            : `Mobile.de kennzeichnet „${v.title ?? ad.title}“ als reserviert, im Portal ist das Fahrzeug verfügbar.`,
+        });
+      }
+    }
 
     const priceLocal = typeof v.price === "number" ? v.price : null;
     if (ad.price !== null && priceLocal !== null && Math.abs(ad.price - priceLocal) >= 1) {
