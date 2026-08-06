@@ -75,7 +75,11 @@ Deno.serve(async (req) => {
       .from("vehicles").select("id", { count: "exact", head: true }).eq("publish_status", "published");
     if (countError) throw countError;
     const suspiciouslySmall = (publishedCount ?? 0) > 0 && ads.length < (publishedCount ?? 0) * 0.5;
-    const result = await reconcile(supabase, ads, "accident", !suspiciouslySmall);
+    const result = await reconcile(supabase, ads, "accident", {
+      accountKey: "unfall",
+      claimLegacyVehicles: false,
+      allowUnpublish: !suspiciouslySmall,
+    });
     console.log(`Accident reconcile done: ${JSON.stringify(result)}`);
 
     finalStatus = suspiciouslySmall || error ? "success_with_warning" : "success";
