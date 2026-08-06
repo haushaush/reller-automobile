@@ -37,6 +37,8 @@ import {
   accountShortLabel,
   expectedAccountKey,
   loadListingOverview,
+  publicListingUrl,
+
   vehicleSaleStatus,
   SALE_STATUS_LABELS,
   type VehicleSaleStatus,
