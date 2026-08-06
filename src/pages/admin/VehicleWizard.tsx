@@ -465,9 +465,9 @@ export default function VehicleWizard() {
           onAccountKey={setAccountKey}
           manual={manual}
           onManual={(p) => setManual((m) => ({ ...m, ...p }))}
-          saving={saving}
+          saving={saving || published}
           onSaveDraft={async () => { await persist(); navigate("/admin/fahrzeuge"); }}
-          onPublish={publish}
+          onPublish={() => void publish()}
           onJump={jumpToField}
           publishError={publishError}
         />
