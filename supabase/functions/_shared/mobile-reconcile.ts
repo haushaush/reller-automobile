@@ -152,13 +152,16 @@ export async function fetchSellerAds(
     }
 
     const next = nextHref(json);
+    const hasPaginationHint = Object.keys(pickPaginationInfo(json)).length > 0;
     if (next) {
       url = next.startsWith("http") ? next : `https://services.mobile.de${next.startsWith("/") ? "" : "/"}${next}`;
-    } else if (arr.length === 0) {
+    } else if (arr.length === 0 || !hasPaginationHint) {
+      // Antwort enthält weder Folge-Link noch Paginierungsangaben: vollständige Liste.
       return { ads, pages: page, rootKeys };
     } else {
       url = `${API_BASE}/sellers/${sellerId}/ads?page.size=${pageSize}&page.number=${page + 1}`;
     }
+
     page++;
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
