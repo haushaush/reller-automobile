@@ -61,22 +61,24 @@ function Section({
   children,
 }: {
   title: string;
-  section: RequiredField["section"];
-  label: string;
-  onJump: Props["onJump"];
+  section?: RequiredField["section"];
+  label?: string;
+  onJump?: Props["onJump"];
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-3 border-t pt-4 first:border-t-0 first:pt-0">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium">{title}</h3>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-          onClick={() => onJump({ field: "make", label, section })}
-        >
-          <Pencil className="h-3 w-3" /> Bearbeiten
-        </button>
+        {section && onJump && (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            onClick={() => onJump({ field: "make", label: label ?? title, section })}
+          >
+            <Pencil className="h-3 w-3" /> Bearbeiten
+          </button>
+        )}
       </div>
       {children}
     </div>
@@ -269,7 +271,7 @@ export default function AdPreview({
         )}
       </Section>
 
-      <Section title="Zielplattformen" section="basis" label="Plattformen" onJump={onJump}>
+      <Section title="Zielplattformen">
         <ul className="flex flex-wrap gap-2">
           {platforms.map((p) => (
             <li key={p.name}>
