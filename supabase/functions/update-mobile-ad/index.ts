@@ -1,6 +1,7 @@
 // Update a live Mobile.de ad. Admin-only. Bilder werden NICHT verändert.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { stripECarFields } from "../_shared/mobile-ecar.ts";
 import {
   resolveMobileAccount,
   syncMobileListing,
@@ -380,6 +381,14 @@ Deno.serve((req) => withAccountLock(async () => {
     const hadConsumerValue =
       !!(currentMobileAd.price && typeof currentMobileAd.price === "object" &&
         ("consumerValue" in (currentMobileAd.price as Record<string, unknown>)));
+    // Elektro-Felder nur bei elektrischem/hybridem Antrieb senden
+    {
+      const removedECar = stripECarFields(finalBody as Record<string, unknown>, finalBody.fuel);
+      if (removedECar.length) {
+        console.log(`Elektro-Felder entfernt (Antrieb ${String(finalBody.fuel ?? "?")}): ${removedECar.join(", ")}`);
+        warnings.push(`Elektro-Felder nicht gesendet (kein E-/Hybridantrieb): ${removedECar.join(", ")}`);
+      }
+    }
     finalBody.price = stripInvalidPriceFields(normalizedPrice);
     delete (finalBody.price as Record<string, unknown>).consumerValue;
 
