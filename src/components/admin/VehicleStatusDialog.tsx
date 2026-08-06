@@ -107,36 +107,12 @@ export default function VehicleStatusDialog({
   const apply = async () => {
     setRunning(true);
     try {
-      const now = new Date().toISOString();
-      const patch =
-        target === "sold"
-          ? { is_sold: true, sold_at: now, reserved_at: null, reserved_note: null }
-          : target === "reserved"
-            ? { is_sold: false, sold_at: null, reserved_at: now }
-            : { is_sold: false, sold_at: null, reserved_at: null, reserved_note: null };
-
-      // 1) Mobile.de automatisch nachziehen
-      if (target === "sold") {
-        if (mobileLive) {
-          const { error: fnErr } = await supabase.functions.invoke("delete-mobile-ad", {
-            body: { vehicleId, markSold: true },
-          });
-          if (fnErr) throw new Error(`Mobile.de: ${fnErr.message}`);
-        }
-        if (mobile) {
-          await supabase
-            .from("listings")
-            .update({ status: "ended", error_message: null } as never)
-            .eq("id", mobile.id);
-        }
-      }
-
-      // 2) Fahrzeugstatus setzen
-      const { error } = await supabase
-        .from("vehicles")
-        .update(patch as never)
-        .eq("id", vehicleId);
-      if (error) throw error;
+      // Portalstatus setzen UND an Mobile.de übertragen (verfügbar/reserviert = PUT, verkauft = Inserat beenden)
+      const { data, error } = await supabase.functions.invoke("set-mobile-ad-status", {
+        body: { vehicleId, target },
+      });
+      if (error) throw new Error(error.message);
+      const result = (data ?? {}) as { ok?: boolean; pushed?: boolean; error?: string };
 
       await logVehicleAudit(vehicleId, [
         {
@@ -164,11 +140,20 @@ export default function VehicleStatusDialog({
         `${vehicleTitle}: Status auf „${SALE_STATUS_LABELS[target]}“ geändert`,
       );
 
-      toast.success(
-        count > 0
-          ? `Status geändert. ${count} offene(r) Handgriff(e) wurden für Sie notiert.`
-          : "Status geändert.",
-      );
+      if (result.ok === false) {
+        toast.error(
+          `Status im Portal gesetzt, aber noch nicht an Mobile.de übertragen: ${result.error ?? "unbekannter Fehler"}`,
+        );
+      } else {
+        toast.success(
+          count > 0
+            ? `Status geändert. ${count} offene(r) Handgriff(e) wurden für Sie notiert.`
+            : result.pushed
+              ? "Status geändert und an Mobile.de übertragen."
+              : "Status geändert.",
+        );
+      }
+
       onOpenChange(false);
       onDone?.();
     } catch (e) {
