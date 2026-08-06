@@ -17,9 +17,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  MATERIAL_BUCKETS,
   MATERIAL_LABELS,
-  safeFileName,
-  shareOrDownloadUrl,
+  createSignedMaterialUrl,
+  describeStorageError,
+  downloadFromUrl,
+  materialFileName,
+  storagePathFromValue,
   type MaterialKind,
 } from "@/lib/materials";
 
@@ -28,11 +32,13 @@ interface MaterialRow {
   kind: MaterialKind;
   vehicleId: string;
   vehicleTitle: string;
+  vehicleBrand: string | null;
+  vehicleModel: string | null;
   createdAt: string;
-  /** Bild-URL bzw. beim Exposé der Storage-Pfad. */
-  url: string | null;
+  /** Storage-Pfad im Bucket der jeweiligen Materialart. */
   path: string | null;
 }
+
 
 const ICONS: Record<MaterialKind, typeof ImageIcon> = {
   story: ImageIcon,
@@ -45,7 +51,7 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
   const [loading, setLoading] = useState(true);
   const [kind, setKind] = useState<MaterialKind | "all">("all");
   const [search, setSearch] = useState("");
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ kind: MaterialKind; url: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -61,7 +67,7 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
         .order("updated_at", { ascending: false }),
       supabase
         .from("vehicle_collages")
-        .select("id, vehicle_id, image_url, created_at")
+        .select("id, vehicle_id, image_url, storage_path, created_at")
         .order("created_at", { ascending: false }),
     ]);
 
@@ -72,40 +78,49 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
         ...(collages.data ?? []).map((r) => r.vehicle_id),
       ]),
     ];
-    const titles = new Map<string, string>();
+    const vehicles = new Map<string, { title: string; brand: string | null; model: string | null }>();
     if (ids.length > 0) {
-      const { data: vs } = await supabase.from("vehicles").select("id, title").in("id", ids);
-      for (const v of vs ?? []) titles.set(v.id, v.title);
+      const { data: vs } = await supabase
+        .from("vehicles")
+        .select("id, title, brand, model")
+        .in("id", ids);
+      for (const v of vs ?? []) {
+        vehicles.set(v.id, { title: v.title, brand: v.brand, model: v.model });
+      }
     }
-    const title = (r: { vehicle_id: string }) => titles.get(r.vehicle_id) ?? "Fahrzeug";
+    const info = (vehicleId: string) =>
+      vehicles.get(vehicleId) ?? { title: "Fahrzeug", brand: null, model: null };
 
     const all: MaterialRow[] = [
       ...(stories.data ?? []).map((s) => ({
         key: `story-${s.id}`,
         kind: "story" as const,
         vehicleId: s.vehicle_id,
-        vehicleTitle: title(s),
+        vehicleTitle: info(s.vehicle_id).title,
+        vehicleBrand: info(s.vehicle_id).brand,
+        vehicleModel: info(s.vehicle_id).model,
         createdAt: s.generated_at,
-        url: s.story_image_url,
-        path: null,
+        path: storagePathFromValue(s.story_image_url, MATERIAL_BUCKETS.story),
       })),
       ...(exposes.data ?? []).map((e) => ({
         key: `expose-${e.id}`,
         kind: "expose" as const,
         vehicleId: e.vehicle_id,
-        vehicleTitle: title(e),
+        vehicleTitle: info(e.vehicle_id).title,
+        vehicleBrand: info(e.vehicle_id).brand,
+        vehicleModel: info(e.vehicle_id).model,
         createdAt: e.updated_at,
-        url: null,
-        path: e.pdf_url,
+        path: storagePathFromValue(e.pdf_url, MATERIAL_BUCKETS.expose),
       })),
       ...(collages.data ?? []).map((c) => ({
         key: `collage-${c.id}`,
         kind: "collage" as const,
         vehicleId: c.vehicle_id,
-        vehicleTitle: title(c),
+        vehicleTitle: info(c.vehicle_id).title,
+        vehicleBrand: info(c.vehicle_id).brand,
+        vehicleModel: info(c.vehicle_id).model,
         createdAt: c.created_at,
-        url: c.image_url,
-        path: null,
+        path: storagePathFromValue(c.storage_path ?? c.image_url, MATERIAL_BUCKETS.collage),
       })),
     ];
 
@@ -113,6 +128,7 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
     setRows(all);
     setLoading(false);
   }, []);
+
 
   useEffect(() => {
     load();
@@ -127,52 +143,49 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
     );
   }, [rows, kind, search]);
 
-  const open = async (row: MaterialRow) => {
-    if (row.kind === "expose" && row.path) {
-      const { data, error } = await supabase.storage
-        .from("vehicle-exposes")
-        .createSignedUrl(row.path, 3600);
-      if (error || !data) {
-        toast.error("Vorschau nicht möglich", { description: error?.message });
-        return;
-      }
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-    if (row.url) setPreview(row.url);
+  const signRow = async (row: MaterialRow) => {
+    if (!row.path) throw describeStorageError("not found");
+    return createSignedMaterialUrl(MATERIAL_BUCKETS[row.kind], row.path);
   };
 
-  const download = async (row: MaterialRow) => {
+  const open = async (row: MaterialRow) => {
     setBusy(row.key);
-    const base = safeFileName(row.vehicleTitle) || "Fahrzeug";
     try {
-      if (row.kind === "expose" && row.path) {
-        const { data, error } = await supabase.storage
-          .from("vehicle-exposes")
-          .createSignedUrl(row.path, 3600, { download: `Reller-Expose-${base}.pdf` });
-        if (error || !data) throw error ?? new Error("Link konnte nicht erzeugt werden");
-        const a = document.createElement("a");
-        a.href = data.signedUrl;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } else if (row.url) {
-        const mode = await shareOrDownloadUrl(
-          row.url,
-          `Reller-${row.kind === "story" ? "Story" : "Collage"}-${base}.jpg`,
-        );
-        if (mode === "downloaded") toast.success("Datei gespeichert");
-      }
+      const url = await signRow(row);
+      setPreview({ kind: row.kind, url });
     } catch (e) {
-      toast.error("Download fehlgeschlagen", {
-        description: e instanceof Error ? e.message : "Unbekannter Fehler",
+      const err = describeStorageError(e);
+      toast.error("Vorschau nicht möglich", {
+        description: err.message,
+        action: { label: "Erneut versuchen", onClick: () => void open(row) },
       });
     } finally {
       setBusy(null);
     }
   };
+
+  const download = async (row: MaterialRow) => {
+    setBusy(row.key);
+    try {
+      const url = await signRow(row);
+      const name = materialFileName(
+        row.kind,
+        { brand: row.vehicleBrand, model: row.vehicleModel, fallback: row.vehicleTitle },
+        row.path,
+      );
+      const mode = await downloadFromUrl(url, name);
+      toast.success(mode === "shared" ? "Datei geteilt" : "Datei gespeichert");
+    } catch (e) {
+      const err = describeStorageError(e);
+      toast.error("Download fehlgeschlagen", {
+        description: err.message,
+        action: { label: "Erneut versuchen", onClick: () => void download(row) },
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
 
   return (
     <div>
@@ -217,8 +230,15 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
             return (
               <Card key={row.key} className="flex items-center gap-4 p-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
-                  {row.url ? (
-                    <img src={row.url} alt={row.vehicleTitle} className="h-full w-full object-cover" />
+                  {row.kind !== "expose" && row.path ? (
+                    <img
+                      src={
+                        supabase.storage.from(MATERIAL_BUCKETS[row.kind]).getPublicUrl(row.path).data
+                          .publicUrl
+                      }
+                      alt={row.vehicleTitle}
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <Icon className="h-5 w-5 text-muted-foreground" />
                   )}
@@ -235,7 +255,12 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <Button size="sm" variant="outline" onClick={() => open(row)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy === row.key}
+                    onClick={() => open(row)}
+                  >
                     <Maximize2 className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="sm" disabled={busy === row.key} onClick={() => download(row)}>
@@ -254,8 +279,16 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
 
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-3xl p-2">
-          {preview && (
-            <img src={preview} alt="Vorschau" className="max-h-[80vh] w-full object-contain" />
+          {preview?.kind === "expose" ? (
+            <iframe
+              src={preview.url}
+              title="PDF-Vorschau"
+              className="h-[80vh] w-full rounded border-0"
+            />
+          ) : (
+            preview && (
+              <img src={preview.url} alt="Vorschau" className="max-h-[80vh] w-full object-contain" />
+            )
           )}
         </DialogContent>
       </Dialog>

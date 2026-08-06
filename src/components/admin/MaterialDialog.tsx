@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
+  AlertTriangle,
   Download,
   FileText,
   Image as ImageIcon,
@@ -23,12 +24,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  MATERIAL_BUCKETS,
   MATERIAL_HINTS,
   MATERIAL_LABELS,
   buildCollageBlob,
+  createSignedMaterialUrl,
+  describeStorageError,
+  downloadFromUrl,
+  materialFileName,
   safeFileName,
-  shareOrDownloadBlob,
-  shareOrDownloadUrl,
+  storagePathFromValue,
   uploadCollage,
   type MaterialKind,
 } from "@/lib/materials";
@@ -40,6 +45,7 @@ export interface MaterialVehicle {
   id: string;
   title: string;
   brand?: string | null;
+  model?: string | null;
   image_urls?: string[] | null;
   custom_image_urls?: string[] | null;
   hidden_image_urls?: string[] | null;
@@ -49,13 +55,21 @@ export interface MaterialVehicle {
 interface MaterialState {
   exists: boolean;
   createdAt: string | null;
-  /** Direkt anzeigbare Vorschau (Bild) bzw. Datei-URL. */
-  url: string | null;
-  /** Storage-Pfad, nur beim Exposé relevant. */
+  /** Storage-Pfad im jeweiligen Bucket. */
   path: string | null;
+  /** Signierter Link (60 Minuten), erst nach dem Prüfen gesetzt. */
+  signedUrl: string | null;
+  /** Datei im Bucket nicht mehr auffindbar. */
+  missing: boolean;
 }
 
-const EMPTY: MaterialState = { exists: false, createdAt: null, url: null, path: null };
+const EMPTY: MaterialState = {
+  exists: false,
+  createdAt: null,
+  path: null,
+  signedUrl: null,
+  missing: false,
+};
 
 const ICONS: Record<MaterialKind, typeof ImageIcon> = {
   story: ImageIcon,
@@ -79,7 +93,7 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
   });
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<MaterialKind | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ kind: MaterialKind; url: string } | null>(null);
 
   const load = useCallback(async () => {
     if (!vehicle) return;
@@ -98,7 +112,7 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
         .limit(1),
       supabase
         .from("vehicle_collages")
-        .select("image_url, created_at")
+        .select("image_url, storage_path, created_at")
         .eq("vehicle_id", vehicle.id)
         .order("created_at", { ascending: false })
         .limit(1),
@@ -108,19 +122,37 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
     const expose = exposeRes.data?.[0];
     const collage = collageRes.data?.[0];
 
-    setState({
-      story: story
-        ? { exists: true, createdAt: story.generated_at, url: story.story_image_url, path: null }
-        : EMPTY,
-      expose: expose
-        ? { exists: true, createdAt: expose.updated_at, url: null, path: expose.pdf_url }
-        : EMPTY,
+    const raw: Record<MaterialKind, { value: string | null; createdAt: string | null } | null> = {
+      story: story ? { value: story.story_image_url, createdAt: story.generated_at } : null,
+      expose: expose ? { value: expose.pdf_url, createdAt: expose.updated_at } : null,
       collage: collage
-        ? { exists: true, createdAt: collage.created_at, url: collage.image_url, path: null }
-        : EMPTY,
-    });
+        ? { value: collage.storage_path ?? collage.image_url, createdAt: collage.created_at }
+        : null,
+    };
+
+    const next = { story: EMPTY, expose: EMPTY, collage: EMPTY } as Record<MaterialKind, MaterialState>;
+    await Promise.all(
+      (Object.keys(raw) as MaterialKind[]).map(async (kind) => {
+        const entry = raw[kind];
+        if (!entry) return;
+        const path = storagePathFromValue(entry.value, MATERIAL_BUCKETS[kind]);
+        if (!path) {
+          next[kind] = { exists: true, createdAt: entry.createdAt, path: null, signedUrl: null, missing: true };
+          return;
+        }
+        try {
+          const signedUrl = await createSignedMaterialUrl(MATERIAL_BUCKETS[kind], path);
+          next[kind] = { exists: true, createdAt: entry.createdAt, path, signedUrl, missing: false };
+        } catch {
+          next[kind] = { exists: true, createdAt: entry.createdAt, path, signedUrl: null, missing: true };
+        }
+      }),
+    );
+
+    setState(next);
     setLoading(false);
   }, [vehicle]);
+
 
   useEffect(() => {
     if (open) load();
@@ -193,46 +225,57 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
     }
   };
 
-  const download = async (kind: MaterialKind) => {
+  const fileNameFor = (kind: MaterialKind, path: string | null) =>
+    materialFileName(kind, { brand: vehicle.brand, model: vehicle.model, fallback: vehicle.title }, path);
+
+  /** Holt einen frischen signierten Link – gespeicherte Links laufen nach 60 Minuten ab. */
+  const freshUrl = async (kind: MaterialKind) => {
     const item = state[kind];
+    if (!item.path) throw describeStorageError("not found");
+    try {
+      return await createSignedMaterialUrl(MATERIAL_BUCKETS[kind], item.path);
+    } catch (e) {
+      const err = describeStorageError(e);
+      if (err.missing) setState((s) => ({ ...s, [kind]: { ...s[kind], missing: true, signedUrl: null } }));
+      throw err;
+    }
+  };
+
+  const download = async (kind: MaterialKind) => {
     setBusy(kind);
     try {
-      if (kind === "expose" && item.path) {
-        const { data, error } = await supabase.storage
-          .from("vehicle-exposes")
-          .createSignedUrl(item.path, 3600, { download: `Reller-Expose-${baseName}.pdf` });
-        if (error || !data) throw error ?? new Error("Link konnte nicht erzeugt werden");
-        const a = document.createElement("a");
-        a.href = data.signedUrl;
-        a.rel = "noopener noreferrer";
-        a.target = "_blank";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } else if (item.url) {
-        const suffix = kind === "story" ? "Story" : "Collage";
-        const mode = await shareOrDownloadUrl(item.url, `Reller-${suffix}-${baseName}.jpg`);
-        if (mode === "downloaded") toast.success("Datei gespeichert");
-      }
+      const url = await freshUrl(kind);
+      const mode = await downloadFromUrl(url, fileNameFor(kind, state[kind].path));
+      toast.success(
+        mode === "shared" ? "Datei geteilt" : `${MATERIAL_LABELS[kind]} gespeichert`,
+      );
     } catch (e) {
+      const err = describeStorageError(e);
       toast.error("Download fehlgeschlagen", {
-        description: e instanceof Error ? e.message : "Unbekannter Fehler",
+        description: err.message,
+        action: { label: "Erneut versuchen", onClick: () => void download(kind) },
       });
     } finally {
       setBusy(null);
     }
   };
 
-  const openExposePreview = async (path: string) => {
-    const { data, error } = await supabase.storage
-      .from("vehicle-exposes")
-      .createSignedUrl(path, 3600);
-    if (error || !data) {
-      toast.error("Vorschau nicht möglich", { description: error?.message });
-      return;
+  const view = async (kind: MaterialKind) => {
+    setBusy(kind);
+    try {
+      const url = await freshUrl(kind);
+      setPreview({ kind, url });
+    } catch (e) {
+      const err = describeStorageError(e);
+      toast.error("Vorschau nicht möglich", {
+        description: err.message,
+        action: { label: "Erneut versuchen", onClick: () => void view(kind) },
+      });
+    } finally {
+      setBusy(null);
     }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
+
 
   return (
     <>
@@ -257,8 +300,12 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
                 return (
                   <Card key={kind} className="flex items-start gap-3 p-3">
                     <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
-                      {item.url ? (
-                        <img src={item.url} alt={MATERIAL_LABELS[kind]} className="h-full w-full object-cover" />
+                      {kind !== "expose" && item.signedUrl && !item.missing ? (
+                        <img
+                          src={item.signedUrl}
+                          alt={MATERIAL_LABELS[kind]}
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <Icon className="h-6 w-6 text-muted-foreground" />
                       )}
@@ -266,12 +313,17 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium">{MATERIAL_LABELS[kind]}</span>
-                        {item.exists ? (
-                          <Badge variant="secondary" className="text-[10px]">Vorhanden</Badge>
-                        ) : (
+                        {!item.exists ? (
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">
                             Noch nicht erstellt
                           </Badge>
+                        ) : item.missing ? (
+                          <Badge variant="destructive" className="gap-1 text-[10px]">
+                            <AlertTriangle className="h-3 w-3" />
+                            Nicht mehr vorhanden
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px]">Vorhanden</Badge>
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">{MATERIAL_HINTS[kind]}</p>
@@ -280,17 +332,19 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
                           Erstellt am {format(new Date(item.createdAt), "dd.MM.yyyy HH:mm", { locale: de })}
                         </p>
                       )}
+                      {item.exists && item.missing && (
+                        <p className="mt-0.5 text-xs text-destructive">
+                          Die Datei liegt nicht mehr im Speicher. Bitte neu erstellen.
+                        </p>
+                      )}
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {item.exists ? (
+                        {item.exists && !item.missing ? (
                           <>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() =>
-                                kind === "expose" && item.path
-                                  ? openExposePreview(item.path)
-                                  : item.url && setPreview(item.url)
-                              }
+                              disabled={busy === kind}
+                              onClick={() => view(kind)}
                             >
                               <Maximize2 className="mr-1.5 h-3.5 w-3.5" />
                               Ansehen
@@ -319,7 +373,7 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
                             ) : (
                               <Plus className="mr-1.5 h-3.5 w-3.5" />
                             )}
-                            Jetzt erstellen
+                            {item.exists && item.missing ? "Neu erstellen" : "Jetzt erstellen"}
                           </Button>
                         )}
                       </div>
@@ -334,9 +388,20 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
 
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-3xl p-2">
-          {preview && <img src={preview} alt="Vorschau" className="max-h-[80vh] w-full object-contain" />}
+          {preview?.kind === "expose" ? (
+            <iframe
+              src={preview.url}
+              title="PDF-Vorschau"
+              className="h-[80vh] w-full rounded border-0"
+            />
+          ) : (
+            preview && (
+              <img src={preview.url} alt="Vorschau" className="max-h-[80vh] w-full object-contain" />
+            )
+          )}
         </DialogContent>
       </Dialog>
+
     </>
   );
 }
