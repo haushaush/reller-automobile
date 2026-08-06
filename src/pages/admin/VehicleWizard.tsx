@@ -547,7 +547,9 @@ export default function VehicleWizard() {
           previews={previews}
           accounts={accounts}
           accountKey={accountKey}
-          onAccountKey={setAccountKey}
+          suggestedAccountKey={suggestedAccountKey}
+          onAccountKey={(k) => { setAccountTouched(true); setAccountKey(k); }}
+
           manual={manual}
           onManual={(p) => setManual((m) => ({ ...m, ...p }))}
           saving={saving || published}
