@@ -1341,6 +1341,7 @@ export type Database = {
           interior_type_label: string | null
           is_featured: boolean
           is_sold: boolean
+          is_test: boolean
           last_pushed_at: string | null
           manual_overrides: Json
           mileage: number | null
@@ -1416,6 +1417,7 @@ export type Database = {
           interior_type_label?: string | null
           is_featured?: boolean
           is_sold?: boolean
+          is_test?: boolean
           last_pushed_at?: string | null
           manual_overrides?: Json
           mileage?: number | null
@@ -1491,6 +1493,7 @@ export type Database = {
           interior_type_label?: string | null
           is_featured?: boolean
           is_sold?: boolean
+          is_test?: boolean
           last_pushed_at?: string | null
           manual_overrides?: Json
           mileage?: number | null
