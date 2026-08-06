@@ -5,6 +5,7 @@
 // Jeder Versuch wird in mobile_push_log protokolliert. Fehler sind niemals still.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { stripECarFields } from "../_shared/mobile-ecar.ts";
 import {
   resolveMobileAccount,
   syncMobileListing,
@@ -181,6 +182,11 @@ Deno.serve(async (req) => {
       try { ad = JSON.parse(getText) as Record<string, unknown>; } catch { /* leer */ }
 
       const full: Record<string, unknown> = { ...ad, reserved: target === "reserved" };
+      // Elektro-Felder nur bei elektrischem/hybridem Antrieb zurückschreiben
+      const removedECar = stripECarFields(full, full.fuel);
+      if (removedECar.length) {
+        console.log(`Elektro-Felder entfernt (Antrieb ${String(full.fuel ?? "?")}): ${removedECar.join(", ")}`);
+      }
       // Bilder niemals leeren: fehlt das Feld, bleiben sie unverändert.
       if (!Array.isArray(full.images) || (full.images as unknown[]).length === 0) {
         delete full.images;

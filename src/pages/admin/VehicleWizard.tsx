@@ -107,6 +107,11 @@ export default function VehicleWizard() {
   const [publicUrls, setPublicUrls] = useState<Record<string, string>>({});
   const publicUrlsRef = useRef<Record<string, string>>({});
   publicUrlsRef.current = publicUrls;
+  /* Mobile.de-Bildreferenzen (Pfad → ref). Die Fotos werden schon beim
+   * Speichern in Schritt 1 einzeln hochgeladen, damit das Veröffentlichen
+   * kurz bleibt. */
+  const imageRefsRef = useRef<Record<string, string>>({});
+  const [imagesTransferring, setImagesTransferring] = useState(false);
 
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -187,6 +192,7 @@ export default function VehicleWizard() {
       if (s?.signedUrl) map[p] = s.signedUrl;
     }));
     setPreviews(map);
+    imageRefsRef.current = (payload?._imageRefs ?? {}) as Record<string, string>;
     const savedPublic = (payload?._imagePublicUrls ?? {}) as Record<string, string>;
     setPublicUrls(savedPublic && typeof savedPublic === "object" ? savedPublic : {});
     publicUrlsRef.current = savedPublic ?? {};
@@ -245,6 +251,8 @@ export default function VehicleWizard() {
       ...buildVehiclePayload(f),
       _imagePaths: paths,
       _imagePublicUrls: publicMap,
+      // Bereits zu Mobile.de übertragene Bilder nie verlieren
+      _imageRefs: imageRefsRef.current,
       _wizardStep: opts?.step ?? stateRef.current.step,
     };
     const columns = {
@@ -299,9 +307,39 @@ export default function VehicleWizard() {
     }
   }, [refdata.makes, refdata.models]);
 
+  /* Fotos einzeln vorab zu Mobile.de übertragen (Empfehlung der Seller-API).
+   * Fehler sind hier nie blockierend — beim Veröffentlichen wird nachgeholt. */
+  const transferImages = useCallback(async (id: string) => {
+    if (stateRef.current.imagePaths.length === 0) return;
+    const pending = stateRef.current.imagePaths.filter((p) => !imageRefsRef.current[p]);
+    if (pending.length === 0) return;
+    setImagesTransferring(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("upload-mobile-images", {
+        body: { vehicleId: id },
+      });
+      if (error) throw error;
+      const result = data as { uploaded?: number; skipped?: { path: string; reason: string }[] } | null;
+      const { data: fresh } = await supabase
+        .from("vehicles").select("mobile_payload").eq("id", id).maybeSingle();
+      const payload = (fresh?.mobile_payload ?? {}) as Record<string, unknown>;
+      imageRefsRef.current = (payload._imageRefs ?? {}) as Record<string, string>;
+      if (result?.skipped?.length) {
+        toast.warning(`${result.skipped.length} Foto(s) konnten nicht zu Mobile.de übertragen werden`);
+      }
+    } catch (e) {
+      console.error("upload-mobile-images", e);
+      toast.warning("Fotos konnten noch nicht zu Mobile.de übertragen werden — wird beim Veröffentlichen nachgeholt.");
+    } finally {
+      setImagesTransferring(false);
+    }
+  }, []);
+
   const goToStep = async (next: number) => {
     if (next === step) return;
-    await persist({ silent: true, step: next });
+    const savedId = await persist({ silent: true, step: next });
+    // Beim Verlassen von Schritt 1 die Fotos vorab übertragen
+    if (step === 1 && savedId) void transferImages(savedId);
     setStep(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -599,8 +637,16 @@ export default function VehicleWizard() {
         />
       )}
 
+      {imagesTransferring && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Fotos werden zu Mobile.de übertragen …
+        </p>
+      )}
+
       {/* Navigation */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background p-3 flex gap-2 md:static md:border-0 md:bg-transparent md:p-0">
+
         <Button
           variant="outline"
           className="flex-1 md:flex-none"

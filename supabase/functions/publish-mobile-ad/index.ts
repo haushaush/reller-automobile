@@ -1,9 +1,10 @@
 // Publishes a mobile_ad_drafts row as a real ad on Mobile.de Seller-API.
 // Admin-only. Uploads images first (JPEG, <=2MB), then creates the ad with image refs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// imagescript: pure-TS image lib that runs in Deno without native deps
-import { decode as decodeImage, Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
+import { uploadVehicleImages, storeImageRefs } from "../_shared/mobile-images.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { stripECarFields } from "../_shared/mobile-ecar.ts";
+
 import { emitNotificationEvent } from "../_shared/emit-event.ts";
 import {
   resolveMobileAccount,
@@ -55,85 +56,11 @@ function applyAccount(account: PlatformAccount) {
 }
 const API_BASE = "https://services.mobile.de/seller-api";
 const MOBILE_MIME = "application/vnd.de.mobile.api+json";
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2 MiB cap per Mobile.de
 
 function basicAuth(): string {
   return `Basic ${btoa(`${MOBILE_USER}:${MOBILE_PASS}`)}`;
 }
 
-function detectFormat(bytes: Uint8Array): string {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpeg";
-  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "png";
-  if (bytes.length >= 12 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
-      bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return "webp";
-  if (bytes.length >= 6 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return "gif";
-  return "unknown";
-}
-
-async function ensureJpegUnder2MB(input: Uint8Array): Promise<Uint8Array> {
-  // ALWAYS decode + re-encode as real JPEG, never trust file extension/content-type.
-  const decoded = await decodeImage(input);
-  if (!(decoded instanceof Image)) {
-    throw new Error("Unsupported image format (multi-frame / not a static image)");
-  }
-  const qualities = [90, 80, 70, 60, 50, 40, 30];
-  // First try original size at decreasing quality
-  for (const q of qualities) {
-    const buf = await decoded.encodeJPEG(q);
-    if (buf.byteLength <= MAX_IMAGE_BYTES) return buf;
-  }
-  // Still too big: progressively shrink
-  let scale = 0.8;
-  while (scale >= 0.2) {
-    const w = Math.max(640, Math.round(decoded.width * scale));
-    const h = Math.max(480, Math.round(decoded.height * scale));
-    const img = decoded.clone().resize(w, h);
-    for (const q of qualities) {
-      const buf = await img.encodeJPEG(q);
-      if (buf.byteLength <= MAX_IMAGE_BYTES) return buf;
-    }
-    scale -= 0.15;
-  }
-  throw new Error("Bild konnte nicht unter 2 MB komprimiert werden");
-}
-
-async function uploadOneImage(jpeg: Uint8Array, filename: string): Promise<string> {
-  // Mobile.de Seller-API: pre-upload image via POST /images with raw JPEG body.
-  // Docs: https://services.mobile.de/seller-api/openapi-docs (operation "Upload Image")
-  const url = `${API_BASE}/images`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: basicAuth(),
-      Accept: MOBILE_MIME,
-      "Content-Type": "image/jpeg",
-    },
-    body: jpeg,
-  });
-  const text = await res.text();
-  console.log(`Image upload ${filename}: status=${res.status}, body=${text.slice(0, 200)}`);
-  if (!res.ok) {
-    throw new Error(`Image upload failed (${res.status}): ${text.slice(0, 300)}`);
-  }
-  let ref: string | undefined;
-  let hash: string | undefined;
-  try {
-    const j = JSON.parse(text);
-    ref = j?.ref ?? j?.reference;
-    hash = j?.hash;
-  } catch {
-    // fall through to Location header
-  }
-  if (!ref) {
-    ref = res.headers.get("Location")?.split("/").pop() ?? undefined;
-  }
-  if (hash) console.log(`Image ${filename} hash=${hash}`);
-  if (!ref) {
-    throw new Error("Mobile.de Upload-Antwort ohne Bildreferenz");
-  }
-  console.log(`Uploaded image ${filename} -> ref=${ref}`);
-  return String(ref);
-}
 
 /**
  * Liest aus einer Mobile.de-Anzeige die Bild-URLs (größte verfügbare
@@ -530,6 +457,15 @@ export function buildMobileAdPayload(payload: AdPayload, refs: string[]): BuildR
     warnings.push(`Interne Feldnamen entfernt: ${removedInternal.join(", ")}`);
   }
 
+  // Elektro-Felder nur bei elektrischem/hybridem Antrieb senden — sonst meldet
+  // Mobile.de "vehicle-not-eligible-for-e-car-attributes".
+  {
+    const removedECar = stripECarFields(adBody, adBody.fuel);
+    if (removedECar.length) {
+      warnings.push(`Elektro-Felder nicht gesendet (kein E-/Hybridantrieb): ${removedECar.join(", ")}`);
+    }
+  }
+
   return { adBody, missing, missingFields, warnings };
 }
 
@@ -630,6 +566,42 @@ Deno.serve((req) => withAccountLock(async () => {
     }
     console.log(`X-Mobile-Insertion-Request-Id=${insertionRequestId}`);
     console.log(`Publishing vehicle ${vehicleId}, ${imagePaths.length} image(s)`);
+
+    /**
+     * Protokollzeile VOR dem Aufruf anlegen. Bricht die Function danach ab,
+     * bleibt eine Zeile ohne Antwort stehen — das ist der Nachweis.
+     */
+    const beginPush = async (action: string, requestBody: unknown): Promise<string | null> => {
+      try {
+        const { data, error } = await admin.from("mobile_push_log").insert({
+          vehicle_id: vehicleId,
+          action,
+          request_body: (requestBody ?? null) as never,
+          response_status: null,
+          response_body: "Aufruf abgesetzt – Antwort ausstehend",
+        } as never).select("id").single();
+        if (error) throw error;
+        return (data as { id: string }).id;
+      } catch (e) {
+        console.warn("mobile_push_log (Vorabzeile) fehlgeschlagen:", (e as Error).message);
+        return null;
+      }
+    };
+    const finishPush = async (
+      id: string | null,
+      responseStatus: number | null,
+      responseBody: string,
+    ) => {
+      if (!id) return;
+      try {
+        await admin.from("mobile_push_log").update({
+          response_status: responseStatus,
+          response_body: responseBody.slice(0, 5000),
+        } as never).eq("id", id);
+      } catch (e) {
+        console.warn("mobile_push_log (Antwort) fehlgeschlagen:", (e as Error).message);
+      }
+    };
 
     const logPush = async (
       action: string,
@@ -738,36 +710,24 @@ Deno.serve((req) => withAccountLock(async () => {
     }
 
 
-    // ── Step 1: upload images one by one (skip individual failures) ──
-    const refs: string[] = [];
-    const skipped: { index: number; path: string; reason: string }[] = [];
-    for (let i = 0; i < imagePaths.length; i++) {
-      const p = imagePaths[i];
-      try {
-        const { data: file, error: dlErr } = await admin.storage
-          .from("mobile-ad-images")
-          .download(p);
-        if (dlErr || !file) throw new Error(`Storage download failed: ${dlErr?.message}`);
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const origFormat = detectFormat(bytes);
-        const origSize = bytes.byteLength;
-        const jpeg = await ensureJpegUnder2MB(bytes);
-        console.log(
-          `Image ${i + 1}/${imagePaths.length} ${p}: original=${origFormat} ${origSize}B -> jpeg ${jpeg.byteLength}B`,
-        );
-        const filename = (p.split("/").pop() ?? `image_${i}.jpg`).replace(/\.[^.]+$/, ".jpg");
-        const ref = await uploadOneImage(jpeg, filename);
-        refs.push(ref);
-      } catch (e) {
-        const msg = (e as Error).message || String(e);
-        console.error(`Image ${i + 1} (${p}) skipped: ${msg}`);
-        skipped.push({ index: i + 1, path: p, reason: msg });
-      }
+    // ── Schritt 1: Bilder — bereits vorab hochgeladene Referenzen nutzen ──
+    // Der Assistent überträgt die Fotos schon beim Speichern (Schritt 1).
+    // Fehlt eine Referenz, wird sie hier nachgeholt.
+    const knownRefs = (payload._imageRefs ?? {}) as Record<string, string>;
+    const upload = await uploadVehicleImages(admin, basicAuth(), imagePaths, knownRefs);
+    if (upload.uploaded > 0) {
+      await storeImageRefs(admin, vehicleId, upload.refs);
     }
-    console.log(`Image upload summary: imagePaths=${imagePaths.length}, refs=${refs.length}, skipped=${skipped.length}`);
-    if (skipped.length) {
-      console.warn(`Skipped ${skipped.length}/${imagePaths.length} image(s):`, skipped);
-    }
+    const refs: string[] = imagePaths.map((p) => upload.refs[p]).filter(Boolean);
+    const skipped = upload.skipped.map((s) => ({
+      index: imagePaths.indexOf(s.path) + 1,
+      path: s.path,
+      reason: s.reason,
+    }));
+    console.log(
+      `Bilder: gesamt=${imagePaths.length} vorab=${upload.reused} neu=${upload.uploaded} übersprungen=${skipped.length}`,
+    );
+
 
     if (imagePaths.length > 0 && refs.length === 0) {
       const msg = `Kein Bild konnte zu Mobile.de hochgeladen werden. ${skipped.map((s) => `#${s.index}: ${s.reason}`).join("; ")}`;
@@ -825,6 +785,7 @@ Deno.serve((req) => withAccountLock(async () => {
 
 
     const createUrl = `${API_BASE}/sellers/${SELLER_ID}/ads`;
+    const pushLogId = await beginPush("publish", adBody);
     const createRes = await fetch(createUrl, {
       method: "POST",
       // Kein automatisches Folgen: 303 verweist auf die bereits vorhandene Anzeige.
@@ -838,6 +799,7 @@ Deno.serve((req) => withAccountLock(async () => {
       body: JSON.stringify(adBody),
     });
     const createText = await createRes.text();
+    await finishPush(pushLogId, createRes.status, createText);
     const alreadyCreated = createRes.status === 303;
     if (alreadyCreated) {
       console.log(`Mobile.de meldet 303 – Anzeige existiert bereits (Location=${createRes.headers.get("Location") ?? "(none)"}).`);
@@ -860,7 +822,7 @@ Deno.serve((req) => withAccountLock(async () => {
       console.error(`[${errorId}] Create ad failed ${createRes.status}: ${createText.slice(0, 800)}`);
       for (const i of issues) console.error(`[${i.code}] ${i.key} path=${i.path ?? "-"} value=${i.value ?? "-"}`);
       await failVehicle(issues.map((i) => i.message).join(" · ") || summary);
-      await logPush("publish", adBody, createRes.status, `[${errorId}] ${createText}`);
+      await finishPush(pushLogId, createRes.status, `[${errorId}] ${createText}`);
       return json(400, {
         error: summary,
         errorId,
@@ -940,7 +902,6 @@ Deno.serve((req) => withAccountLock(async () => {
       ? `Hinweis: ${skipped.length} Bild(er) übersprungen: ${skipped.map((s) => `#${s.index} (${s.reason})`).join("; ")}`
       : null;
 
-    await logPush("publish", adBody, createRes.status, createText);
     const nowIso = new Date().toISOString();
 
     if (!mobileAdId) {
