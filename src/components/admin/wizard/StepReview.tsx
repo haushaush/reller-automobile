@@ -56,6 +56,7 @@ interface Props {
   previews: Record<string, string>;
   accounts: PlatformAccountRow[];
   accountKey: string;
+  suggestedAccountKey?: string;
   onAccountKey: (key: string) => void;
   manual: { autoscout24: boolean; kleinanzeigen: boolean };
   onManual: (patch: Partial<Props["manual"]>) => void;
@@ -68,7 +69,7 @@ interface Props {
 
 export default function StepReview({
   form, makeName, modelName, imagePaths, previews, accounts,
-  accountKey, onAccountKey, manual, onManual, saving, onSaveDraft, onPublish, onJump,
+  accountKey, suggestedAccountKey, onAccountKey, manual, onManual, saving, onSaveDraft, onPublish, onJump,
   publishError,
 }: Props) {
   const mobileAccounts = accounts.filter((a) => a.platform === "mobile_de" && a.is_active);
@@ -118,6 +119,13 @@ export default function StepReview({
               ))}
             </SelectContent>
           </Select>
+          {suggestedAccountKey && accountKey && suggestedAccountKey !== accountKey && (
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              Für diese Fahrzeugart ist normalerweise „
+              {mobileAccounts.find((a) => a.account_key === suggestedAccountKey)?.label ?? suggestedAccountKey}
+              " vorgesehen. Sie haben ein anderes Konto gewählt.
+            </p>
+          )}
           <p className="text-sm text-muted-foreground flex items-center gap-2">
             <Lock className="h-3.5 w-3.5" />
             Nach dem Veröffentlichen kann das Konto nicht mehr gewechselt werden.
