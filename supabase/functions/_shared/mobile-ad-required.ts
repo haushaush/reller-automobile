@@ -83,3 +83,14 @@ export function checkRequiredAdFields(
     return !filled(f.kind, values[f.form]);
   });
 }
+
+/** Portal-Fahrzeugart (vehicles.vehicle_category) — genau diese fünf Werte. */
+export const PORTAL_VEHICLE_CATEGORIES: { key: string; label: string }[] = [
+  { key: "used", label: "Gebrauchtwagen" },
+  { key: "accident", label: "Unfallfahrzeug" },
+  { key: "oldtimer", label: "Oldtimer" },
+  { key: "youngtimer", label: "Youngtimer" },
+  { key: "commercial", label: "Nutzfahrzeug" },
+];
+
+export const PORTAL_VEHICLE_CATEGORY_KEYS = PORTAL_VEHICLE_CATEGORIES.map((c) => c.key);
