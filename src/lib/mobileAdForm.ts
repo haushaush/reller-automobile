@@ -547,39 +547,42 @@ export function buildVehiclePayload(form: FormState): Record<string, unknown> {
 
 /** Ein einzelnes Pflichtfeld des Mobile.de-Inserats. */
 export interface RequiredField {
-  field: keyof FormState | "consumerPriceGross";
+  field: string;
   label: string;
   /** Abschnitt in Schritt 3 bzw. "fotos" */
-  section: "fotos" | "basis" | "technik" | "ausstattung" | "preis";
+  section: AdFieldSection;
+  /** Mobile.de-Payload-Schlüssel (null = reines Portalfeld) */
+  api?: string | null;
 }
 
-export const REQUIRED_FIELDS: RequiredField[] = [
-  { field: "make", label: "Marke", section: "basis" },
-  { field: "model", label: "Modell", section: "basis" },
-  { field: "category", label: "Fahrzeugart", section: "basis" },
-  { field: "mileage", label: "Kilometerstand", section: "basis" },
-  { field: "regYear", label: "Erstzulassung", section: "basis" },
-  { field: "fuel", label: "Kraftstoff", section: "technik" },
-  { field: "gearbox", label: "Getriebe", section: "technik" },
-  { field: "power", label: "Leistung (kW)", section: "technik" },
-  { field: "cubicCapacity", label: "Hubraum", section: "technik" },
-  { field: "consumerPriceGross", label: "Preis", section: "preis" },
-  { field: "vatRate", label: "Mehrwertsteuer", section: "preis" },
-];
+/** Abgeleitet aus der gemeinsamen Liste — keine zweite Pflichtfeldliste! */
+export const REQUIRED_FIELDS: RequiredField[] = REQUIRED_AD_FIELDS.map((f) => ({
+  field: f.form,
+  label: f.label,
+  section: f.section,
+  api: f.api,
+}));
 
-export function isFieldFilled(form: FormState, field: RequiredField["field"]): boolean {
-  if (field === "regYear") return Boolean(form.regYear && form.regMonth);
-  if (field === "consumerPriceGross") {
-    const clean = String(form.consumerPriceGross || "").replace(/[^0-9]/g, "");
-    return Boolean(clean) && clean !== "0";
-  }
-  const v = form[field as keyof FormState];
-  return typeof v === "string" ? v.trim().length > 0 : Boolean(v);
+/** Formularwerte in der Form, wie die gemeinsame Prüfung sie erwartet. */
+export function requiredValuesFromForm(form: FormState): Record<string, unknown> {
+  return {
+    ...form,
+    regYear: form.regYear && form.regMonth
+      ? `${form.regYear}${String(form.regMonth).padStart(2, "0")}`
+      : "",
+    damageUnrepaired: form.damageUnrepaired === "true",
+  };
 }
 
 /** Liefert alle fehlenden Pflichtangaben. */
 export function missingRequired(form: FormState): RequiredField[] {
-  return REQUIRED_FIELDS.filter((r) => !isFieldFilled(form, r.field));
+  const missing = checkRequiredAdFields(requiredValuesFromForm(form), { by: "form" });
+  const keys = new Set(missing.map((m) => m.form));
+  return REQUIRED_FIELDS.filter((r) => keys.has(r.field));
+}
+
+export function isFieldFilled(form: FormState, field: RequiredField["field"]): boolean {
+  return !missingRequired(form).some((r) => r.field === field);
 }
 
 /** Kompatible Kurzform: erste fehlende Pflichtangabe als Meldung. */
@@ -587,6 +590,7 @@ export function validateForm(form: FormState): string | null {
   const missing = missingRequired(form);
   return missing.length ? `${missing[0].label} fehlt` : null;
 }
+
 
 /** Kernfelder für die normalen vehicles-Spalten. */
 export function buildVehicleColumnsFor(
