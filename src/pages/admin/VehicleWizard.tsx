@@ -282,7 +282,8 @@ export default function VehicleWizard() {
   };
 
   /* ── Veröffentlichen ── */
-  const publish = async () => {
+  const publish = async (confirmPrice = false) => {
+    if (saving || published) return;
     const id = await persist({ silent: true, step: 4 });
     if (!id) return;
     setSaving(true);
@@ -312,13 +313,16 @@ export default function VehicleWizard() {
       }
 
       const { data, error } = await supabase.functions.invoke("publish-mobile-ad", {
-        body: { vehicleId: id },
+        body: { vehicleId: id, confirmPrice },
       });
-      const d = (data ?? null) as
-        | { success?: boolean; error?: string; missingFields?: { form: string; label: string; section: string }[] }
-        | null;
-      if (error || !d?.success) {
+      const d = (data ?? null) as PublishResponse | null;
+      const okResponse = Boolean(d?.success || d?.ok);
+      if (error || !okResponse) {
         const detail = d ?? (await readFunctionError(error));
+        if (detail?.needsPriceConfirmation) {
+          setPriceConfirm(detail.error || "Bitte den Preis bestätigen.");
+          return;
+        }
         const fields = detail?.missingFields ?? [];
         setPublishError({
           message: detail?.error || error?.message || "Veröffentlichen fehlgeschlagen",
@@ -332,7 +336,12 @@ export default function VehicleWizard() {
         return;
       }
       setPublishError(null);
+      setPublished(true);
+      const warnings = d?.mobileWarnings ?? [];
       toast.success("Fahrzeug wurde bei Mobile.de veröffentlicht.");
+      if (warnings.length) {
+        toast.info(`Hinweise von Mobile.de: ${warnings.join(" · ")}`, { duration: 8000 });
+      }
       setDirty(false);
       navigate("/admin/fahrzeuge");
     } catch (e) {
@@ -342,6 +351,7 @@ export default function VehicleWizard() {
       setSaving(false);
     }
   };
+
 
   const jumpToField = (field: RequiredField) => {
     if (field.section === "fotos") { void goToStep(1); return; }
