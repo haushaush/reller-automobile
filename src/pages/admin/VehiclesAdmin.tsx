@@ -1313,20 +1313,9 @@ export default function VehiclesAdmin() {
         </div>
       </div>
 
-      {/* Schnellfilter */}
-      <div className="mt-6 flex flex-wrap gap-2">
-        {QUICK_FILTERS.map((qf) => (
-          <Button
-            key={qf.value}
-            size="sm"
-            variant={filters.quick === qf.value ? "default" : "outline"}
-            className="rounded-full"
-            onClick={() => updateFilters({ quick: qf.value })}
-          >
-            {qf.label}
-          </Button>
-        ))}
-      </div>
+      {/* Schnellfilter: Zustand und Portal */}
+      {quickFilterRows}
+
 
       {/* Suche + Filter + Sortierung + Spalten */}
       <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center">
