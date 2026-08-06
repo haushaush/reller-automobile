@@ -303,3 +303,27 @@ export function formatEuro(value: number | null | undefined): string {
   if (value == null) return "—";
   return `${value.toLocaleString("de-DE")} €`;
 }
+
+/* ---------- Öffentliche Inseratslinks ---------- */
+
+/** Öffentliche Mobile.de-Anzeige (nicht der Händlerbereich). */
+export function mobileAdPublicUrl(adId: string | null | undefined): string | null {
+  const bare = (adId ?? "").toString().trim().replace(/^[a-z_]+_/i, "");
+  if (!bare) return null;
+  return `https://suchen.mobile.de/fahrzeuge/details.html?id=${encodeURIComponent(bare)}`;
+}
+
+/** Öffentlicher Link eines Inserats — Mobile.de aus der ID, sonst hinterlegte URL. */
+export function publicListingUrl(
+  listing: Pick<ListingSummary, "platform" | "external_ad_id" | "external_url">,
+  fallbackMobileAdId?: string | null,
+): string | null {
+  if (listing.platform === "mobile_de") {
+    return (
+      mobileAdPublicUrl(listing.external_ad_id ?? fallbackMobileAdId ?? null) ??
+      listing.external_url ??
+      null
+    );
+  }
+  return listing.external_url ?? null;
+}
