@@ -962,8 +962,14 @@ export default function VehiclesAdmin() {
     if (filters.quick !== "all")
       list.push({
         key: "quick",
-        label: QUICK_FILTERS.find((q) => q.value === filters.quick)!.label,
+        label: quickLabel(filters.quick),
         clear: () => updateFilters({ quick: "all" }),
+      });
+    if (filters.portal !== "all")
+      list.push({
+        key: "portal",
+        label: `Portal: ${portalFilterLabel(filters.portal, accounts)}`,
+        clear: () => updateFilters({ portal: "all" }),
       });
     if (filters.account !== "all")
       list.push({
