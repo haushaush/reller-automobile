@@ -13,12 +13,15 @@ Deno.serve(async (req) => {
   }
 
   let scope = "standard";
+  let sellerIdOverride: string | null = null;
   try {
     const body = await req.json();
     if (body?.scope === "accident") scope = "accident";
+    if (body?.sellerId) sellerIdOverride = String(body.sellerId);
   } catch {
     /* ohne Angabe: Standardkonto */
   }
+
 
   const username = Deno.env.get(
     scope === "accident" ? "MOBILE_DE_ACCIDENT_USERNAME" : "MOBILE_DE_USERNAME",
