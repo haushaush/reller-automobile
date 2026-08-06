@@ -80,9 +80,6 @@ export default function PlatformBadges({
           l.platform === "mobile_de" &&
           l.status !== "not_listed" &&
           isAccountCategoryMismatch(accounts, l.account_key, vehicleCategory);
-        const kuerzel = short
-          ? `${PLATFORM_SHORT[l.platform]}·${short.replace(/konto$/i, "").slice(0, 6)}`
-          : PLATFORM_SHORT[l.platform];
         return (
           <Tooltip key={l.platform}>
             <TooltipTrigger asChild>
