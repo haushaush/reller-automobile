@@ -177,10 +177,18 @@ export interface ReconcileResult {
 /** Vergleicht Seller-Ads gegen vehicles und schreibt Abweichungen. */
 export async function reconcile(
   supabase: SupabaseClient,
-  ads: SellerAd[],
+  rawAds: SellerAd[],
   scope: string,
   allowUnpublish = true,
 ): Promise<ReconcileResult> {
+  // Entdopplung über die Inserats-ID: doppelte Seiten dürfen nie doppelte Meldungen erzeugen.
+  const adMap = new Map<string, SellerAd>();
+  for (const ad of rawAds) if (!adMap.has(ad.mobileAdId)) adMap.set(ad.mobileAdId, ad);
+  const ads = [...adMap.values()];
+  if (ads.length !== rawAds.length) {
+    console.log(`Reconcile: ${rawAds.length - ads.length} doppelte Inserate vor der Auswertung entfernt.`);
+  }
+
   const { data: rows } = await supabase
     .from("vehicles")
     .select("id, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold");
@@ -193,6 +201,7 @@ export async function reconcile(
 
   const issues: Array<Record<string, unknown>> = [];
   const liveIds = new Set<string>();
+
 
   for (const ad of ads) {
     liveIds.add(ad.mobileAdId);
