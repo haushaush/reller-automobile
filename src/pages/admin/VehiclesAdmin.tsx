@@ -597,6 +597,63 @@ export default function VehiclesAdmin() {
     refresh();
   };
 
+  const accountKeyFor = (id: string) => accountIndex?.byVehicle.get(id) ?? null;
+  const accountNameFor = (id: string) => {
+    const key = accountKeyFor(id);
+    return key ? accountShortLabel(accounts, key) ?? key : "Kein Konto";
+  };
+
+  /** Tabellenexport der aktuell gefilterten Fahrzeuge, inkl. Spalte „Konto“ */
+  const exportCsv = async () => {
+    setIsExporting(true);
+    try {
+      const { rows: all } = await fetchVehicles(0, 2000);
+      const header = [
+        "Titel",
+        "Marke",
+        "Modell",
+        "Fahrzeugart",
+        "Erstzulassung",
+        "Kilometerstand",
+        "Preis",
+        "Währung",
+        "Status",
+        "Konto",
+        "Interne Nummer",
+      ];
+      const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const body = all.map((v) =>
+        [
+          v.title,
+          v.brand,
+          v.model,
+          categoryLabel(v.vehicle_category),
+          v.year,
+          v.mileage,
+          v.price,
+          v.currency ?? "EUR",
+          v.is_sold ? "Verkauft" : v.reserved_at ? "Reserviert" : "Verfügbar",
+          accountNameFor(v.id),
+          v.mobile_de_id,
+        ]
+          .map(cell)
+          .join(";"),
+      );
+      const csv = "\uFEFF" + [header.map(cell).join(";"), ...body].join("\r\n");
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fahrzeuge-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${all.length} Fahrzeug(e) exportiert`);
+    } catch (e) {
+      toast.error(`Export fehlgeschlagen: ${(e as Error).message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   /* aktive Filter als Chips */
   const chips = useMemo(() => {
     const list: { key: string; label: string; clear: () => void }[] = [];
@@ -614,6 +671,12 @@ export default function VehiclesAdmin() {
         key: "quick",
         label: QUICK_FILTERS.find((q) => q.value === filters.quick)!.label,
         clear: () => updateFilters({ quick: "all" }),
+      });
+    if (filters.account !== "all")
+      list.push({
+        key: "account",
+        label: `Konto: ${accountShortLabel(accounts, filters.account) ?? filters.account}`,
+        clear: () => updateFilters({ account: "all" }),
       });
     if (filters.category !== "all")
       list.push({
@@ -670,7 +733,7 @@ export default function VehiclesAdmin() {
         clear: () => updateFilters({ noImages: false }),
       });
     return list;
-  }, [filters, updateFilters]);
+  }, [filters, updateFilters, accounts]);
 
   const thumbFor = (v: AdminVehicleRow) => resolveVehicleImages(v)[0] ?? null;
   const optionalCount = cols.length;
