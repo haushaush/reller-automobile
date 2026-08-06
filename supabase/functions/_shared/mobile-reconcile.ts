@@ -178,6 +178,7 @@ export interface ReconcileResult {
   orphanAds: number;
   missingAds: number;
   driftAds: number;
+  soldButListed: number;
   issues: number;
 }
 
