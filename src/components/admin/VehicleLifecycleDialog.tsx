@@ -281,7 +281,9 @@ export default function VehicleLifecycleDialog({
                   loading ||
                   !!loadError ||
                   (mode === "delete" &&
-                    (!target?.canDelete || confirmTitle.trim() !== (target?.title ?? "").trim()))
+                    (!target?.canDelete ||
+                      reason.trim().length < 3 ||
+                      confirmTitle.trim() !== (target?.title ?? "").trim()))
                 }
                 onClick={run}
               >
