@@ -190,7 +190,7 @@ function buildMobileAdPayload(payload: AdPayload): BuildResult {
   addStr("trimLine"); addStr("modelRange");
   addKey("doors");
   addStr("vin"); addStr("internalNumber");
-  addNum("fuelCapacity"); addKey("driveType");
+  addNum("fuelCapacity"); addKey("driveType"); addNum("constructionYear");
   addKey("exteriorColor"); addKey("interiorColor"); addKey("interiorType");
   addStr("manufacturerColorName"); addBoolTrue("metallic");
 
