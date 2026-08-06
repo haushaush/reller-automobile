@@ -52,7 +52,11 @@ interface TaskRow {
   action: ListingTaskAction;
   reason: string | null;
   created_at: string;
-  vehicle_id: string;
+  vehicle_id: string | null;
+  /** Nur bei Aufgaben ohne Fahrzeugbezug (Fahrzeug wurde endgültig gelöscht) */
+  platform: ListingPlatform | null;
+  ad_title: string | null;
+  ad_url: string | null;
   is_demo: boolean;
   listings: {
     id: string;
