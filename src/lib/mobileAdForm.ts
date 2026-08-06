@@ -555,6 +555,8 @@ export function buildVehiclePayload(form: FormState): Record<string, unknown> {
   };
 
   if (form.trimLine) vehicle.trimLine = form.trimLine;
+  const cy = intIf(form.constructionYear);
+  if (cy !== undefined) vehicle.constructionYear = cy;
   if (form.modelRange) vehicle.modelRange = form.modelRange;
   if (form.doors) vehicle.doors = { key: form.doors };
   const seats = intIf(form.seats); if (seats !== undefined) vehicle.seats = seats;
@@ -654,6 +656,9 @@ export function requiredValuesFromForm(form: FormState): Record<string, unknown>
       ? `${form.regYear}${String(form.regMonth).padStart(2, "0")}`
       : "",
     damageUnrepaired: form.damageUnrepaired === "true",
+    accidentDamaged:
+      form.accidentDamaged === "" ? undefined : form.accidentDamaged === "true",
+    roadworthy: form.roadworthy === "" ? undefined : form.roadworthy === "true",
   };
 }
 
