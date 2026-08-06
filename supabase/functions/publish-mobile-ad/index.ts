@@ -942,8 +942,12 @@ Deno.serve((req) => withAccountLock(async () => {
         publish_error: skippedNote,
         detail_page_url: detailPageUrl ?? null,
         is_sold: false,
+        // Bildreferenzen des Inserats übernehmen, damit Portal und Inserat
+        // dieselben Bilder zeigen.
+        ...(adImageUrls.length ? { image_urls: adImageUrls } : {}),
       } as never)
       .eq("id", vehicleId);
+
     await syncMobileListing(admin, vehicleId, {
       status: "live",
       external_ad_id: mobileAdId,
