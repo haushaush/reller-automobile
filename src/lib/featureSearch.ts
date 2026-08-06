@@ -45,7 +45,7 @@ export const FEATURE_SYNONYMS: Record<string, string[]> = {
   powerSteering: ["servo", "servolenkung", "lenkhilfe"],
   ambientLighting: ["ambiente", "innenbeleuchtung"],
   tintedWindows: ["getoente scheiben", "tönung", "privacy", "abgedunkelt"],
-  hillStartAssist", : [],
+  hillStartAssist: ["berganfahrhilfe", "anfahrassistent"],
   winterPackage: ["winterpaket", "winter"],
   summerTires: ["sommerreifen", "sommer"],
   winterTires: ["winterreifen", "winter"],
