@@ -60,7 +60,17 @@ export default function StepReview({
         <h2 className="text-lg font-medium">Wo soll das Fahrzeug erscheinen?</h2>
 
         <div className="space-y-2">
-          <Label>Mobile.de — Konto</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Label>Mobile.de</Label>
+            <ConnectionBadge
+              connected
+              detail={
+                accountShortLabel(accounts, accountKey) ??
+                mobileAccounts.find((a) => a.account_key === accountKey)?.label ??
+                undefined
+              }
+            />
+          </div>
           <Select value={accountKey} onValueChange={onAccountKey}>
             <SelectTrigger className="max-w-md">
               <SelectValue placeholder="Konto wählen" />
@@ -78,36 +88,30 @@ export default function StepReview({
         </div>
 
         <div className="space-y-3 border-t pt-4">
-          <div className="flex items-start gap-3">
-            <Checkbox
-              id="pf-as24"
-              checked={manual.autoscout24}
-              onCheckedChange={(c) => onManual({ autoscout24: c === true })}
-            />
-            <Label htmlFor="pf-as24" className="font-normal cursor-pointer">
-              AutoScout24
-              <span className="block text-sm text-muted-foreground">
-                Wird als „Nicht inseriert“ angelegt. Das Inserat müssen Sie dort von Hand erstellen —
-                wir legen dafür eine Aufgabe unter „Zu erledigen“ an.
-              </span>
-            </Label>
-          </div>
-          <div className="flex items-start gap-3">
-            <Checkbox
-              id="pf-ka"
-              checked={manual.kleinanzeigen}
-              onCheckedChange={(c) => onManual({ kleinanzeigen: c === true })}
-            />
-            <Label htmlFor="pf-ka" className="font-normal cursor-pointer">
-              Kleinanzeigen
-              <span className="block text-sm text-muted-foreground">
-                Wird als „Nicht inseriert“ angelegt. Das Inserat müssen Sie dort von Hand erstellen —
-                wir legen dafür eine Aufgabe unter „Zu erledigen“ an.
-              </span>
-            </Label>
-          </div>
+          {(
+            [
+              { id: "autoscout24", key: "autoscout24", label: "AutoScout24" },
+              { id: "kleinanzeigen", key: "kleinanzeigen", label: "Kleinanzeigen" },
+            ] as const
+          ).map((p) => {
+            const connected = isPlatformConnected(accounts, p.key);
+            return (
+              <div key={p.id} className="flex items-center gap-3">
+                <Checkbox
+                  id={`pf-${p.id}`}
+                  checked={manual[p.id]}
+                  onCheckedChange={(c) => onManual({ [p.id]: c === true })}
+                />
+                <Label htmlFor={`pf-${p.id}`} className="flex flex-wrap items-center gap-2 font-normal cursor-pointer">
+                  {p.label}
+                  <ConnectionBadge connected={connected} />
+                </Label>
+              </div>
+            );
+          })}
         </div>
       </Card>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6 space-y-3">
