@@ -1,7 +1,21 @@
 // Gemeinsame Logik für das Mobile.de-Fahrzeugformular (Assistent + Inserats-Editor).
 import { supabase } from "@/integrations/supabase/client";
+import {
+  REQUIRED_AD_FIELDS,
+  checkRequiredAdFields,
+  labelForApiField,
+  fieldForApi,
+  PORTAL_VEHICLE_CATEGORIES,
+  type AdFieldSection,
+} from "../../supabase/functions/_shared/mobile-ad-required";
+
+export {
+  REQUIRED_AD_FIELDS, labelForApiField, fieldForApi, PORTAL_VEHICLE_CATEGORIES,
+};
+export type { AdFieldSection };
 
 export type RefItem = { key: string; name: string };
+
 
 export const FUEL_LABELS: Record<string, string> = {
   PETROL: "Benzin",
