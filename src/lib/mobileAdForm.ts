@@ -141,6 +141,9 @@ export interface FormState {
   mileage: string;
   regYear: string;
   regMonth: string;
+  /** Baujahr — bei Oldtimern oft abweichend von der Erstzulassung */
+  constructionYear: string;
+
   doors: string;
   seats: string;
   // Motor / Technik
