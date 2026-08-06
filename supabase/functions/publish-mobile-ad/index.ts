@@ -519,9 +519,11 @@ Deno.serve((req) => withAccountLock(async () => {
 
     // ── Input ─────────────────────────────────────────────────
     let vehicleId: string | undefined;
+    let confirmPrice = false;
     try {
       const body = await req.json();
       vehicleId = body?.vehicleId;
+      confirmPrice = body?.confirmPrice === true;
     } catch { /* empty body */ }
     if (!vehicleId) return json(400, { error: "vehicleId required" });
 
@@ -542,6 +544,29 @@ Deno.serve((req) => withAccountLock(async () => {
     if (vehErr || !vehicle) return json(404, { error: "Fahrzeug nicht gefunden" });
     if (vehicle.mobile_ad_id && vehicle.publish_status === "published") {
       return json(400, { error: "Fahrzeug ist bereits veröffentlicht" });
+    }
+
+    // Doppelklick-Schutz: läuft bereits eine Veröffentlichung oder existiert
+    // schon ein aktives Inserat auf diesem Konto?
+    if (vehicle.publish_status === "publishing") {
+      return json(409, {
+        error: "Für dieses Fahrzeug läuft bereits eine Veröffentlichung. Bitte einen Moment warten.",
+      });
+    }
+    {
+      const { data: liveListing } = await admin
+        .from("listings")
+        .select("id, status, external_ad_id")
+        .eq("vehicle_id", vehicleId)
+        .eq("platform", "mobile_de")
+        .in("status", ["live", "publishing"])
+        .maybeSingle();
+      if (liveListing?.external_ad_id) {
+        return json(409, {
+          error: "Für dieses Fahrzeug besteht bereits ein Mobile.de-Inserat.",
+          mobileAdId: liveListing.external_ad_id,
+        });
+      }
     }
 
     const payload = (vehicle.mobile_payload ?? {}) as Record<string, unknown>;
