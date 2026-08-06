@@ -231,7 +231,7 @@ export default function ListingTasks() {
     });
     const byPlatform = new Map<ListingPlatform | "unbekannt", TaskRow[]>();
     for (const t of sorted) {
-      const key = t.listings?.platform ?? "unbekannt";
+      const key = t.listings?.platform ?? t.platform ?? "unbekannt";
       byPlatform.set(key, [...(byPlatform.get(key) ?? []), t]);
     }
     return [...PLATFORM_GROUP_ORDER, "unbekannt" as const]
@@ -330,8 +330,8 @@ export default function ListingTasks() {
                   const days = differenceInCalendarDays(new Date(), new Date(t.created_at));
                   const stale = days >= STALE_DAYS;
                   const v = t.vehicles;
-                  const platform = t.listings?.platform ?? null;
-                  const price = priceMap.get(t.vehicle_id) ?? null;
+                  const platform = t.listings?.platform ?? t.platform ?? null;
+                  const price = t.vehicle_id ? priceMap.get(t.vehicle_id) ?? null : null;
                   const newPrice =
                     t.action === "update_price" ? price?.current ?? v?.price ?? null : null;
                   const oldPrice = t.action === "update_price" ? price?.previous ?? null : null;
@@ -416,10 +416,10 @@ export default function ListingTasks() {
 
                       {/* 4) Erst der Weg zum Ziel, dann das Abhaken */}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {t.listings?.external_url ? (
+                        {t.listings?.external_url || t.ad_url ? (
                           <Button asChild size="sm">
                             <a
-                              href={t.listings.external_url}
+                              href={(t.listings?.external_url ?? t.ad_url) as string}
                               target="_blank"
                               rel="noreferrer"
                             >
