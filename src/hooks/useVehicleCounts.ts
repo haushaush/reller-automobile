@@ -19,6 +19,7 @@ async function fetchCounts(): Promise<VehicleCounts> {
       .from("vehicles")
       .select("id", { count: "exact", head: true })
       .eq("is_sold", false)
+      .eq("is_test", false)
       .in("vehicle_category", cat.dbCategories as VehicleCategoryKey[]);
     return { slug: cat.slug, count: count ?? 0 };
   });
@@ -26,7 +27,8 @@ async function fetchCounts(): Promise<VehicleCounts> {
   const totalQuery = supabase
     .from("vehicles")
     .select("id", { count: "exact", head: true })
-    .eq("is_sold", false);
+    .eq("is_sold", false)
+    .eq("is_test", false);
 
   const [perCategory, totalRes] = await Promise.all([
     Promise.all(queries),

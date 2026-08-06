@@ -220,6 +220,7 @@ Deno.serve(async (req) => {
         .from("vehicles")
         .select("*")
         .eq("is_sold", false)
+        .eq("is_test", false)
         .gt("created_at", cutoff);
 
       if (vehErr) {

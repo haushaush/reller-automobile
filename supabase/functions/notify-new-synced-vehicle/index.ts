@@ -290,6 +290,10 @@ Deno.serve(async (req) => {
     if (vErr || !vehicle) return json(404, { success: false, emailSent: false, error: "Vehicle not found" });
 
     const v = vehicle as Record<string, unknown>;
+    if (v.is_test === true) {
+      console.log(`notify-new-sync: Testfahrzeug ${vehicleId} — keine Mail`);
+      return json(200, { success: true, emailSent: false, skipped: "test_vehicle" });
+    }
     const mobileDeId = v.mobile_de_id as string | null | undefined;
     const source = (v.source as string | null | undefined) ?? null;
     const vehicleCategory = (v.vehicle_category as string | null | undefined) ?? null;

@@ -97,6 +97,7 @@ async function fetchVehicles(): Promise<Vehicle[]> {
   const { data, error } = await supabase
     .from("vehicles")
     .select(VEHICLE_COLUMNS)
+    .eq("is_test", false)
     .order("synced_at", { ascending: false });
 
   if (error) throw error;

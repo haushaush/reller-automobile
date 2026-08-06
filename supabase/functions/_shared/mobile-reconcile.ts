@@ -200,18 +200,34 @@ export async function reconcile(
   const { accountKey, claimLegacyVehicles = false } = options;
   const allowUnpublish = options.allowUnpublish ?? true;
 
+  // Testfahrzeuge werden vollständig ignoriert — weder ihre Datensätze noch ihre Inserate.
+  const { data: testRows } = await supabase
+    .from("vehicles")
+    .select("mobile_ad_id, mobile_de_id")
+    .eq("is_test", true);
+  const testAdIds = new Set<string>();
+  for (const t of (testRows ?? []) as Array<Record<string, unknown>>) {
+    if (t.mobile_ad_id) testAdIds.add(String(t.mobile_ad_id).replace(/^accident_/, ""));
+    if (t.mobile_de_id) testAdIds.add(String(t.mobile_de_id).replace(/^accident_/, ""));
+  }
+
   // Entdopplung über die Inserats-ID: doppelte Seiten dürfen nie doppelte Meldungen erzeugen.
   const adMap = new Map<string, SellerAd>();
-  for (const ad of rawAds) if (!adMap.has(ad.mobileAdId)) adMap.set(ad.mobileAdId, ad);
+  for (const ad of rawAds) {
+    if (testAdIds.has(String(ad.mobileAdId).replace(/^accident_/, ""))) continue;
+    if (!adMap.has(ad.mobileAdId)) adMap.set(ad.mobileAdId, ad);
+  }
   const ads = [...adMap.values()];
   if (ads.length !== rawAds.length) {
-    console.log(`Reconcile: ${rawAds.length - ads.length} doppelte Inserate vor der Auswertung entfernt.`);
+    console.log(`Reconcile: ${rawAds.length - ads.length} doppelte oder Test-Inserate vor der Auswertung entfernt.`);
   }
 
   const { data: rows } = await supabase
     .from("vehicles")
-    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at");
+    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at, is_test")
+    .eq("is_test", false);
   const vehicles = (rows ?? []) as Array<Record<string, unknown>>;
+
   const vehicleById = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) vehicleById.set(String(v.id), v);
 
