@@ -572,7 +572,7 @@ export default function Collage() {
       canShare?: (data: { files: File[] }) => boolean;
       share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void>;
     };
-    if (!nav.share || !nav.canShare) {
+    if (!isTouchDevice() || !nav.share || !nav.canShare) {
       toast.error("Teilen wird auf diesem Gerät nicht unterstützt");
       return;
     }
