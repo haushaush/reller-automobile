@@ -274,10 +274,10 @@ export async function reconcile(
 
   return {
     checked: ads.length,
-    orphanAds: issues.filter((i) => i.issue_type === "orphan_ad").length,
+    orphanAds: uniqueIssues.filter((i) => i.issue_type === "orphan_ad").length,
     missingAds: vanished.length,
-    driftAds: issues.filter((i) => String(i.issue_type).endsWith("_drift")).length,
-    issues: issues.length,
+    driftAds: uniqueIssues.filter((i) => String(i.issue_type).endsWith("_drift")).length,
+    issues: uniqueIssues.length,
   };
 }
 
