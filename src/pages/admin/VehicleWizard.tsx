@@ -40,7 +40,7 @@ export interface PublishError {
 function isBlankDraft(form: FormState, imagePaths: string[]): boolean {
   if (imagePaths.length > 0) return false;
   return Object.entries(form).every(([key, value]) => {
-    const initial = (EMPTY as Record<string, unknown>)[key];
+    const initial = (EMPTY as unknown as Record<string, unknown>)[key];
     if (Array.isArray(value)) return value.length === 0;
     if (value && typeof value === "object") return Object.keys(value).length === 0;
     return value === initial;
