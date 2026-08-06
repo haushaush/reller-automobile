@@ -115,15 +115,23 @@ Deno.serve(async (req) => {
       .eq("user_id", claims.claims.sub as string).eq("role", "admin").maybeSingle();
     if (!roleRow) return json(403, { error: "Forbidden" });
 
-    if (!MOBILE_USER || !MOBILE_PASS) return json(500, { error: "Mobile.de Seller-API Zugangsdaten fehlen" });
-
     let dryRun = true;
+    let accountKey = "standard";
     try {
       const body = await req.json();
       dryRun = body?.dryRun !== false;
+      if (typeof body?.accountKey === "string" && body.accountKey.trim()) {
+        accountKey = body.accountKey.trim();
+      }
     } catch { /* default dry run */ }
 
-    const { ads, error } = await fetchSellerAds(SELLER_ID, basicAuth(MOBILE_USER, MOBILE_PASS));
+    const account = await resolveAccountByKey(admin, accountKey);
+    if (!account.user || !account.pass) {
+      return json(500, { error: `Zugangsdaten für das Konto "${account.label}" fehlen` });
+    }
+    console.log(`adopt-mobile-ads Konto=${account.accountKey} seller=${account.sellerId} dryRun=${dryRun}`);
+
+    const { ads, error } = await fetchSellerAds(account.sellerId, basicAuth(account.user, account.pass));
     if (error && ads.length === 0) return json(502, { error });
 
     const { data: rows } = await admin
