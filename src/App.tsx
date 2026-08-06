@@ -27,6 +27,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const StoryGenerator = lazy(() => import("./pages/admin/StoryGenerator"));
 const SyncStatus = lazy(() => import("./pages/admin/SyncStatus"));
 const DataQuality = lazy(() => import("./pages/admin/DataQuality"));
+const Reconciliation = lazy(() => import("./pages/admin/Reconciliation"));
 const InquiriesAdmin = lazy(() => import("./pages/admin/InquiriesAdmin"));
 const InquiryDetail = lazy(() => import("./pages/admin/InquiryDetail"));
 const LeadDetail = lazy(() => import("./pages/admin/LeadDetail"));
@@ -115,6 +116,7 @@ const App = () => (
                       <Route path="einstellungen/accounts" element={<Accounts />} />
                       <Route path="einstellungen/status-log" element={<SyncStatus />} />
                       <Route path="einstellungen/datenqualitaet" element={<DataQuality />} />
+                      <Route path="einstellungen/abgleich" element={<Reconciliation />} />
                       <Route path="einstellungen/mail-verlauf" element={<EmailLogs />} />
 
                       {/* Weitere Werkzeuge */}

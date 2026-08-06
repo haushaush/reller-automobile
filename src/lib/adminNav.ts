@@ -13,6 +13,7 @@ import {
   FileText,
   Images,
   ListChecks,
+  Unlink,
   type LucideIcon,
 } from "lucide-react";
 
@@ -90,6 +91,12 @@ export const SETTINGS_NAV: AdminNavEntry[] = [
     path: "/admin/einstellungen/datenqualitaet",
     icon: ShieldCheck,
     description: "Fahrzeuge, bei denen Fotos, Preis oder Angaben fehlen",
+  },
+  {
+    label: "Abgleich Mobile.de",
+    path: "/admin/einstellungen/abgleich",
+    icon: Unlink,
+    description: "Inserate ohne Fahrzeug und Angaben, die von Mobile.de abweichen",
   },
   {
     label: "Mail-Verlauf",
