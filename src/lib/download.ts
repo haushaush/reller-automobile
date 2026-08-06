@@ -78,31 +78,43 @@ export function downloadBlob(blob: Blob, filename: string): void {
 export type SaveResult = "shared" | "downloaded" | "cancelled";
 
 /**
- * Speichert einen Blob nach den oben beschriebenen Regeln.
- * „cancelled“ heißt: Nutzer hat den Teilen-Dialog abgebrochen — kein Fehler.
+ * Speichert einen Blob. Der direkte Download ist der Standardweg.
+ * Der Teilen-Dialog wird NUR erreicht, wenn alle drei Bedingungen zugleich
+ * erfüllt sind: Bilddatei, echtes Touch-Gerät, canShare mit File-Objekt.
+ * Jeder Fehlerfall fällt auf den Download zurück.
  */
 export async function saveBlob(blob: Blob, filename: string): Promise<SaveResult> {
   const image = isImageFile(filename, blob.type);
+  const touch = image ? isTouchDevice() : false;
 
-  if (image && isTouchDevice()) {
-    const nav = navigator as NavigatorWithShare;
-    const file = new File([blob], filename, { type: blob.type || "image/jpeg" });
-    if (nav.share && nav.canShare?.({ files: [file] })) {
-      try {
-        await nav.share({ files: [file], title: filename });
-        return "shared";
-      } catch (e) {
-        if (e instanceof Error && (e.name === "AbortError" || e.name === "NotAllowedError")) {
-          return "cancelled";
-        }
-        // Teilen fehlgeschlagen → auf den direkten Download zurückfallen.
+  let file: File | null = null;
+  let shareable = false;
+  if (image && touch) {
+    try {
+      const nav = navigator as NavigatorWithShare;
+      file = new File([blob], filename, { type: blob.type || "image/jpeg" });
+      shareable = typeof nav.share === "function" && nav.canShare?.({ files: [file] }) === true;
+    } catch {
+      shareable = false;
+    }
+  }
+
+  if (image && touch && shareable && file) {
+    try {
+      await (navigator as NavigatorWithShare).share!({ files: [file], title: filename });
+      return "shared";
+    } catch (e) {
+      if (e instanceof Error && (e.name === "AbortError" || e.name === "NotAllowedError")) {
+        return "cancelled";
       }
+      // Teilen fehlgeschlagen → auf den direkten Download zurückfallen.
     }
   }
 
   downloadBlob(blob, filename);
   return "downloaded";
 }
+
 
 /** Holt eine Datei per fetch und speichert bzw. teilt sie. */
 export async function saveFromUrl(url: string, filename: string): Promise<SaveResult> {
