@@ -272,12 +272,46 @@ function keyFacts(v: AdminVehicleRow): string {
   return parts.length ? parts.join(" · ") : "Keine Eckdaten hinterlegt";
 }
 
-function StatusBadge({ v }: { v: AdminVehicleRow }) {
-  if (v.is_sold) return <Badge variant="destructive">Verkauft</Badge>;
-  if (v.reserved_at)
-    return <Badge className="bg-amber-500 text-white hover:bg-amber-500">Reserviert</Badge>;
-  return <Badge variant="secondary">Verfügbar</Badge>;
+const SALE_STATUS_TRIGGER: Record<VehicleSaleStatus, string> = {
+  available: "bg-secondary text-secondary-foreground border-transparent",
+  reserved: "bg-amber-500 text-white border-transparent",
+  sold: "bg-destructive text-destructive-foreground border-transparent",
+};
+
+/** Status direkt in der Zeile ändern — öffnet den Bestätigungsdialog. */
+function StatusSelect({
+  v,
+  onPick,
+}: {
+  v: AdminVehicleRow;
+  onPick: (v: AdminVehicleRow, target: VehicleSaleStatus) => void;
+}) {
+  const current = vehicleSaleStatus(v);
+  return (
+    <Select
+      value={current}
+      onValueChange={(val) => {
+        const target = val as VehicleSaleStatus;
+        if (target !== current) onPick(v, target);
+      }}
+    >
+      <SelectTrigger
+        className={`h-7 w-[128px] rounded-full px-3 text-xs font-medium ${SALE_STATUS_TRIGGER[current]}`}
+        aria-label="Status ändern"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="bg-popover">
+        {(["available", "reserved", "sold"] as VehicleSaleStatus[]).map((s) => (
+          <SelectItem key={s} value={s}>
+            {SALE_STATUS_LABELS[s]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
+
 
 /* ---------- Seite ---------- */
 
