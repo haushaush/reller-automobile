@@ -30,6 +30,8 @@ import PlatformBadges from "@/components/admin/PlatformBadges";
 import VehicleStatusDialog from "@/components/admin/VehicleStatusDialog";
 import DuplicateVehicleDialog from "@/components/admin/DuplicateVehicleDialog";
 import BulkStatusDialog from "@/components/admin/BulkStatusDialog";
+import DeletedVehiclesList from "@/components/admin/DeletedVehiclesList";
+
 import VehicleLifecycleDialog, {
   type LifecycleMode,
 } from "@/components/admin/VehicleLifecycleDialog";
