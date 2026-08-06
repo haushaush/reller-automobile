@@ -183,6 +183,27 @@ export default function VehicleLifecycleDialog({
 
             {mode === "delete" && target && (
               <>
+                <div className="rounded-md border p-3">
+                  <p className="font-medium">Was unwiderruflich verschwindet</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
+                    <li>Fahrzeugdaten, Preishistorie und Änderungsverlauf</li>
+                    <li>Marketing-Materialien, Exposés, Storys und Collagen</li>
+                    <li>Alle hinterlegten Bilder</li>
+                  </ul>
+                  <p className="mt-2 font-medium">Was bleibt</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
+                    <li>
+                      {target.inquiryCount + target.leadCount} Anfrage(n) — künftig ohne
+                      Fahrzeugbezug, mit dem Fahrzeugtitel als Text
+                    </li>
+                    <li>Ein Protokolleintrag im Filter „Gelöscht“</li>
+                  </ul>
+                  <p className="mt-2">
+                    <strong>{mobileCount}</strong> Inserat(e) werden automatisch beendet ·{" "}
+                    <strong>{manualCount}</strong> müssen Sie selbst beenden
+                  </p>
+                </div>
+
                 {!target.canDelete ? (
                   <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
@@ -210,7 +231,9 @@ export default function VehicleLifecycleDialog({
 
             {mode !== "restore" && (
               <div>
-                <Label htmlFor="lifecycle-reason">Grund (optional)</Label>
+                <Label htmlFor="lifecycle-reason">
+                  {mode === "delete" ? "Löschgrund (Pflichtangabe)" : "Grund (optional)"}
+                </Label>
                 <Textarea
                   id="lifecycle-reason"
                   className="mt-1"
@@ -221,6 +244,7 @@ export default function VehicleLifecycleDialog({
                 />
               </div>
             )}
+
           </div>
         )}
 
