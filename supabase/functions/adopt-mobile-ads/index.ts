@@ -7,11 +7,34 @@ import { basicAuth, fetchSellerAds, SellerAd } from "../_shared/mobile-reconcile
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const SELLER_ID = "451040";
-const MOBILE_USER =
-  Deno.env.get("MOBILE_DE_SELLER_USERNAME") || Deno.env.get("MOBILE_DE_USERNAME") || "";
-const MOBILE_PASS =
-  Deno.env.get("MOBILE_DE_SELLER_PASSWORD") || Deno.env.get("MOBILE_DE_PASSWORD") || "";
+
+/** Zugangsdaten je Mobile.de-Konto aus platform_accounts (Standard/Unfall). */
+async function resolveAccountByKey(
+  admin: ReturnType<typeof createClient>,
+  accountKey: string,
+): Promise<{ accountKey: string; label: string; sellerId: string; user: string; pass: string }> {
+  const { data } = await admin
+    .from("platform_accounts")
+    .select("account_key, label, seller_id, username_secret_name, password_secret_name")
+    .eq("platform", "mobile_de")
+    .eq("account_key", accountKey)
+    .maybeSingle();
+  const row = (data ?? null) as Record<string, string> | null;
+  const fromSecret = (n?: string | null) => (n ? Deno.env.get(n) ?? "" : "");
+  return {
+    accountKey,
+    label: row?.label ?? accountKey,
+    sellerId: row?.seller_id ?? "451040",
+    user:
+      fromSecret(row?.username_secret_name) ||
+      Deno.env.get("MOBILE_DE_SELLER_USERNAME") ||
+      Deno.env.get("MOBILE_DE_USERNAME") || "",
+    pass:
+      fromSecret(row?.password_secret_name) ||
+      Deno.env.get("MOBILE_DE_SELLER_PASSWORD") ||
+      Deno.env.get("MOBILE_DE_PASSWORD") || "",
+  };
+}
 
 type Row = Record<string, unknown>;
 
