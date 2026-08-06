@@ -1,3 +1,4 @@
+import { primaryVehicleImage } from "@/lib/vehicleImages";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Image as ImageIcon, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -353,9 +354,9 @@ export default function StoryGenerator({ embedded = false }: { embedded?: boolea
               className="cursor-pointer p-4 transition-colors hover:bg-muted/50"
             >
               <div className="flex items-start gap-4">
-                {vehicle.image_urls?.[0] && (
+                {primaryVehicleImage(vehicle) && (
                   <img
-                    src={vehicle.image_urls[0]}
+                    src={primaryVehicleImage(vehicle) ?? undefined}
                     alt={vehicle.title}
                     className="w-24 h-16 object-cover rounded shrink-0"
                     loading="lazy"

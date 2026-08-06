@@ -1,3 +1,4 @@
+import { primaryVehicleImage } from "@/lib/vehicleImages";
 import {
   Document,
   Page,
@@ -13,6 +14,7 @@ import {
   getGearboxLabel,
   getClimatisationLabel,
   getConditionLabel,
+  getColorLabel,
 } from "@/lib/mobileDeLabels";
 
 const styles = StyleSheet.create({
@@ -38,7 +40,7 @@ interface VehicleExposeProps {
 }
 
 const VehicleExpose = ({ vehicle }: VehicleExposeProps) => {
-  const mainImage = vehicle.image_urls?.[0];
+  const mainImage = primaryVehicleImage(vehicle);
   const additionalImages = vehicle.image_urls?.slice(1, 7) || [];
   const ps = vehicle.power ? Math.round(vehicle.power * 1.36) : null;
   const formattedPrice = vehicle.price
@@ -54,8 +56,8 @@ const VehicleExpose = ({ vehicle }: VehicleExposeProps) => {
     ["Getriebe", vehicle.gearbox ? getGearboxLabel(vehicle.gearbox) : "–"],
     ["Kraftstoff", vehicle.fuel ? getFuelLabel(vehicle.fuel) : "–"],
     ["Karosserie", vehicle.body_type ? getBodyTypeLabel(vehicle.body_type) : "–"],
-    ["Farbe außen", vehicle.exterior_color || "–"],
-    ["Farbe innen", vehicle.interior_color || "–"],
+    ["Farbe außen", getColorLabel(vehicle.exterior_color)],
+    ["Farbe innen", getColorLabel(vehicle.interior_color)],
     ["Sitze", vehicle.num_seats?.toString() || "–"],
     ["Klimaanlage", vehicle.climatisation ? getClimatisationLabel(vehicle.climatisation) : "–"],
     ["Zustand", vehicle.condition ? getConditionLabel(vehicle.condition) : "–"],

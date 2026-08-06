@@ -127,6 +127,34 @@ async function uploadOneImage(jpeg: Uint8Array, filename: string): Promise<strin
   return String(ref);
 }
 
+/**
+ * Liest aus einer Mobile.de-Anzeige die Bild-URLs (größte verfügbare
+ * Repräsentation je Bild) heraus, damit Portal und Inserat dieselben
+ * Bilder zeigen.
+ */
+export function extractAdImageUrls(ad: unknown): string[] {
+  const images = (ad as { images?: unknown })?.images;
+  if (!Array.isArray(images)) return [];
+  const urls: string[] = [];
+  for (const img of images) {
+    const entry = img as {
+      ref?: string;
+      representations?: { url?: string; size?: string }[];
+      url?: string;
+    };
+    const reps = Array.isArray(entry?.representations) ? entry.representations : [];
+    const preferred =
+      reps.find((r) => r?.size === "XXXL")?.url ??
+      reps.find((r) => r?.size === "XXL")?.url ??
+      reps.find((r) => r?.size === "L")?.url ??
+      reps.find((r) => typeof r?.url === "string")?.url ??
+      entry?.url ??
+      (typeof entry?.ref === "string" && /^https?:\/\//.test(entry.ref) ? entry.ref : undefined);
+    if (preferred && /^https?:\/\//.test(preferred)) urls.push(preferred);
+  }
+  return Array.from(new Set(urls));
+}
+
 // Robust extractor for the Mobile.de ad ID from create-ad responses.
 // Tries multiple JSON keys and both relative + absolute Location header URLs.
 export function extractMobileAdId(
@@ -833,6 +861,7 @@ Deno.serve((req) => withAccountLock(async () => {
     console.log(`Mobile.de ad created. mobileAdId=${mobileAdId ?? "(none)"} source=${idSource}`);
 
     // ── Verify: GET /sellers/{SELLER_ID}/ads/{mobileAdId} (best-effort) ──
+    let adImageUrls: string[] = [];
     if (mobileAdId) {
       try {
         const verifyRes = await fetch(`${API_BASE}/sellers/${SELLER_ID}/ads/${mobileAdId}`, {
@@ -849,6 +878,8 @@ Deno.serve((req) => withAccountLock(async () => {
             console.log(`Verify GET ${mobileAdId}: rootKeys=${Object.keys(vj).join(",")}`);
             console.log(`Verify optional fields returned: ${optionalEchoed.join(",")}`);
             console.log(`Verify image count: ${imgCount}`);
+            adImageUrls = extractAdImageUrls(vj);
+            console.log(`Verify image urls: ${adImageUrls.length}`);
           } catch {
             console.log(`Verify GET ${mobileAdId}: non-JSON response, status=${verifyRes.status}`);
           }
@@ -859,6 +890,12 @@ Deno.serve((req) => withAccountLock(async () => {
         console.warn(`Verify GET error: ${(e as Error).message}`);
       }
     }
+    if (adImageUrls.length === 0) {
+      // Fallback: Referenzen aus dem Upload, sofern sie bereits URLs sind
+      adImageUrls = refs.filter((r) => /^https?:\/\//.test(r));
+    }
+
+
 
     const skippedNote = skipped.length
       ? `Hinweis: ${skipped.length} Bild(er) übersprungen: ${skipped.map((s) => `#${s.index} (${s.reason})`).join("; ")}`
@@ -905,8 +942,12 @@ Deno.serve((req) => withAccountLock(async () => {
         publish_error: skippedNote,
         detail_page_url: detailPageUrl ?? null,
         is_sold: false,
+        // Bildreferenzen des Inserats übernehmen, damit Portal und Inserat
+        // dieselben Bilder zeigen.
+        ...(adImageUrls.length ? { image_urls: adImageUrls } : {}),
       } as never)
       .eq("id", vehicleId);
+
     await syncMobileListing(admin, vehicleId, {
       status: "live",
       external_ad_id: mobileAdId,

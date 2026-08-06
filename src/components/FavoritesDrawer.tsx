@@ -1,3 +1,4 @@
+import { primaryVehicleImage } from "@/lib/vehicleImages";
 import { useNavigate } from "react-router-dom";
 import { useFavoritesContext } from "@/contexts/FavoritesContext";
 import { useVehicles, Vehicle } from "@/hooks/useVehicles";
@@ -53,7 +54,7 @@ const FavoritesDrawer = () => {
 };
 
 function FavCard({ vehicle, onRemove, onNavigate }: { vehicle: Vehicle; onRemove: () => void; onNavigate: () => void }) {
-  const img = vehicle.image_urls?.[0] || "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=200&h=120&fit=crop";
+  const img = primaryVehicleImage(vehicle) || "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=200&h=120&fit=crop";
   const price = vehicle.price ? `${vehicle.price.toLocaleString("de-DE")} €` : null;
   const mileage = vehicle.mileage ? `${vehicle.mileage.toLocaleString("de-DE")} km` : null;
 

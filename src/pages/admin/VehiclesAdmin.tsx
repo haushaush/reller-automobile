@@ -273,8 +273,8 @@ function keyFacts(v: AdminVehicleRow): string {
   const parts = [
     v.year ?? null,
     v.mileage != null ? `${v.mileage.toLocaleString("de-DE")} km` : null,
-    v.fuel_label ?? (v.fuel ? getFuelLabel(v.fuel) : null),
-    v.gearbox_label ?? (v.gearbox ? getGearboxLabel(v.gearbox) : null),
+    v.fuel_label || v.fuel ? getFuelLabel(v.fuel_label || v.fuel) : null,
+    v.gearbox_label || v.gearbox ? getGearboxLabel(v.gearbox_label || v.gearbox) : null,
     v.power != null ? `${Math.round(v.power * 1.35962)} PS` : null,
   ].filter(Boolean) as string[];
   return parts.length ? parts.join(" · ") : "Keine Eckdaten hinterlegt";
@@ -545,9 +545,15 @@ export default function VehiclesAdmin() {
       const dbKey = sortKey === "standtage" ? "created_at" : sortKey;
       const ascending = sortKey === "standtage" ? sortDir === "desc" : sortDir === "asc";
 
+      // nullsFirst: false → Zeilen ohne Wert (z. B. Preis/EZ bei neuen
+      // Portalfahrzeugen) landen immer am Ende, nie zufällig dazwischen.
+      // id als Zweitsortierung sorgt für eine stabile Reihenfolge.
       query = query
         .order(dbKey, { ascending, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false })
         .range(offset, offset + size - 1);
+
 
       const { data: rows, count, error } = await query;
       if (error) throw error;

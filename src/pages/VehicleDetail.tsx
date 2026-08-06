@@ -17,6 +17,7 @@ import {
   getGearboxLabel,
   getClimatisationLabel,
   getConditionLabel,
+  getColorLabel,
   getInteriorTypeLabel,
 } from "@/lib/mobileDeLabels";
 
@@ -102,8 +103,8 @@ const VehicleDetail = () => {
     ["Getriebe", vehicle.gearbox ? getGearboxLabel(vehicle.gearbox) : null],
     ["Kraftstoff", vehicle.fuel ? getFuelLabel(vehicle.fuel) : null],
     ["Karosserie", vehicle.body_type ? getBodyTypeLabel(vehicle.body_type) : null],
-    ["Farbe außen", vehicle.exterior_color],
-    ["Farbe innen", vehicle.interior_color],
+    ["Farbe außen", vehicle.exterior_color ? getColorLabel(vehicle.exterior_color) : null],
+    ["Farbe innen", vehicle.interior_color ? getColorLabel(vehicle.interior_color) : null],
     ["Interieur", vehicle.interior_type ? getInteriorTypeLabel(vehicle.interior_type) : null],
     ["Sitze", vehicle.num_seats?.toString() || null],
     ["Klimaanlage", vehicle.climatisation ? getClimatisationLabel(vehicle.climatisation) : null],

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +72,7 @@ async function readFunctionError(
 
 export default function VehicleWizard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const params = useParams<{ vehicleId?: string }>();
 
   const [vehicleId, setVehicleId] = useState<string | null>(params.vehicleId ?? null);
@@ -78,6 +80,11 @@ export default function VehicleWizard() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [imagePaths, setImagePaths] = useState<string[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  /** Storage-Pfad → öffentliche URL (Anzeige im Portal) */
+  const [publicUrls, setPublicUrls] = useState<Record<string, string>>({});
+  const publicUrlsRef = useRef<Record<string, string>>({});
+  publicUrlsRef.current = publicUrls;
+
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(Boolean(params.vehicleId));
@@ -146,8 +153,12 @@ export default function VehicleWizard() {
       if (s?.signedUrl) map[p] = s.signedUrl;
     }));
     setPreviews(map);
+    const savedPublic = (payload?._imagePublicUrls ?? {}) as Record<string, string>;
+    setPublicUrls(savedPublic && typeof savedPublic === "object" ? savedPublic : {});
+    publicUrlsRef.current = savedPublic ?? {};
     setVehicleId(id);
     setDirty(false);
+
   }, []);
 
   useEffect(() => {
@@ -194,16 +205,26 @@ export default function VehicleWizard() {
       if (!opts?.silent) toast.info("Noch nichts einzugeben — bitte zuerst Daten erfassen.");
       return null;
     }
+    const publicMap = publicUrlsRef.current;
+    const customUrls = paths.map((p) => publicMap[p]).filter(Boolean);
     const payload = {
       ...buildVehiclePayload(f),
       _imagePaths: paths,
+      _imagePublicUrls: publicMap,
       _wizardStep: opts?.step ?? stateRef.current.step,
     };
-    const columns = buildVehicleColumnsFor(
-      f,
-      refdata.makes.find((m) => m.key === f.make)?.name ?? f.make,
-      refdata.models.find((m) => m.key === f.model)?.name ?? f.model,
-    );
+    const columns = {
+      ...buildVehicleColumnsFor(
+        f,
+        refdata.makes.find((m) => m.key === f.make)?.name ?? f.make,
+        refdata.models.find((m) => m.key === f.model)?.name ?? f.model,
+      ),
+      // Bilder immer direkt am Fahrzeug speichern — unabhängig davon, ob
+      // später veröffentlicht wird.
+      custom_image_urls: customUrls,
+      image_order: customUrls,
+    };
+
     setSaving(true);
     try {
       if (id) {
@@ -257,26 +278,67 @@ export default function VehicleWizard() {
     try {
       const added: string[] = [];
       const newPreviews: Record<string, string> = {};
+      const newPublic: Record<string, string> = {};
+      const failed: string[] = [];
       const prefix = `drafts/${vehicleId ?? Date.now()}`;
       for (const file of files) {
         const ext = file.name.split(".").pop() || "jpg";
-        const path = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error } = await supabase.storage
+        const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const path = `${prefix}/${name}`;
+        const { data: up, error } = await supabase.storage
           .from("mobile-ad-images")
           .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
-        if (error) {
-          console.error(error);
-          toast.error(`Upload fehlgeschlagen: ${file.name}`);
+        if (error || !up?.path) {
+          console.error("Upload mobile-ad-images fehlgeschlagen", error);
+          failed.push(file.name);
           continue;
         }
+        // Prüfen, ob die Datei wirklich im Bucket liegt — sonst entsteht sonst
+        // still und leise ein Fahrzeug ohne Bild.
+        const { data: check } = await supabase.storage
+          .from("mobile-ad-images")
+          .list(prefix, { search: name, limit: 1 });
+        if (!check || check.length === 0) {
+          console.error("Bild nach dem Upload nicht im Bucket gefunden", path);
+          failed.push(file.name);
+          continue;
+        }
+
+        // Zusätzlich in den öffentlichen Bucket, damit das Bild sofort im
+        // Portal (Liste, Detailseite) sichtbar ist — auch ohne Veröffentlichung.
+        const publicPath = `custom-vehicle-images/${prefix}/${name}`;
+        const { error: pubErr } = await supabase.storage
+          .from("vehicle-stories")
+          .upload(publicPath, file, { cacheControl: "3600", upsert: true, contentType: file.type });
+        if (pubErr) {
+          console.error("Upload vehicle-stories fehlgeschlagen", pubErr);
+          failed.push(file.name);
+          continue;
+        }
+        newPublic[path] = supabase.storage.from("vehicle-stories").getPublicUrl(publicPath).data.publicUrl;
+
         const { data: signed } = await supabase.storage
           .from("mobile-ad-images").createSignedUrl(path, 3600);
         added.push(path);
         if (signed?.signedUrl) newPreviews[path] = signed.signedUrl;
       }
-      setImagePaths((p) => [...p, ...added]);
+      if (failed.length) {
+        toast.error(
+          `Foto-Upload fehlgeschlagen: ${failed.join(", ")}. Bitte erneut versuchen — ohne erfolgreichen Upload wird kein Bild gespeichert.`,
+          { duration: 10000 },
+        );
+      }
+      if (added.length === 0) return;
+      const nextPaths = [...stateRef.current.imagePaths, ...added];
+      setImagePaths(nextPaths);
       setPreviews((p) => ({ ...p, ...newPreviews }));
+      setPublicUrls((p) => ({ ...p, ...newPublic }));
       setDirty(true);
+      // Sofort am Fahrzeug speichern, damit die Bilder auch bei Abbruch
+      // im Entwurf erhalten bleiben.
+      stateRef.current.imagePaths = nextPaths;
+      publicUrlsRef.current = { ...publicUrlsRef.current, ...newPublic };
+      await persist({ silent: true });
     } finally {
       setUploading(false);
     }
@@ -284,13 +346,23 @@ export default function VehicleWizard() {
 
   const removeImage = async (path: string) => {
     await supabase.storage.from("mobile-ad-images").remove([path]);
-    setImagePaths((p) => p.filter((x) => x !== path));
+    const nextPaths = stateRef.current.imagePaths.filter((x) => x !== path);
+    setImagePaths(nextPaths);
     setPreviews((p) => {
       const { [path]: _drop, ...rest } = p;
       return rest;
     });
+    setPublicUrls((p) => {
+      const { [path]: _drop, ...rest } = p;
+      return rest;
+    });
+    stateRef.current.imagePaths = nextPaths;
+    const { [path]: _gone, ...restPublic } = publicUrlsRef.current;
+    publicUrlsRef.current = restPublic;
     setDirty(true);
+    await persist({ silent: true });
   };
+
 
   /* ── Veröffentlichen ── */
   const publish = async (confirmPrice = false) => {
@@ -354,6 +426,8 @@ export default function VehicleWizard() {
         toast.info(`Hinweise von Mobile.de: ${warnings.join(" · ")}`, { duration: 8000 });
       }
       setDirty(false);
+      // Liste neu laden, damit das Fahrzeug ohne manuelles Aktualisieren erscheint
+      await queryClient.invalidateQueries({ queryKey: ["admin-vehicles"] });
       navigate("/admin/fahrzeuge");
     } catch (e) {
       console.error(e);
@@ -466,7 +540,7 @@ export default function VehicleWizard() {
           manual={manual}
           onManual={(p) => setManual((m) => ({ ...m, ...p }))}
           saving={saving || published}
-          onSaveDraft={async () => { await persist(); navigate("/admin/fahrzeuge"); }}
+          onSaveDraft={async () => { await persist(); await queryClient.invalidateQueries({ queryKey: ["admin-vehicles"] }); navigate("/admin/fahrzeuge"); }}
           onPublish={() => void publish()}
           onJump={jumpToField}
           publishError={publishError}

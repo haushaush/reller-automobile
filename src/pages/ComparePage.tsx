@@ -1,3 +1,4 @@
+import { primaryVehicleImage } from "@/lib/vehicleImages";
 import { useCompare } from "@/contexts/CompareContext";
 import { useInquiry } from "@/contexts/InquiryContext";
 import { useNavigate } from "react-router-dom";
@@ -178,7 +179,7 @@ const ComparePage = () => {
             <div className="compare-row mb-2">
               <div className="compare-label-cell" /> {/* empty corner */}
               {selected.map((v) => {
-                const img = v.image_urls?.[0] || "/placeholder.svg";
+                const img = primaryVehicleImage(v) || "/placeholder.svg";
                 return (
                   <div key={v.id} className="px-3 md:px-0">
                     <div
