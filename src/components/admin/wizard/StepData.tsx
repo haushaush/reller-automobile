@@ -11,7 +11,10 @@ import {
 } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { MobileRefdata } from "@/hooks/useMobileRefdata";
+import { Button } from "@/components/ui/button";
+import EquipmentPicker from "@/components/admin/wizard/EquipmentPicker";
 import YearCombobox from "@/components/admin/wizard/YearCombobox";
+
 import {
   type FormState,
   type AccidentState,
@@ -75,79 +78,67 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
     [],
   );
 
-  const section = (id: SectionId, title: string, children: ReactNode) => {
+  const section = (
+    id: SectionId,
+    title: ReactNode,
+    children: ReactNode,
+    headerExtra?: ReactNode,
+  ) => {
     const isOpen = open.includes(id);
     const missing = missingPerSection[id] ?? 0;
     return (
       <Card key={id}>
-        <button
-          type="button"
-          onClick={() => toggle(id)}
-          className="w-full flex items-center justify-between gap-3 p-4 text-left"
-          aria-expanded={isOpen}
-        >
-          <span className="font-medium">{title}</span>
-          <span className="flex items-center gap-2">
-            {missing > 0 ? (
-              <Badge variant="destructive">
-                {missing} Pflichtangabe{missing === 1 ? "" : "n"} fehlt
-              </Badge>
-            ) : id === "ausstattung" ? (
-              <Badge variant="outline">freiwillig</Badge>
-            ) : (
-              <Badge variant="outline">vollständig</Badge>
-            )}
-            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-          </span>
-        </button>
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() => toggle(id)}
+            className="flex-1 flex items-center justify-between gap-3 p-4 text-left"
+            aria-expanded={isOpen}
+          >
+            <span className="font-medium">{title}</span>
+            <span className="flex items-center gap-2">
+              {missing > 0 ? (
+                <Badge variant="destructive">
+                  {missing} Pflichtangabe{missing === 1 ? "" : "n"} fehlt
+                </Badge>
+              ) : id === "ausstattung" ? (
+                <Badge variant="outline">freiwillig</Badge>
+              ) : (
+                <Badge variant="outline">vollständig</Badge>
+              )}
+              <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            </span>
+          </button>
+          {isOpen && headerExtra && <div className="pr-4 shrink-0">{headerExtra}</div>}
+        </div>
         {isOpen && <div className="px-4 pb-6 space-y-4 border-t pt-4">{children}</div>}
       </Card>
     );
   };
 
-  const featureGrid = (items: { key: string; label: string }[]) => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-      {items.map((f) => (
-        <div key={f.key} className="flex items-center gap-2">
-          <Checkbox
-            id={`w-${f.key}`}
-            checked={!!form.features[f.key]}
-            onCheckedChange={(c) =>
-              onChange({ features: { ...form.features, [f.key]: c === true } })
-            }
-          />
-          <Label htmlFor={`w-${f.key}`} className="cursor-pointer text-sm font-normal">
-            {f.label}
-          </Label>
-        </div>
-      ))}
-    </div>
+
+  const equipmentGroups = useMemo(
+    () => [
+      { id: "komfort", title: "Komfort und Multimedia", items: COMFORT_FEATURES },
+      { id: "sicherheit", title: "Sicherheit und Assistenz", items: SAFETY_FEATURES },
+    ],
+    [],
   );
 
-  const [equipOpen, setEquipOpen] = useState<string[]>(["komfort"]);
-  const toggleEquip = (id: string) =>
-    setEquipOpen((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  const selectedFeatureCount = useMemo(
+    () => equipmentGroups.reduce(
+      (n, g) => n + g.items.filter((i) => form.features[i.key]).length,
+      0,
+    ),
+    [equipmentGroups, form.features],
+  );
 
-  const equipGroup = (id: string, title: string, items: { key: string; label: string }[]) => {
-    const count = items.filter((i) => form.features[i.key]).length;
-    const isOpen = equipOpen.includes(id);
-    return (
-      <div className="border rounded-md">
-        <button
-          type="button"
-          onClick={() => toggleEquip(id)}
-          className="w-full flex items-center justify-between p-3 text-left text-sm font-medium"
-        >
-          <span>{title}</span>
-          <span className="flex items-center gap-2 text-muted-foreground font-normal">
-            {count > 0 && <span>{count} ausgewählt</span>}
-            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-          </span>
-        </button>
-        {isOpen && <div className="p-3 pt-0">{featureGrid(items)}</div>}
-      </div>
-    );
+  const resetFeatures = () => {
+    const next = { ...form.features };
+    for (const g of equipmentGroups) for (const i of g.items) delete next[i.key];
+    onChange({ features: next });
   };
+
 
   return (
     <div className="space-y-4">
@@ -430,25 +421,38 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
         </div>
       </>))}
 
-      {section("ausstattung", "Ausstattung", (<>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Klimatisierung</Label>
-            <Select value={form.climatisation} onValueChange={(v) => onChange({ climatisation: v })}>
-              <SelectTrigger><SelectValue placeholder="Klimatisierung wählen" /></SelectTrigger>
-              <SelectContent>
-                {refdata.climatisations.map((c) => (
-                  <SelectItem key={c.key} value={c.key}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {section(
+        "ausstattung",
+        selectedFeatureCount > 0 ? `Ausstattung — ${selectedFeatureCount} ausgewählt` : "Ausstattung",
+        (<>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Klimatisierung</Label>
+              <Select value={form.climatisation} onValueChange={(v) => onChange({ climatisation: v })}>
+                <SelectTrigger><SelectValue placeholder="Klimatisierung wählen" /></SelectTrigger>
+                <SelectContent>
+                  {refdata.climatisations.map((c) => (
+                    <SelectItem key={c.key} value={c.key}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-        <div className="space-y-2">
-          {equipGroup("komfort", "Komfort und Multimedia", COMFORT_FEATURES)}
-          {equipGroup("sicherheit", "Sicherheit und Assistenz", SAFETY_FEATURES)}
-        </div>
-      </>))}
+          <EquipmentPicker
+            features={form.features}
+            onChange={(features) => onChange({ features })}
+            groups={equipmentGroups}
+            autoFocus={open.includes("ausstattung")}
+            onEscape={() => toggle("ausstattung")}
+          />
+        </>),
+        selectedFeatureCount > 0 ? (
+          <Button type="button" variant="ghost" size="sm" onClick={resetFeatures}>
+            Auswahl zurücksetzen
+          </Button>
+        ) : null,
+      )}
+
 
       {section("preis", "Preis und Beschreibung", (<>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
