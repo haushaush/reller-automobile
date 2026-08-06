@@ -129,6 +129,18 @@ export default function VehicleAdminDetail() {
     enabled: !!id,
   });
 
+  // Titel des Originals für den Vermerk „Erstellt als Kopie von …“
+  const duplicatedFrom = typeof vehicle?.duplicated_from === "string" ? vehicle.duplicated_from : null;
+  const { data: originalTitle } = useQuery({
+    queryKey: ["vehicle-original-title", duplicatedFrom],
+    enabled: !!duplicatedFrom,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("vehicles").select("title").eq("id", duplicatedFrom!).maybeSingle();
+      return data?.title ?? null;
+    },
+  });
+
   const { data: auditRows } = useQuery({
     queryKey: ["vehicle-audit", id],
     queryFn: async () => {
@@ -441,6 +453,17 @@ export default function VehicleAdminDetail() {
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight mt-1 line-clamp-2">
             {vehicle.title}
           </h1>
+          {typeof vehicle.duplicated_from === "string" && vehicle.duplicated_from && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Erstellt als Kopie von{" "}
+              <Link
+                to={`/admin/fahrzeuge/${vehicle.duplicated_from}`}
+                className="underline hover:text-foreground"
+              >
+                {originalTitle ?? "Originalfahrzeug"}
+              </Link>
+            </p>
+          )}
           <div className="flex items-center gap-2 mt-2">
             <Badge variant="outline">{isMobileDe ? "Mobile.de" : "Manuell"}</Badge>
             {vehicle.is_sold ? (

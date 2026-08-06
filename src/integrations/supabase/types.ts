@@ -1408,6 +1408,7 @@ export type Database = {
           damage_unrepaired: boolean | null
           description: string | null
           detail_page_url: string | null
+          duplicated_from: string | null
           exterior_color: string | null
           exterior_color_key: string | null
           exterior_color_label: string | null
@@ -1487,6 +1488,7 @@ export type Database = {
           damage_unrepaired?: boolean | null
           description?: string | null
           detail_page_url?: string | null
+          duplicated_from?: string | null
           exterior_color?: string | null
           exterior_color_key?: string | null
           exterior_color_label?: string | null
@@ -1566,6 +1568,7 @@ export type Database = {
           damage_unrepaired?: boolean | null
           description?: string | null
           detail_page_url?: string | null
+          duplicated_from?: string | null
           exterior_color?: string | null
           exterior_color_key?: string | null
           exterior_color_label?: string | null
@@ -1622,7 +1625,15 @@ export type Database = {
           vehicle_category?: string | null
           year?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_duplicated_from_fkey"
+            columns: ["duplicated_from"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

@@ -173,7 +173,7 @@ export default function VehicleWizard() {
   const loadVehicle = useCallback(async (id: string) => {
     const { data, error } = await supabase
       .from("vehicles")
-      .select("mobile_payload, publish_status")
+      .select("mobile_payload, publish_status, duplicated_from")
       .eq("id", id)
       .maybeSingle();
     if (error || !data) {
@@ -198,6 +198,15 @@ export default function VehicleWizard() {
     publicUrlsRef.current = savedPublic ?? {};
     setVehicleId(id);
     setDirty(false);
+    // Kopien öffnen direkt bei den Angaben — Kilometerstand und Erstzulassung
+    // bleiben beim Duplizieren bewusst leer.
+    if (data.duplicated_from) {
+      const f = payloadToForm(payload);
+      if (!f.mileage || !f.regYear) {
+        setFocusSection("basis");
+        toast.info("Kopie angelegt — bitte Kilometerstand und Erstzulassung ergänzen.");
+      }
+    }
 
   }, []);
 
