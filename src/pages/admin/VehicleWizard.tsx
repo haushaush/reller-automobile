@@ -257,26 +257,67 @@ export default function VehicleWizard() {
     try {
       const added: string[] = [];
       const newPreviews: Record<string, string> = {};
+      const newPublic: Record<string, string> = {};
+      const failed: string[] = [];
       const prefix = `drafts/${vehicleId ?? Date.now()}`;
       for (const file of files) {
         const ext = file.name.split(".").pop() || "jpg";
-        const path = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error } = await supabase.storage
+        const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const path = `${prefix}/${name}`;
+        const { data: up, error } = await supabase.storage
           .from("mobile-ad-images")
           .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
-        if (error) {
-          console.error(error);
-          toast.error(`Upload fehlgeschlagen: ${file.name}`);
+        if (error || !up?.path) {
+          console.error("Upload mobile-ad-images fehlgeschlagen", error);
+          failed.push(file.name);
           continue;
         }
+        // Prüfen, ob die Datei wirklich im Bucket liegt — sonst entsteht sonst
+        // still und leise ein Fahrzeug ohne Bild.
+        const { data: check } = await supabase.storage
+          .from("mobile-ad-images")
+          .list(prefix, { search: name, limit: 1 });
+        if (!check || check.length === 0) {
+          console.error("Bild nach dem Upload nicht im Bucket gefunden", path);
+          failed.push(file.name);
+          continue;
+        }
+
+        // Zusätzlich in den öffentlichen Bucket, damit das Bild sofort im
+        // Portal (Liste, Detailseite) sichtbar ist — auch ohne Veröffentlichung.
+        const publicPath = `custom-vehicle-images/${prefix}/${name}`;
+        const { error: pubErr } = await supabase.storage
+          .from("vehicle-stories")
+          .upload(publicPath, file, { cacheControl: "3600", upsert: true, contentType: file.type });
+        if (pubErr) {
+          console.error("Upload vehicle-stories fehlgeschlagen", pubErr);
+          failed.push(file.name);
+          continue;
+        }
+        newPublic[path] = supabase.storage.from("vehicle-stories").getPublicUrl(publicPath).data.publicUrl;
+
         const { data: signed } = await supabase.storage
           .from("mobile-ad-images").createSignedUrl(path, 3600);
         added.push(path);
         if (signed?.signedUrl) newPreviews[path] = signed.signedUrl;
       }
-      setImagePaths((p) => [...p, ...added]);
+      if (failed.length) {
+        toast.error(
+          `Foto-Upload fehlgeschlagen: ${failed.join(", ")}. Bitte erneut versuchen — ohne erfolgreichen Upload wird kein Bild gespeichert.`,
+          { duration: 10000 },
+        );
+      }
+      if (added.length === 0) return;
+      const nextPaths = [...stateRef.current.imagePaths, ...added];
+      setImagePaths(nextPaths);
       setPreviews((p) => ({ ...p, ...newPreviews }));
+      setPublicUrls((p) => ({ ...p, ...newPublic }));
       setDirty(true);
+      // Sofort am Fahrzeug speichern, damit die Bilder auch bei Abbruch
+      // im Entwurf erhalten bleiben.
+      stateRef.current.imagePaths = nextPaths;
+      publicUrlsRef.current = { ...publicUrlsRef.current, ...newPublic };
+      await persist({ silent: true });
     } finally {
       setUploading(false);
     }
@@ -284,13 +325,23 @@ export default function VehicleWizard() {
 
   const removeImage = async (path: string) => {
     await supabase.storage.from("mobile-ad-images").remove([path]);
-    setImagePaths((p) => p.filter((x) => x !== path));
+    const nextPaths = stateRef.current.imagePaths.filter((x) => x !== path);
+    setImagePaths(nextPaths);
     setPreviews((p) => {
       const { [path]: _drop, ...rest } = p;
       return rest;
     });
+    setPublicUrls((p) => {
+      const { [path]: _drop, ...rest } = p;
+      return rest;
+    });
+    stateRef.current.imagePaths = nextPaths;
+    const { [path]: _gone, ...restPublic } = publicUrlsRef.current;
+    publicUrlsRef.current = restPublic;
     setDirty(true);
+    await persist({ silent: true });
   };
+
 
   /* ── Veröffentlichen ── */
   const publish = async (confirmPrice = false) => {
