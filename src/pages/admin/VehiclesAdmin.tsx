@@ -649,12 +649,31 @@ export default function VehiclesAdmin() {
           .slice(0, 1000);
       }
 
+      // Portalfilter über die aktiven Inserate
+      let portalIds: string[] | null = null;
+      if (filters.portal !== "all") {
+        portalIds = (stateIndex ?? [])
+          .filter((v) => matchesPortal(v.id, filters.portal))
+          .map((v) => v.id)
+          .slice(0, 1000);
+        if (accountIds !== null) {
+          const allow = new Set(accountIds);
+          portalIds = portalIds.filter((id) => allow.has(id));
+          accountIds = null;
+        }
+      }
+
       if (accountIds !== null && accountIds.length === 0) {
+        return { rows: [] as AdminVehicleRow[], count: 0 };
+      }
+      if (portalIds !== null && portalIds.length === 0) {
         return { rows: [] as AdminVehicleRow[], count: 0 };
       }
 
       let query = supabase.from("vehicles").select(SELECT_COLUMNS, { count: "exact" });
       if (accountIds !== null) query = query.in("id", accountIds);
+      if (portalIds !== null) query = query.in("id", portalIds);
+
 
       if (term) {
         const like = `%${term}%`;
