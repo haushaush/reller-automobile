@@ -32,6 +32,35 @@ const STEPS = [
 
 interface DraftCandidate { id: string; title: string; updated_at: string }
 
+export interface PublishError {
+  message: string;
+  fields: RequiredField[];
+}
+
+/** Wurde im Assistenten überhaupt schon etwas erfasst? */
+function isBlankDraft(form: FormState, imagePaths: string[]): boolean {
+  if (imagePaths.length > 0) return false;
+  return Object.entries(form).every(([key, value]) => {
+    const initial = (EMPTY as Record<string, unknown>)[key];
+    if (Array.isArray(value)) return value.length === 0;
+    if (value && typeof value === "object") return Object.keys(value).length === 0;
+    return value === initial;
+  });
+}
+
+/** Liest den Fehlertext aus der Antwort einer Edge Function (non-2xx). */
+async function readFunctionError(
+  error: unknown,
+): Promise<{ error?: string; missingFields?: { form: string; label: string; section: string }[] } | null> {
+  const ctx = (error as { context?: unknown } | null)?.context;
+  if (!ctx || typeof (ctx as Response).json !== "function") return null;
+  try {
+    return await (ctx as Response).clone().json();
+  } catch {
+    return null;
+  }
+}
+
 export default function VehicleWizard() {
   const navigate = useNavigate();
   const params = useParams<{ vehicleId?: string }>();
@@ -48,6 +77,7 @@ export default function VehicleWizard() {
   const [resumeDraft, setResumeDraft] = useState<DraftCandidate | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [focusSection, setFocusSection] = useState<SectionId | null>(null);
+  const [publishError, setPublishError] = useState<PublishError | null>(null);
 
   const [accounts, setAccounts] = useState<PlatformAccountRow[]>([]);
   const [accountKey, setAccountKey] = useState("");
@@ -419,6 +449,7 @@ export default function VehicleWizard() {
           onSaveDraft={async () => { await persist(); navigate("/admin/fahrzeuge"); }}
           onPublish={publish}
           onJump={jumpToField}
+          publishError={publishError}
         />
       )}
 
