@@ -97,9 +97,30 @@ function parseValues(detail: string | null): { portal?: string; mobile?: string 
   return { portal: m[1].trim(), mobile: m[2].trim() };
 }
 
+/** Zahlenwerte aus dem Detailtext (für Differenz-Anzeige) */
+function parseNumbers(detail: string | null): { portal?: number; mobile?: number } {
+  if (!detail) return {};
+  const m = detail.match(/Portal\s+([\d.,]+)[^/]*\/\s*Mobile\.de\s+([\d.,]+)/);
+  if (!m) return {};
+  const toNum = (s: string) => Number(s.replace(/\./g, "").replace(",", "."));
+  const portal = toNum(m[1]);
+  const mobile = toNum(m[2]);
+  return {
+    portal: Number.isFinite(portal) ? portal : undefined,
+    mobile: Number.isFinite(mobile) ? mobile : undefined,
+  };
+}
+
+const DRIFT_TYPES = new Set(["price_drift", "mileage_drift"]);
+
+function formatNumber(n: number) {
+  return n.toLocaleString("de-DE");
+}
+
 function adLink(adId: string) {
   return `https://suchen.mobile.de/fahrzeuge/details.html?id=${adId}`;
 }
+
 
 type FilterKey = "all" | "orphan_ad" | "account_mismatch" | "sold_but_listed" | "drift";
 
