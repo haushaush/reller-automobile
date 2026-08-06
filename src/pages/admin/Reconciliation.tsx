@@ -5,6 +5,14 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  accountBadgeClass,
+  accountFullLabel,
+  accountShortLabel,
+  findAccount,
+  scopeToAccountKey,
+  type PlatformAccountRow,
+} from "@/lib/listings";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -133,9 +141,17 @@ export default function Reconciliation() {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<PlatformAccountRow[]>([]);
+  const [accountFilter, setAccountFilter] = useState<string>("all");
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
+    const { data: accountRows } = await supabase
+      .from("platform_accounts")
+      .select("*")
+      .eq("platform", "mobile_de")
+      .order("sort_order");
+    setAccounts((accountRows ?? []) as PlatformAccountRow[]);
     const { data, error } = await supabase
       .from("mobile_reconciliation_issues")
       .select("id, vehicle_id, mobile_ad_id, issue_type, severity, detail, scope, detected_at")
@@ -186,9 +202,24 @@ export default function Reconciliation() {
     };
   }, [issues]);
 
+  /** Beide Abgleichsläufe nebeneinander: je Konto die offenen Punkte */
+  const perAccount = useMemo(() => {
+    return accounts.map((a) => {
+      const rows = issues.filter((i) => scopeToAccountKey(i.scope) === a.account_key);
+      return {
+        account: a,
+        total: rows.length,
+        orphan: rows.filter((i) => i.issue_type === "orphan_ad").length,
+        sold: rows.filter((i) => i.issue_type === "sold_but_listed").length,
+        drift: rows.filter((i) => DRIFT_TYPES.has(i.issue_type)).length,
+      };
+    });
+  }, [accounts, issues]);
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return issues.filter((i) => {
+      if (accountFilter !== "all" && scopeToAccountKey(i.scope) !== accountFilter) return false;
       if (filter === "orphan_ad" && i.issue_type !== "orphan_ad") return false;
       if (filter === "account_mismatch" && i.issue_type !== "account_mismatch") return false;
       if (filter === "sold_but_listed" && i.issue_type !== "sold_but_listed") return false;
@@ -207,7 +238,7 @@ export default function Reconciliation() {
         (i.detail ?? "").toLowerCase().includes(q)
       );
     });
-  }, [issues, filter, search, vehicles]);
+  }, [issues, filter, search, vehicles, accountFilter]);
 
   const markResolved = async (id: string) => {
     setBusyId(id);
@@ -304,6 +335,50 @@ export default function Reconciliation() {
         </Card>
       </div>
 
+      {perAccount.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {perAccount.map(({ account, total, orphan, sold, drift }) => (
+            <Card key={account.account_key} className="p-4">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className={accountBadgeClass(account.badge_color)}>
+                  {accountShortLabel(accounts, account.account_key)}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  Kundennummer {account.seller_id ?? "—"}
+                </span>
+              </div>
+              <div className="mt-2 text-2xl font-semibold">{total}</div>
+              <p className="text-xs text-muted-foreground">
+                offene Punkte · {orphan} ohne Fahrzeug · {sold} verkauft &amp; inseriert · {drift}{" "}
+                abweichende Angaben
+              </p>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant={accountFilter === "all" ? "default" : "outline"}
+            onClick={() => setAccountFilter("all")}
+          >
+            Alle Konten
+          </Button>
+          {accounts.map((a) => (
+            <Button
+              key={a.account_key}
+              size="sm"
+              variant={accountFilter === a.account_key ? "default" : "outline"}
+              onClick={() => setAccountFilter(a.account_key)}
+            >
+              {accountShortLabel(accounts, a.account_key)}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex flex-wrap gap-2">
           {filters.map((f) => (
@@ -365,6 +440,17 @@ export default function Reconciliation() {
                           : "secondary"}>
                         {info.label}
                       </Badge>
+                      {scopeToAccountKey(issue.scope) && (
+                        <Badge
+                          variant="outline"
+                          className={accountBadgeClass(
+                            findAccount(accounts, "mobile_de", scopeToAccountKey(issue.scope))
+                              ?.badge_color,
+                          )}
+                        >
+                          Konto: {accountFullLabel(accounts, scopeToAccountKey(issue.scope))}
+                        </Badge>
+                      )}
                       {info.fields.map((f) => (
                         <Badge key={f} variant="outline">
                           Betrifft: {f}
