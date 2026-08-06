@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -361,17 +360,6 @@ export default function Settings() {
         </p>
       </div>
 
-      <Card className="p-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Benachrichtigungen</h2>
-          <p className="text-sm text-muted-foreground">
-            Absenderadresse festlegen und einstellen, wer welche Mail bekommt — inklusive Testversand.
-          </p>
-        </div>
-        <Button variant="outline" asChild>
-          <Link to="/admin/einstellungen/benachrichtigungen">Öffnen</Link>
-        </Button>
-      </Card>
 
       <PlatformAccountsCard />
 
@@ -449,7 +437,7 @@ export default function Settings() {
         <div className="flex items-start gap-3">
           <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
           <div className="flex-1">
-            <h2 className="text-lg font-semibold">Story-Kontaktdaten</h2>
+            <h2 className="text-lg font-semibold">Angezeigte Kontaktdaten</h2>
             <p className="text-sm text-muted-foreground">
               Diese Daten erscheinen unten im Story-Bild. Leer lassen = keine Anzeige.
             </p>

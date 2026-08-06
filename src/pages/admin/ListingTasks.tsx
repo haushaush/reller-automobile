@@ -80,7 +80,7 @@ export default function ListingTasks() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Zu erledigen</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Offene Aufgaben</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Handgriffe, die Sie auf AutoScout24 oder Kleinanzeigen selbst vornehmen müssen.
       </p>

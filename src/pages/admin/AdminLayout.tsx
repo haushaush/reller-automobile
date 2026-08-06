@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MAIN_NAV, SETTINGS_NAV, type AdminNavEntry } from "@/lib/adminNav";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function AdminLayout() {
   const { user, isAdmin, signOut } = useAuth();
@@ -84,7 +85,10 @@ export default function AdminLayout() {
   const NavContent = () => (
     <>
       <div className="border-b border-border p-6">
-        <h2 className="text-lg font-semibold">Verwaltung</h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-lg font-semibold">Verwaltung</h2>
+          <ThemeToggle />
+        </div>
         <p className="mt-1 truncate text-xs text-muted-foreground">{user?.email}</p>
       </div>
 
@@ -154,7 +158,7 @@ export default function AdminLayout() {
           </SheetContent>
         </Sheet>
         <h2 className="text-sm font-semibold">Verwaltung</h2>
-        <div className="w-9" />
+        <ThemeToggle />
       </header>
 
       <main className="min-w-0 flex-1 overflow-auto">

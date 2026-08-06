@@ -143,6 +143,7 @@ export default function Reconciliation() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<PlatformAccountRow[]>([]);
   const [accountFilter, setAccountFilter] = useState<string>("all");
+  const [visibleCount, setVisibleCount] = useState(10);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -239,6 +240,10 @@ export default function Reconciliation() {
       );
     });
   }, [issues, filter, search, vehicles, accountFilter]);
+
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [filter, search, accountFilter]);
 
   const markResolved = async (id: string) => {
     setBusyId(id);
@@ -417,7 +422,10 @@ export default function Reconciliation() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {visible.map((issue) => {
+          <p className="text-sm text-muted-foreground">
+            {visible.length} Meldungen — angezeigt: {Math.min(visibleCount, visible.length)}
+          </p>
+          {visible.slice(0, visibleCount).map((issue) => {
             const info = infoFor(issue.issue_type);
             const values = parseValues(issue.detail);
             const nums = parseNumbers(issue.detail);
@@ -565,6 +573,15 @@ export default function Reconciliation() {
               </Card>
             );
           })}
+          {visible.length > visibleCount && (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setVisibleCount((n) => n + 10)}
+            >
+              Weitere anzeigen ({visible.length - visibleCount} übrig)
+            </Button>
+          )}
         </div>
       )}
     </div>

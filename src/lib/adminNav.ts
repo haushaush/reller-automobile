@@ -57,7 +57,7 @@ export const MAIN_NAV: AdminNavEntry[] = [
     description: "Kundenanfragen lesen und deren Bearbeitungsstand pflegen",
   },
   {
-    label: "Zu erledigen",
+    label: "Offene Aufgaben",
     path: "/admin/zu-erledigen",
     icon: ListChecks,
     badgeKey: "tasks",

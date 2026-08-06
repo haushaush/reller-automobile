@@ -76,6 +76,7 @@ interface RecentVehicle {
 
 export default function SyncStatus() {
   const [logs, setLogs] = useState<SyncLog[]>([]);
+  const [visibleLogs, setVisibleLogs] = useState(10);
   const [recentlyUpdated, setRecentlyUpdated] = useState<RecentVehicle[]>([]);
   const [newVehicles, setNewVehicles] = useState<RecentVehicle[]>([]);
   const [priceChanges, setPriceChanges] = useState<PriceChangeRow[]>([]);
@@ -93,7 +94,7 @@ export default function SyncStatus() {
   const loadData = useCallback(async () => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const [logsRes, updatedRes, newRes, addedRes, soldRes, issuesRes, errorIssuesRes, priceRes] = await Promise.all([
-      supabase.from("sync_logs").select("*").order("started_at", { ascending: false }).limit(20),
+      supabase.from("sync_logs").select("*").order("started_at", { ascending: false }).limit(100),
       supabase
         .from("vehicles")
         .select("id, title, brand, price, synced_at, created_at, modification_date, is_sold")
@@ -278,14 +279,21 @@ export default function SyncStatus() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-5">
-          <h2 className="text-lg font-semibold mb-4">Verlauf der Abgleiche</h2>
+          <h2 className="text-lg font-semibold mb-4">
+            Verlauf der Abgleiche
+            {logs.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                {logs.length} Meldungen
+              </span>
+            )}
+          </h2>
           {isLoading ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           ) : logs.length === 0 ? (
             <p className="text-sm text-muted-foreground">Es wurde noch kein Abgleich ausgeführt.</p>
           ) : (
-            <div className="space-y-3 max-h-[500px] overflow-y-auto">
-              {logs.map((log) => {
+            <div className="space-y-3">
+              {logs.slice(0, visibleLogs).map((log) => {
                 const hasCounts =
                   log.vehicles_total != null ||
                   log.vehicles_added != null ||
@@ -374,6 +382,16 @@ export default function SyncStatus() {
                 );
 
               })}
+              {logs.length > visibleLogs && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setVisibleLogs((n) => n + 10)}
+                >
+                  Weitere anzeigen ({logs.length - visibleLogs} übrig)
+                </Button>
+              )}
             </div>
           )}
         </Card>

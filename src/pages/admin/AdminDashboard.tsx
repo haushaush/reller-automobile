@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Car, BookmarkCheck, BadgeEuro, Mail, FileEdit, ListChecks, ArrowRight } from "lucide-react";
+import { Car, BookmarkCheck, BadgeEuro, Mail, ListChecks, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -178,18 +178,12 @@ export default function AdminDashboard() {
       to: "/admin/fahrzeuge?status=sold",
     },
     {
-      label: "Zu erledigen",
+      label: "Offene Aufgaben",
       value: stats.openTasks,
       icon: ListChecks,
       to: "/admin/zu-erledigen",
     },
     { label: "Offene Anfragen", value: stats.openInquiries, icon: Mail, to: "/admin/anfragen" },
-    {
-      label: "Entwürfe",
-      value: stats.drafts,
-      icon: FileEdit,
-      to: "/admin/fahrzeuge?publish=draft",
-    },
   ];
 
   return (
