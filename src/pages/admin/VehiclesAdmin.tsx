@@ -273,8 +273,8 @@ function keyFacts(v: AdminVehicleRow): string {
   const parts = [
     v.year ?? null,
     v.mileage != null ? `${v.mileage.toLocaleString("de-DE")} km` : null,
-    v.fuel_label ?? (v.fuel ? getFuelLabel(v.fuel) : null),
-    v.gearbox_label ?? (v.gearbox ? getGearboxLabel(v.gearbox) : null),
+    v.fuel_label || v.fuel ? getFuelLabel(v.fuel_label || v.fuel) : null,
+    v.gearbox_label || v.gearbox ? getGearboxLabel(v.gearbox_label || v.gearbox) : null,
     v.power != null ? `${Math.round(v.power * 1.35962)} PS` : null,
   ].filter(Boolean) as string[];
   return parts.length ? parts.join(" · ") : "Keine Eckdaten hinterlegt";
