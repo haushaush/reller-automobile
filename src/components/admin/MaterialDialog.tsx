@@ -300,8 +300,12 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
                 return (
                   <Card key={kind} className="flex items-start gap-3 p-3">
                     <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
-                      {item.url ? (
-                        <img src={item.url} alt={MATERIAL_LABELS[kind]} className="h-full w-full object-cover" />
+                      {kind !== "expose" && item.signedUrl && !item.missing ? (
+                        <img
+                          src={item.signedUrl}
+                          alt={MATERIAL_LABELS[kind]}
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <Icon className="h-6 w-6 text-muted-foreground" />
                       )}
@@ -309,12 +313,17 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium">{MATERIAL_LABELS[kind]}</span>
-                        {item.exists ? (
-                          <Badge variant="secondary" className="text-[10px]">Vorhanden</Badge>
-                        ) : (
+                        {!item.exists ? (
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">
                             Noch nicht erstellt
                           </Badge>
+                        ) : item.missing ? (
+                          <Badge variant="destructive" className="gap-1 text-[10px]">
+                            <AlertTriangle className="h-3 w-3" />
+                            Nicht mehr vorhanden
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px]">Vorhanden</Badge>
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">{MATERIAL_HINTS[kind]}</p>
@@ -323,17 +332,19 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
                           Erstellt am {format(new Date(item.createdAt), "dd.MM.yyyy HH:mm", { locale: de })}
                         </p>
                       )}
+                      {item.exists && item.missing && (
+                        <p className="mt-0.5 text-xs text-destructive">
+                          Die Datei liegt nicht mehr im Speicher. Bitte neu erstellen.
+                        </p>
+                      )}
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {item.exists ? (
+                        {item.exists && !item.missing ? (
                           <>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() =>
-                                kind === "expose" && item.path
-                                  ? openExposePreview(item.path)
-                                  : item.url && setPreview(item.url)
-                              }
+                              disabled={busy === kind}
+                              onClick={() => view(kind)}
                             >
                               <Maximize2 className="mr-1.5 h-3.5 w-3.5" />
                               Ansehen
@@ -362,7 +373,7 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
                             ) : (
                               <Plus className="mr-1.5 h-3.5 w-3.5" />
                             )}
-                            Jetzt erstellen
+                            {item.exists && item.missing ? "Neu erstellen" : "Jetzt erstellen"}
                           </Button>
                         )}
                       </div>
@@ -377,9 +388,20 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
 
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-3xl p-2">
-          {preview && <img src={preview} alt="Vorschau" className="max-h-[80vh] w-full object-contain" />}
+          {preview?.kind === "expose" ? (
+            <iframe
+              src={preview.url}
+              title="PDF-Vorschau"
+              className="h-[80vh] w-full rounded border-0"
+            />
+          ) : (
+            preview && (
+              <img src={preview.url} alt="Vorschau" className="max-h-[80vh] w-full object-contain" />
+            )
+          )}
         </DialogContent>
       </Dialog>
+
     </>
   );
 }
