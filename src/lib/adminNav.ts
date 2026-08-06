@@ -67,7 +67,7 @@ export const MAIN_NAV: AdminNavEntry[] = [
     label: "Marketing-Materialien",
     path: "/admin/storys",
     icon: ImageIcon,
-    description: "Bilder für WhatsApp und Social Media erstellen und wiederfinden",
+    description: "Storys, PDF-Exposés und Fotocollagen erstellen und wiederfinden",
   },
 ];
 
