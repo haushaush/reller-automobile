@@ -64,7 +64,7 @@ export const MAIN_NAV: AdminNavEntry[] = [
     description: "Handgriffe, die Sie auf AutoScout24 oder Kleinanzeigen selbst machen müssen",
   },
   {
-    label: "Storys",
+    label: "Marketing-Materialien",
     path: "/admin/storys",
     icon: ImageIcon,
     description: "Bilder für WhatsApp und Social Media erstellen und wiederfinden",
