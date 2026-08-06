@@ -55,85 +55,11 @@ function applyAccount(account: PlatformAccount) {
 }
 const API_BASE = "https://services.mobile.de/seller-api";
 const MOBILE_MIME = "application/vnd.de.mobile.api+json";
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2 MiB cap per Mobile.de
 
 function basicAuth(): string {
   return `Basic ${btoa(`${MOBILE_USER}:${MOBILE_PASS}`)}`;
 }
 
-function detectFormat(bytes: Uint8Array): string {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpeg";
-  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "png";
-  if (bytes.length >= 12 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
-      bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return "webp";
-  if (bytes.length >= 6 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return "gif";
-  return "unknown";
-}
-
-async function ensureJpegUnder2MB(input: Uint8Array): Promise<Uint8Array> {
-  // ALWAYS decode + re-encode as real JPEG, never trust file extension/content-type.
-  const decoded = await decodeImage(input);
-  if (!(decoded instanceof Image)) {
-    throw new Error("Unsupported image format (multi-frame / not a static image)");
-  }
-  const qualities = [90, 80, 70, 60, 50, 40, 30];
-  // First try original size at decreasing quality
-  for (const q of qualities) {
-    const buf = await decoded.encodeJPEG(q);
-    if (buf.byteLength <= MAX_IMAGE_BYTES) return buf;
-  }
-  // Still too big: progressively shrink
-  let scale = 0.8;
-  while (scale >= 0.2) {
-    const w = Math.max(640, Math.round(decoded.width * scale));
-    const h = Math.max(480, Math.round(decoded.height * scale));
-    const img = decoded.clone().resize(w, h);
-    for (const q of qualities) {
-      const buf = await img.encodeJPEG(q);
-      if (buf.byteLength <= MAX_IMAGE_BYTES) return buf;
-    }
-    scale -= 0.15;
-  }
-  throw new Error("Bild konnte nicht unter 2 MB komprimiert werden");
-}
-
-async function uploadOneImage(jpeg: Uint8Array, filename: string): Promise<string> {
-  // Mobile.de Seller-API: pre-upload image via POST /images with raw JPEG body.
-  // Docs: https://services.mobile.de/seller-api/openapi-docs (operation "Upload Image")
-  const url = `${API_BASE}/images`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: basicAuth(),
-      Accept: MOBILE_MIME,
-      "Content-Type": "image/jpeg",
-    },
-    body: jpeg,
-  });
-  const text = await res.text();
-  console.log(`Image upload ${filename}: status=${res.status}, body=${text.slice(0, 200)}`);
-  if (!res.ok) {
-    throw new Error(`Image upload failed (${res.status}): ${text.slice(0, 300)}`);
-  }
-  let ref: string | undefined;
-  let hash: string | undefined;
-  try {
-    const j = JSON.parse(text);
-    ref = j?.ref ?? j?.reference;
-    hash = j?.hash;
-  } catch {
-    // fall through to Location header
-  }
-  if (!ref) {
-    ref = res.headers.get("Location")?.split("/").pop() ?? undefined;
-  }
-  if (hash) console.log(`Image ${filename} hash=${hash}`);
-  if (!ref) {
-    throw new Error("Mobile.de Upload-Antwort ohne Bildreferenz");
-  }
-  console.log(`Uploaded image ${filename} -> ref=${ref}`);
-  return String(ref);
-}
 
 /**
  * Liest aus einer Mobile.de-Anzeige die Bild-URLs (größte verfügbare
