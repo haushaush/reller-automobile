@@ -1565,7 +1565,14 @@ export default function VehiclesAdmin() {
         </div>
       </div>
 
+      <DuplicateVehicleDialog
+        vehicle={duplicate}
+        onClose={() => setDuplicate(null)}
+        onDone={refresh}
+      />
+
       {statusFor && (
+
         <VehicleStatusDialog
           open={!!statusFor}
           onOpenChange={(o) => {
