@@ -158,7 +158,7 @@ export default function AdminLayout() {
           </SheetContent>
         </Sheet>
         <h2 className="text-sm font-semibold">Verwaltung</h2>
-        <div className="w-9" />
+        <ThemeToggle />
       </header>
 
       <main className="min-w-0 flex-1 overflow-auto">
