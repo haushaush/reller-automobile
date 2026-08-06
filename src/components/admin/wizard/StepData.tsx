@@ -418,25 +418,38 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
         </div>
       </>))}
 
-      {section("ausstattung", "Ausstattung", (<>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Klimatisierung</Label>
-            <Select value={form.climatisation} onValueChange={(v) => onChange({ climatisation: v })}>
-              <SelectTrigger><SelectValue placeholder="Klimatisierung wählen" /></SelectTrigger>
-              <SelectContent>
-                {refdata.climatisations.map((c) => (
-                  <SelectItem key={c.key} value={c.key}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {section(
+        "ausstattung",
+        selectedFeatureCount > 0 ? `Ausstattung — ${selectedFeatureCount} ausgewählt` : "Ausstattung",
+        (<>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Klimatisierung</Label>
+              <Select value={form.climatisation} onValueChange={(v) => onChange({ climatisation: v })}>
+                <SelectTrigger><SelectValue placeholder="Klimatisierung wählen" /></SelectTrigger>
+                <SelectContent>
+                  {refdata.climatisations.map((c) => (
+                    <SelectItem key={c.key} value={c.key}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-        <div className="space-y-2">
-          {equipGroup("komfort", "Komfort und Multimedia", COMFORT_FEATURES)}
-          {equipGroup("sicherheit", "Sicherheit und Assistenz", SAFETY_FEATURES)}
-        </div>
-      </>))}
+          <EquipmentPicker
+            features={form.features}
+            onChange={(features) => onChange({ features })}
+            groups={equipmentGroups}
+            autoFocus={open.includes("ausstattung")}
+            onEscape={() => toggle("ausstattung")}
+          />
+        </>),
+        selectedFeatureCount > 0 ? (
+          <Button type="button" variant="ghost" size="sm" onClick={resetFeatures}>
+            Auswahl zurücksetzen
+          </Button>
+        ) : null,
+      )}
+
 
       {section("preis", "Preis und Beschreibung", (<>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
