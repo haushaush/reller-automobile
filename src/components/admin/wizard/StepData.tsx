@@ -415,6 +415,13 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
               onChange={(e) => onChange({ consumerPriceGross: e.target.value.replace(/[^0-9]/g, "") })}
               placeholder="z. B. 12900"
             />
+            {(() => {
+              const p = Number(form.consumerPriceGross || 0);
+              if (!p) return null;
+              if (p < 500) return <p className="text-xs text-amber-600 dark:text-amber-400">Der Preis wirkt sehr niedrig — bitte prüfen.</p>;
+              if (p > 500000) return <p className="text-xs text-amber-600 dark:text-amber-400">Der Preis wirkt sehr hoch — bitte prüfen.</p>;
+              return null;
+            })()}
           </div>
           <div className="space-y-2">
             <Label>{req("Mehrwertsteuer")}</Label>
