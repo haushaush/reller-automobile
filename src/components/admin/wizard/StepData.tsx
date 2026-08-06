@@ -11,8 +11,10 @@ import {
 } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { MobileRefdata } from "@/hooks/useMobileRefdata";
+import YearCombobox from "@/components/admin/wizard/YearCombobox";
 import {
   type FormState,
+  type AccidentState,
   CATEGORY_LABELS,
   FUEL_LABELS,
   GEARBOX_LABELS,
@@ -20,10 +22,14 @@ import {
   COMFORT_FEATURES,
   SAFETY_FEATURES,
   REQUIRED_FIELDS,
+  ACCIDENT_STATE_OPTIONS,
+  accidentStateOf,
+  accidentStatePatch,
   isFieldFilled,
   labelFor,
   PORTAL_VEHICLE_CATEGORIES,
 } from "@/lib/mobileAdForm";
+
 
 export type SectionId = "basis" | "technik" | "ausstattung" | "preis";
 
