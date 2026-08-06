@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { categoryLabel } from "@/pages/admin/VehiclesAdmin";
+
 
 interface DeletionRow {
   id: string;
@@ -32,6 +32,17 @@ const dateTime = (iso: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
+
+const CATEGORY_LABELS: Record<string, string> = {
+  oldtimer: "Oldtimer",
+  youngtimer: "Youngtimer",
+  used: "Gebraucht- & Jahreswagen",
+  accident: "Unfallwagen",
+  commercial: "Nutzfahrzeuge",
+};
+
+const categoryLabel = (value: string | null | undefined) =>
+  value ? CATEGORY_LABELS[value] ?? value : "—";
 
 const euro = (v: number | null) => (v == null ? "—" : `${v.toLocaleString("de-DE")} €`);
 
