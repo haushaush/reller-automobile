@@ -29,6 +29,8 @@ interface Props {
   vehicleId: string;
   vehicleTitle: string;
   current: VehicleSaleStatus;
+  /** Vorauswahl, wenn der Dialog aus dem Auswahlfeld der Tabelle geöffnet wird */
+  initialTarget?: VehicleSaleStatus;
   onDone?: () => void;
 }
 
@@ -38,6 +40,7 @@ export default function VehicleStatusDialog({
   vehicleId,
   vehicleTitle,
   current,
+  initialTarget,
   onDone,
 }: Props) {
   const [target, setTarget] = useState<VehicleSaleStatus>(current);
@@ -48,7 +51,7 @@ export default function VehicleStatusDialog({
 
   useEffect(() => {
     if (!open) return;
-    setTarget(current);
+    setTarget(initialTarget ?? current);
     supabase
       .from("listings")
       .select("*")
@@ -61,7 +64,7 @@ export default function VehicleStatusDialog({
       .eq("vehicle_id", vehicleId)
       .eq("status", "IN_PROGRESS")
       .then(({ data }) => setOpenLeads((data ?? []) as { id: string; buyer_name: string | null }[]));
-  }, [open, current, vehicleId]);
+  }, [open, current, initialTarget, vehicleId]);
 
   const mobile = listings.find((l) => l.platform === "mobile_de");
   const manualLive = listings.filter((l) => l.is_manual && l.status === "live");
