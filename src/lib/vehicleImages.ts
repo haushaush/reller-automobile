@@ -6,12 +6,13 @@ export interface VehicleImageSource {
 }
 
 /**
- * Führt Mobile.de-Bilder und eigene Uploads zusammen, entfernt ausgeblendete
+ * Führt eigene Uploads und Mobile.de-Bilder zusammen, entfernt ausgeblendete
  * Bilder und wendet die im Admin gepflegte Reihenfolge (image_order) an.
+ * Eigene Bilder (custom_image_urls) haben Vorrang, danach image_urls.
  */
 export function resolveVehicleImages(v: VehicleImageSource | null | undefined): string[] {
   if (!v) return [];
-  const merged = [...(v.image_urls ?? []), ...(v.custom_image_urls ?? [])].filter(
+  const merged = [...(v.custom_image_urls ?? []), ...(v.image_urls ?? [])].filter(
     (u): u is string => typeof u === "string" && u.length > 0,
   );
   const unique = Array.from(new Set(merged));
@@ -20,6 +21,7 @@ export function resolveVehicleImages(v: VehicleImageSource | null | undefined): 
 
   const order = v.image_order ?? [];
   if (order.length === 0) return visible;
+
 
   const rank = new Map<string, number>();
   order.forEach((u, i) => rank.set(u, i));
