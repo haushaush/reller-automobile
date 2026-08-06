@@ -64,7 +64,13 @@ interface Props {
   onSaveDraft: () => void;
   onPublish: () => void;
   onJump: (field: RequiredField) => void;
-  publishError?: { message: string; fields: RequiredField[] } | null;
+  publishError?: {
+    message: string;
+    errorId?: string;
+    fields: RequiredField[];
+    issues: { message: string; code?: string; field?: RequiredField | null }[];
+  } | null;
+
 }
 
 export default function StepReview({
