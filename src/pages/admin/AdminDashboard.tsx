@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Car, BookmarkCheck, BadgeEuro, Mail, FileEdit, ListChecks, ArrowRight } from "lucide-react";
+import { Car, BookmarkCheck, BadgeEuro, Mail, ListChecks, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
