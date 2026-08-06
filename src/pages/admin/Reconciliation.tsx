@@ -55,12 +55,23 @@ const ISSUE_INFO: Record<string, { label: string; fields: string[]; hint: string
     fields: ["Inserat"],
     hint: "Im Portal steht ein veröffentlichtes Fahrzeug, bei Mobile.de gibt es dazu kein Inserat mehr.",
   },
+  ad_missing: {
+    label: "Fahrzeug ohne Inserat",
+    fields: ["Inserat"],
+    hint: "Im Portal steht ein veröffentlichtes Fahrzeug, bei Mobile.de gibt es dazu kein Inserat mehr.",
+  },
+  account_mismatch: {
+    label: "Falsches Mobile.de-Konto",
+    fields: ["Kontozuordnung"],
+    hint: "Das Inserat wurde auf einem anderen Mobile.de-Konto gefunden, als im Portal hinterlegt ist. Die Zuordnung ist nach dem Veröffentlichen fix – bitte einzeln prüfen. Es wird nichts automatisch geändert.",
+  },
   title_drift: {
     label: "Titel stimmt nicht überein",
     fields: ["Titel"],
     hint: "Die Bezeichnung unterscheidet sich zwischen Portal und Mobile.de.",
   },
 };
+
 
 function infoFor(type: string) {
   return (
