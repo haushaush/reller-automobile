@@ -178,6 +178,7 @@ export interface ReconcileResult {
   orphanAds: number;
   missingAds: number;
   driftAds: number;
+  soldButListed: number;
   issues: number;
 }
 
@@ -209,14 +210,17 @@ export async function reconcile(
 
   const { data: rows } = await supabase
     .from("vehicles")
-    .select("id, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold");
+    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at");
   const vehicles = (rows ?? []) as Array<Record<string, unknown>>;
   const vehicleById = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) vehicleById.set(String(v.id), v);
 
+  // Interne Präfixe (z. B. "accident_") gehören nicht zur echten Mobile.de-Inseratsnummer.
+  const bareAdId = (value: unknown) => String(value).replace(/^accident_/, "");
   const byAdId = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) {
-    if (v.mobile_ad_id) byAdId.set(String(v.mobile_ad_id), v);
+    if (v.mobile_ad_id) byAdId.set(bareAdId(v.mobile_ad_id), v);
+    if (v.mobile_de_id && !byAdId.has(bareAdId(v.mobile_de_id))) byAdId.set(bareAdId(v.mobile_de_id), v);
   }
 
   // Kontozuordnung: mobile_de-Listings aller Konten
@@ -230,7 +234,7 @@ export async function reconcile(
   const accountByVehicle = new Map<string, string>();
   for (const l of listings) {
     const key = String(l.account_key ?? "");
-    if (l.external_ad_id) listingByAdId.set(String(l.external_ad_id), l);
+    if (l.external_ad_id) listingByAdId.set(bareAdId(l.external_ad_id), l);
     if (l.vehicle_id && key && !accountByVehicle.has(String(l.vehicle_id))) {
       accountByVehicle.set(String(l.vehicle_id), key);
     }
@@ -238,7 +242,7 @@ export async function reconcile(
   // Fallback: Fahrzeug-Ad-ID an Listing-Konto koppeln
   for (const v of vehicles) {
     if (!v.mobile_ad_id) continue;
-    const adId = String(v.mobile_ad_id);
+    const adId = bareAdId(v.mobile_ad_id);
     if (!listingByAdId.has(adId)) {
       const acc = accountByVehicle.get(String(v.id));
       if (acc) listingByAdId.set(adId, { vehicle_id: v.id, account_key: acc, external_ad_id: adId, status: "live" });
@@ -305,6 +309,17 @@ export async function reconcile(
     matched++;
     if (!v) continue;
 
+    if (v.is_sold === true) {
+      const soldAt = v.sold_at ? new Date(String(v.sold_at)).toLocaleDateString("de-DE") : "unbekannt";
+      issues.push({
+        vehicle_id: v.id, mobile_ad_id: ad.mobileAdId, scope,
+        issue_type: "sold_but_listed", severity: "error",
+        detail: `Fahrzeug „${v.title ?? ad.title}“ ist im Portal als verkauft markiert (Verkauft am: ${soldAt}), das Inserat steht auf Konto „${accountKey}“ aber noch online. Bitte prüfen – es wird nichts automatisch beendet.`,
+      });
+    }
+
+
+
     const priceLocal = typeof v.price === "number" ? v.price : null;
     if (ad.price !== null && priceLocal !== null && Math.abs(ad.price - priceLocal) >= 1) {
       issues.push({
@@ -327,13 +342,13 @@ export async function reconcile(
   const vanishedIds = new Set<string>();
   const vanished: Array<{ vehicle_id: string | null; mobile_ad_id: string }> = [];
   for (const l of scopeListings) {
-    const adId = l.external_ad_id ? String(l.external_ad_id) : null;
+    const adId = l.external_ad_id ? bareAdId(l.external_ad_id) : null;
     if (!adId || liveIds.has(adId) || vanishedIds.has(adId)) continue;
     vanishedIds.add(adId);
     vanished.push({ vehicle_id: l.vehicle_id ? String(l.vehicle_id) : null, mobile_ad_id: adId });
   }
   for (const v of legacyVehicles) {
-    const adId = String(v.mobile_ad_id);
+    const adId = bareAdId(v.mobile_ad_id);
     if (liveIds.has(adId) || vanishedIds.has(adId)) continue;
     vanishedIds.add(adId);
     vanished.push({ vehicle_id: String(v.id), mobile_ad_id: adId });
@@ -386,6 +401,7 @@ export async function reconcile(
     orphanAds,
     missingAds: vanished.length,
     driftAds: uniqueIssues.filter((i) => String(i.issue_type).endsWith("_drift")).length,
+    soldButListed: uniqueIssues.filter((i) => i.issue_type === "sold_but_listed").length,
     issues: uniqueIssues.length,
   };
 

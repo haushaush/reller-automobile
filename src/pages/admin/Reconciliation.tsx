@@ -14,6 +14,7 @@ import {
   Unlink,
   AlertTriangle,
   Car,
+  BadgeEuro,
 } from "lucide-react";
 
 interface IssueRow {
@@ -65,6 +66,11 @@ const ISSUE_INFO: Record<string, { label: string; fields: string[]; hint: string
     fields: ["Kontozuordnung"],
     hint: "Das Inserat wurde auf einem anderen Mobile.de-Konto gefunden, als im Portal hinterlegt ist. Die Zuordnung ist nach dem Veröffentlichen fix – bitte einzeln prüfen. Es wird nichts automatisch geändert.",
   },
+  sold_but_listed: {
+    label: "Verkauft, aber noch inseriert",
+    fields: ["Verkaufsstatus", "Inserat"],
+    hint: "Das Fahrzeug ist im Portal als verkauft markiert, das Inserat läuft bei Mobile.de aber weiter. Bitte das Inserat beenden oder den Verkaufsstatus korrigieren. Es wird nichts automatisch beendet.",
+  },
   title_drift: {
     label: "Titel stimmt nicht überein",
     fields: ["Titel"],
@@ -95,7 +101,7 @@ function adLink(adId: string) {
   return `https://suchen.mobile.de/fahrzeuge/details.html?id=${adId}`;
 }
 
-type FilterKey = "all" | "orphan_ad" | "account_mismatch" | "drift";
+type FilterKey = "all" | "orphan_ad" | "account_mismatch" | "sold_but_listed" | "drift";
 
 export default function Reconciliation() {
   const [issues, setIssues] = useState<IssueRow[]>([]);
@@ -147,11 +153,13 @@ export default function Reconciliation() {
   const counts = useMemo(() => {
     const orphan = issues.filter((i) => i.issue_type === "orphan_ad").length;
     const mismatch = issues.filter((i) => i.issue_type === "account_mismatch").length;
+    const sold = issues.filter((i) => i.issue_type === "sold_but_listed").length;
     return {
       all: issues.length,
       orphan_ad: orphan,
       account_mismatch: mismatch,
-      drift: issues.length - orphan - mismatch,
+      sold_but_listed: sold,
+      drift: issues.length - orphan - mismatch - sold,
     };
   }, [issues]);
 
@@ -160,7 +168,14 @@ export default function Reconciliation() {
     return issues.filter((i) => {
       if (filter === "orphan_ad" && i.issue_type !== "orphan_ad") return false;
       if (filter === "account_mismatch" && i.issue_type !== "account_mismatch") return false;
-      if (filter === "drift" && (i.issue_type === "orphan_ad" || i.issue_type === "account_mismatch")) return false;
+      if (filter === "sold_but_listed" && i.issue_type !== "sold_but_listed") return false;
+      if (
+        filter === "drift" &&
+        (i.issue_type === "orphan_ad" ||
+          i.issue_type === "account_mismatch" ||
+          i.issue_type === "sold_but_listed")
+      )
+        return false;
       if (!q) return true;
       const title = i.vehicle_id ? vehicles[i.vehicle_id]?.title ?? "" : "";
       return (
@@ -190,6 +205,7 @@ export default function Reconciliation() {
     { key: "all", label: "Alle", count: counts.all },
     { key: "orphan_ad", label: "Inserate ohne Fahrzeug", count: counts.orphan_ad },
     { key: "account_mismatch", label: "Falsches Konto", count: counts.account_mismatch },
+    { key: "sold_but_listed", label: "Verkauft, noch inseriert", count: counts.sold_but_listed },
     { key: "drift", label: "Abweichende Daten", count: counts.drift },
   ];
 
@@ -212,7 +228,7 @@ export default function Reconciliation() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <AlertTriangle className="h-4 w-4" /> Offene Punkte
@@ -230,6 +246,12 @@ export default function Reconciliation() {
             <Unlink className="h-4 w-4" /> Falsches Konto
           </div>
           <div className="mt-1 text-2xl font-semibold">{counts.account_mismatch}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <BadgeEuro className="h-4 w-4" /> Verkauft, noch inseriert
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{counts.sold_but_listed}</div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -286,7 +308,9 @@ export default function Reconciliation() {
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={issue.issue_type === "orphan_ad" ? "destructive" : "secondary"}>
+                      <Badge variant={issue.issue_type === "orphan_ad" || issue.issue_type === "sold_but_listed"
+                          ? "destructive"
+                          : "secondary"}>
                         {info.label}
                       </Badge>
                       {info.fields.map((f) => (
