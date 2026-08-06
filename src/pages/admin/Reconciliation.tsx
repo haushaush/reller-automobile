@@ -65,6 +65,11 @@ const ISSUE_INFO: Record<string, { label: string; fields: string[]; hint: string
     fields: ["Kontozuordnung"],
     hint: "Das Inserat wurde auf einem anderen Mobile.de-Konto gefunden, als im Portal hinterlegt ist. Die Zuordnung ist nach dem Veröffentlichen fix – bitte einzeln prüfen. Es wird nichts automatisch geändert.",
   },
+  sold_but_listed: {
+    label: "Verkauft, aber noch inseriert",
+    fields: ["Verkaufsstatus", "Inserat"],
+    hint: "Das Fahrzeug ist im Portal als verkauft markiert, das Inserat läuft bei Mobile.de aber weiter. Bitte das Inserat beenden oder den Verkaufsstatus korrigieren. Es wird nichts automatisch beendet.",
+  },
   title_drift: {
     label: "Titel stimmt nicht überein",
     fields: ["Titel"],
