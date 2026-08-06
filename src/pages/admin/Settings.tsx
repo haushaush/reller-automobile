@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import LeadApiCard from "@/components/admin/LeadApiCard";
 import PlatformAccountsCard from "@/components/admin/PlatformAccountsCard";
+import TestDataCard from "@/components/admin/TestDataCard";
+
 
 const STORY_RECIPIENTS_KEY = "story_email_recipients";
 const STORY_CONTACT_PHONE_KEY = "story_contact_phone";
@@ -364,6 +366,9 @@ export default function Settings() {
       <PlatformAccountsCard />
 
       <LeadApiCard />
+
+      <TestDataCard />
+
 
 
       <Card className="p-6 space-y-4">

@@ -438,6 +438,7 @@ export type Database = {
           done_at: string | null
           done_by: string | null
           id: string
+          is_demo: boolean
           listing_id: string | null
           reason: string | null
           vehicle_id: string
@@ -449,6 +450,7 @@ export type Database = {
           done_at?: string | null
           done_by?: string | null
           id?: string
+          is_demo?: boolean
           listing_id?: string | null
           reason?: string | null
           vehicle_id: string
@@ -460,6 +462,7 @@ export type Database = {
           done_at?: string | null
           done_by?: string | null
           id?: string
+          is_demo?: boolean
           listing_id?: string | null
           reason?: string | null
           vehicle_id?: string
@@ -1144,6 +1147,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "vehicle_audit_log_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_collages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          image_url: string
+          storage_path: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url: string
+          storage_path?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url?: string
+          storage_path?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_collages_vehicle_id_fkey"
             columns: ["vehicle_id"]
             isOneToOne: false
             referencedRelation: "vehicles"

@@ -24,6 +24,7 @@ interface TaskRow {
   reason: string | null;
   created_at: string;
   vehicle_id: string;
+  is_demo: boolean;
   listings: {
     platform: ListingPlatform;
     external_url: string | null;
@@ -41,7 +42,7 @@ export default function ListingTasks() {
       const { data, error } = await supabase
         .from("listing_tasks")
         .select(
-          "id, action, reason, created_at, vehicle_id, listings(platform, external_url), vehicles(title)",
+          "id, action, reason, created_at, vehicle_id, is_demo, listings(platform, external_url), vehicles(title)",
         )
         .is("done_at", null)
         .is("dismissed_at", null)
@@ -124,11 +125,17 @@ export default function ListingTasks() {
                     <Badge variant="secondary" className="text-[10px]">
                       {TASK_ACTION_LABELS[t.action]}
                     </Badge>
+                    {t.is_demo && (
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                        Testdaten
+                      </Badge>
+                    )}
                     {stale && (
                       <Badge className="bg-amber-500 text-white hover:bg-amber-500 text-[10px]">
                         seit über {STALE_DAYS} Tagen offen
                       </Badge>
                     )}
+
                   </div>
                   {t.reason && (
                     <p className="mt-1 text-xs text-muted-foreground">{t.reason}</p>
