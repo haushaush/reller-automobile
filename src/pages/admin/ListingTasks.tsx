@@ -393,26 +393,34 @@ export default function ListingTasks() {
                         <p className="mt-2 text-sm font-medium">{target}</p>
                       )}
 
-                      {/* 3) Fahrzeug als Nebeninformation */}
-                      <Link
-                        to={`/admin/fahrzeuge/${t.vehicle_id}`}
-                        className="mt-3 flex items-center gap-3 rounded-md p-1 text-xs text-muted-foreground hover:bg-muted/60"
-                      >
-                        {thumb ? (
-                          <img
-                            src={thumb}
-                            alt=""
-                            loading="lazy"
-                            className="h-9 w-14 shrink-0 rounded object-cover"
-                          />
-                        ) : (
-                          <span className="h-9 w-14 shrink-0 rounded bg-muted" />
-                        )}
-                        <span className="truncate">
-                          {v?.title ?? "Fahrzeug"}
-                          {intNo ? ` · Nr. ${intNo}` : ""}
-                        </span>
-                      </Link>
+                      {/* 3) Fahrzeug als Nebeninformation — gelöschte Fahrzeuge nur als Text */}
+                      {t.vehicle_id ? (
+                        <Link
+                          to={`/admin/fahrzeuge/${t.vehicle_id}`}
+                          className="mt-3 flex items-center gap-3 rounded-md p-1 text-xs text-muted-foreground hover:bg-muted/60"
+                        >
+                          {thumb ? (
+                            <img
+                              src={thumb}
+                              alt=""
+                              loading="lazy"
+                              className="h-9 w-14 shrink-0 rounded object-cover"
+                            />
+                          ) : (
+                            <span className="h-9 w-14 shrink-0 rounded bg-muted" />
+                          )}
+                          <span className="truncate">
+                            {v?.title ?? "Fahrzeug"}
+                            {intNo ? ` · Nr. ${intNo}` : ""}
+                          </span>
+                        </Link>
+                      ) : (
+                        <p className="mt-3 rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
+                          {t.ad_title ?? "Fahrzeug"} · endgültig gelöscht, kein Fahrzeugdatensatz
+                          mehr vorhanden
+                        </p>
+                      )}
+
 
                       {/* 4) Erst der Weg zum Ziel, dann das Abhaken */}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
