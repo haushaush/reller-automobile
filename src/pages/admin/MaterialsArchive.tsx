@@ -51,7 +51,7 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
   const [loading, setLoading] = useState(true);
   const [kind, setKind] = useState<MaterialKind | "all">("all");
   const [search, setSearch] = useState("");
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ kind: MaterialKind; url: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -230,8 +230,15 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
             return (
               <Card key={row.key} className="flex items-center gap-4 p-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
-                  {row.url ? (
-                    <img src={row.url} alt={row.vehicleTitle} className="h-full w-full object-cover" />
+                  {row.kind !== "expose" && row.path ? (
+                    <img
+                      src={
+                        supabase.storage.from(MATERIAL_BUCKETS[row.kind]).getPublicUrl(row.path).data
+                          .publicUrl
+                      }
+                      alt={row.vehicleTitle}
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <Icon className="h-5 w-5 text-muted-foreground" />
                   )}
@@ -248,7 +255,12 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <Button size="sm" variant="outline" onClick={() => open(row)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy === row.key}
+                    onClick={() => open(row)}
+                  >
                     <Maximize2 className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="sm" disabled={busy === row.key} onClick={() => download(row)}>
@@ -267,8 +279,16 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
 
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-3xl p-2">
-          {preview && (
-            <img src={preview} alt="Vorschau" className="max-h-[80vh] w-full object-contain" />
+          {preview?.kind === "expose" ? (
+            <iframe
+              src={preview.url}
+              title="PDF-Vorschau"
+              className="h-[80vh] w-full rounded border-0"
+            />
+          ) : (
+            preview && (
+              <img src={preview.url} alt="Vorschau" className="max-h-[80vh] w-full object-contain" />
+            )
           )}
         </DialogContent>
       </Dialog>
