@@ -27,7 +27,10 @@ export const REQUIRED_AD_FIELDS: RequiredAdField[] = [
   { api: "mileage", form: "mileage", label: "Kilometerstand", section: "basis", kind: "number" },
   { api: "firstRegistration", form: "regYear", label: "Erstzulassung", section: "basis", kind: "yyyymm" },
   { api: "condition", form: "condition", label: "Zustand", section: "basis", kind: "text" },
-  { api: "damageUnrepaired", form: "damageUnrepaired", label: "Unfallschaden", section: "basis", kind: "boolean" },
+  { api: "accidentDamaged", form: "accidentDamaged", label: "Unfallschaden", section: "basis", kind: "boolean" },
+  { api: "damageUnrepaired", form: "damageUnrepaired", label: "Unfallschaden repariert", section: "basis", kind: "boolean" },
+  { api: "roadworthy", form: "roadworthy", label: "Fahrbereit", section: "basis", kind: "boolean" },
+
   { api: "fuel", form: "fuel", label: "Kraftstoff", section: "technik", kind: "text" },
   { api: "gearbox", form: "gearbox", label: "Getriebe", section: "technik", kind: "text" },
   { api: "power", form: "power", label: "Leistung (kW)", section: "technik", kind: "number" },
