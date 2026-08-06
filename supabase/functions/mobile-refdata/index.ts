@@ -271,6 +271,13 @@ Deno.serve(async (req) => {
       case "exterior-colors":
         path = "/colors";
         break;
+      case "interior-colors":
+        path = "/interior-colors";
+        break;
+      case "interior-types":
+        path = "/interior-types";
+        break;
+
       case "climatisations":
         path = "/climatisations";
         break;
