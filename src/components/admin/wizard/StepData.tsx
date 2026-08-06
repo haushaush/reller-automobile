@@ -75,35 +75,44 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
     [],
   );
 
-  const section = (id: SectionId, title: string, children: ReactNode) => {
+  const section = (
+    id: SectionId,
+    title: ReactNode,
+    children: ReactNode,
+    headerExtra?: ReactNode,
+  ) => {
     const isOpen = open.includes(id);
     const missing = missingPerSection[id] ?? 0;
     return (
       <Card key={id}>
-        <button
-          type="button"
-          onClick={() => toggle(id)}
-          className="w-full flex items-center justify-between gap-3 p-4 text-left"
-          aria-expanded={isOpen}
-        >
-          <span className="font-medium">{title}</span>
-          <span className="flex items-center gap-2">
-            {missing > 0 ? (
-              <Badge variant="destructive">
-                {missing} Pflichtangabe{missing === 1 ? "" : "n"} fehlt
-              </Badge>
-            ) : id === "ausstattung" ? (
-              <Badge variant="outline">freiwillig</Badge>
-            ) : (
-              <Badge variant="outline">vollständig</Badge>
-            )}
-            <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-          </span>
-        </button>
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() => toggle(id)}
+            className="flex-1 flex items-center justify-between gap-3 p-4 text-left"
+            aria-expanded={isOpen}
+          >
+            <span className="font-medium">{title}</span>
+            <span className="flex items-center gap-2">
+              {missing > 0 ? (
+                <Badge variant="destructive">
+                  {missing} Pflichtangabe{missing === 1 ? "" : "n"} fehlt
+                </Badge>
+              ) : id === "ausstattung" ? (
+                <Badge variant="outline">freiwillig</Badge>
+              ) : (
+                <Badge variant="outline">vollständig</Badge>
+              )}
+              <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            </span>
+          </button>
+          {isOpen && headerExtra && <div className="pr-4 shrink-0">{headerExtra}</div>}
+        </div>
         {isOpen && <div className="px-4 pb-6 space-y-4 border-t pt-4">{children}</div>}
       </Card>
     );
   };
+
 
   const featureGrid = (items: { key: string; label: string }[]) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
