@@ -23,6 +23,7 @@ import {
   describeStorageError,
   downloadFromUrl,
   materialFileName,
+  isImageMaterial,
   storagePathFromValue,
   type MaterialKind,
 } from "@/lib/materials";
@@ -174,7 +175,8 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
         row.path,
       );
       const mode = await downloadFromUrl(url, name);
-      toast.success(mode === "shared" ? "Datei geteilt" : "Datei gespeichert");
+      const msg = saveToastMessage(mode, isImageMaterial(row.kind, row.path));
+      if (msg) toast.success(msg);
     } catch (e) {
       const err = describeStorageError(e);
       toast.error("Download fehlgeschlagen", {
@@ -263,7 +265,9 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
                   >
                     <Maximize2 className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="sm" disabled={busy === row.key} onClick={() => download(row)}>
+                  <Button size="sm" disabled={busy === row.key} onClick={() => download(row)} title={
+                    isTouch && isImageMaterial(row.kind, row.path) ? GALLERY_HINT : undefined
+                  }>
                     {busy === row.key ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (

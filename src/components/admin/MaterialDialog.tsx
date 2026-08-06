@@ -12,6 +12,7 @@ import {
   Maximize2,
   Plus,
 } from "lucide-react";
+import { useIsTouchDevice, saveButtonLabel, saveToastMessage, GALLERY_HINT } from "@/lib/download";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -32,6 +33,7 @@ import {
   describeStorageError,
   downloadFromUrl,
   materialFileName,
+  isImageMaterial,
   safeFileName,
   storagePathFromValue,
   uploadCollage,
@@ -93,6 +95,7 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
   });
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<MaterialKind | null>(null);
+  const isTouch = useIsTouchDevice();
   const [preview, setPreview] = useState<{ kind: MaterialKind; url: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -246,9 +249,9 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
     try {
       const url = await freshUrl(kind);
       const mode = await downloadFromUrl(url, fileNameFor(kind, state[kind].path));
-      toast.success(
-        mode === "shared" ? "Datei geteilt" : `${MATERIAL_LABELS[kind]} gespeichert`,
-      );
+      const msg = saveToastMessage(mode, isImageMaterial(kind, state[kind].path));
+      // Abbruch im Teilen-Dialog ist kein Fehler und bekommt keine Meldung.
+      if (msg) toast.success(mode === "downloaded" ? `${MATERIAL_LABELS[kind]} gespeichert` : msg);
     } catch (e) {
       const err = describeStorageError(e);
       toast.error("Download fehlgeschlagen", {
@@ -355,7 +358,7 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
                               ) : (
                                 <Download className="mr-1.5 h-3.5 w-3.5" />
                               )}
-                              Herunterladen
+                              {saveButtonLabel(isImageMaterial(kind, item.path), isTouch)}
                             </Button>
                             <Button
                               size="sm"
@@ -377,6 +380,9 @@ export default function MaterialDialog({ vehicle, open, onOpenChange, onChanged 
                           </Button>
                         )}
                       </div>
+                      {isTouch && isImageMaterial(kind, item.path) && item.exists && !item.missing && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">{GALLERY_HINT}</p>
+                      )}
                     </div>
                   </Card>
                 );
