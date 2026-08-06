@@ -108,6 +108,71 @@ const FALLBACK_LISTS: Record<string, RefItem[]> = {
   ],
 };
 
+// Ergänzende deutsche Bezeichnungen. Werden NUR benutzt, wenn Mobile.de für
+// einen Schlüssel keine lokalisierte Bezeichnung liefert (name === key).
+const GERMAN_OVERRIDES: Record<string, Record<string, string>> = {
+  "exterior-colors": {
+    BLACK: "Schwarz", WHITE: "Weiß", SILVER: "Silber", GREY: "Grau", GRAY: "Grau",
+    BLUE: "Blau", RED: "Rot", GREEN: "Grün", BROWN: "Braun", BEIGE: "Beige",
+    YELLOW: "Gelb", ORANGE: "Orange", GOLD: "Gold", VIOLET: "Violett",
+    PURPLE: "Violett", BRONZE: "Bronze",
+  },
+  "interior-colors": {
+    BLACK: "Schwarz", WHITE: "Weiß", GREY: "Grau", GRAY: "Grau", BEIGE: "Beige",
+    BROWN: "Braun", BLUE: "Blau", RED: "Rot", YELLOW: "Gelb", GREEN: "Grün",
+    ORANGE: "Orange", OTHER: "Andere",
+  },
+  "interior-types": {
+    CLOTH: "Stoff", PART_LEATHER: "Teilleder", FULL_LEATHER: "Vollleder",
+    VELOUR: "Velours", ALCANTARA: "Alcantara", OTHER: "Andere",
+  },
+  fuels: {
+    PETROL: "Benzin", DIESEL: "Diesel", LPG: "Autogas (LPG)", CNG: "Erdgas (CNG)",
+    ELECTRICITY: "Elektro", HYBRID: "Hybrid (Benzin/Elektro)",
+    HYBRID_DIESEL: "Hybrid (Diesel/Elektro)", HYDROGENIUM: "Wasserstoff",
+    ETHANOL: "Ethanol (E85)", OTHER: "Andere",
+  },
+  gearboxes: {
+    MANUAL_GEAR: "Schaltgetriebe", SEMIAUTOMATIC_GEAR: "Halbautomatik",
+    AUTOMATIC_GEAR: "Automatik",
+  },
+  climatisations: {
+    NO_CLIMATISATION: "Keine Klimatisierung",
+    MANUAL_CLIMATISATION: "Klimaanlage",
+    AUTOMATIC_CLIMATISATION: "Klimaautomatik",
+    "2_ZONE_AUTOMATIC_AIR_CONDITIONING": "2-Zonen-Klimaautomatik",
+    "3_ZONE_AUTOMATIC_AIR_CONDITIONING": "3-Zonen-Klimaautomatik",
+    "4_ZONE_AUTOMATIC_AIR_CONDITIONING": "4-Zonen-Klimaautomatik",
+  },
+};
+
+/** Nicht übersetzte Schlüssel lesbar machen: OFF_ROAD → „Off Road“. */
+function humanizeKey(key: string): string {
+  return key
+    .toLowerCase()
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function localize(kind: string, items: RefItem[]): RefItem[] {
+  const dict = GERMAN_OVERRIDES[kind] ?? {};
+  const untranslated: string[] = [];
+  const out = items.map((i) => {
+    if (i.name && i.name !== i.key) return i;
+    if (dict[i.key]) return { key: i.key, name: dict[i.key] };
+    untranslated.push(i.key);
+    return { key: i.key, name: humanizeKey(i.key) };
+  });
+  if (untranslated.length) {
+    console.warn(`mobile-refdata: keine deutsche Bezeichnung für ${kind}: ${untranslated.join(", ")}`);
+  }
+  return out;
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
