@@ -403,7 +403,7 @@ Deno.serve((req) => withAccountLock(async () => {
     });
     const putText = await putRes.text();
     console.log(`Mobile.de PUT status=${putRes.status}`);
-    if (!(putRes.status === 200 || putRes.status === 204)) {
+    if (!(putRes.status >= 200 && putRes.status < 300)) {
       console.error(`PUT failed body=${putText.slice(0, 800)}`);
       let parsed: unknown = putText;
       try { parsed = JSON.parse(putText); } catch { /* keep text */ }
