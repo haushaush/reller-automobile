@@ -919,8 +919,10 @@ Deno.serve((req) => withAccountLock(async () => {
 
     return json(200, {
       ok: true,
+      success: true,
       mobileAdId,
       detailPageUrl,
+      mobileWarnings,
       uploadedImages: refs.length,
       skippedImages: skipped,
     });
