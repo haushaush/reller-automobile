@@ -74,10 +74,6 @@ export default function StepData({ form, onChange, refdata, focusSection }: Prop
     () => Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")),
     [],
   );
-  const years = useMemo(() => {
-    const now = new Date().getFullYear();
-    return Array.from({ length: 40 }, (_, i) => String(now - i));
-  }, []);
 
   const section = (id: SectionId, title: string, children: ReactNode) => {
     const isOpen = open.includes(id);
