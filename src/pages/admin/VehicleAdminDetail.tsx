@@ -129,6 +129,18 @@ export default function VehicleAdminDetail() {
     enabled: !!id,
   });
 
+  // Titel des Originals für den Vermerk „Erstellt als Kopie von …“
+  const duplicatedFrom = typeof vehicle?.duplicated_from === "string" ? vehicle.duplicated_from : null;
+  const { data: originalTitle } = useQuery({
+    queryKey: ["vehicle-original-title", duplicatedFrom],
+    enabled: !!duplicatedFrom,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("vehicles").select("title").eq("id", duplicatedFrom!).maybeSingle();
+      return data?.title ?? null;
+    },
+  });
+
   const { data: auditRows } = useQuery({
     queryKey: ["vehicle-audit", id],
     queryFn: async () => {
