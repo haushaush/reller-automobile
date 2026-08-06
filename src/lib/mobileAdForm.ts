@@ -125,6 +125,35 @@ export const TODO_ENUM_FIELDS: { key: string; label: string }[] = [
   { key: "corneringLight", label: "Kurvenlicht" },
 ];
 
+/* ── Unfallzustand: drei Zustände, zwei Wahrheitswerte ───────────────────── */
+export type AccidentState = "none" | "repaired" | "unrepaired";
+
+export const ACCIDENT_STATE_OPTIONS: { value: AccidentState; label: string }[] = [
+  { value: "none", label: "Unfallfrei" },
+  { value: "repaired", label: "Unfallschaden, repariert" },
+  { value: "unrepaired", label: "Unfallschaden, nicht repariert" },
+];
+
+/** Formularzustand → eine der drei Auswahlmöglichkeiten (leer = noch offen). */
+export function accidentStateOf(form: {
+  accidentDamaged: "" | "true" | "false";
+  damageUnrepaired: "false" | "true";
+}): AccidentState | "" {
+  if (form.accidentDamaged === "") return "";
+  if (form.accidentDamaged === "false") return "none";
+  return form.damageUnrepaired === "true" ? "unrepaired" : "repaired";
+}
+
+/** Auswahl → die beiden Wahrheitswerte des Anzeigenobjekts. */
+export function accidentStatePatch(state: AccidentState): {
+  accidentDamaged: "true" | "false";
+  damageUnrepaired: "true" | "false";
+} {
+  if (state === "none") return { accidentDamaged: "false", damageUnrepaired: "false" };
+  if (state === "repaired") return { accidentDamaged: "true", damageUnrepaired: "false" };
+  return { accidentDamaged: "true", damageUnrepaired: "true" };
+}
+
 export const labelFor = (map: Record<string, string>, key: string, fallback: string) =>
   map[key] ?? fallback ?? key;
 
