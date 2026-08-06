@@ -483,8 +483,118 @@ export default function VehiclesAdmin() {
     },
   });
 
+  /**
+   * Aktive Inserate je Fahrzeug — Grundlage für die Portal-Schnellfilter
+   * und die Trefferanzahlen.
+   */
+  const { data: portalIndex } = useQuery({
+    queryKey: ["admin-vehicles-portal-index"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("listings")
+        .select("vehicle_id, platform, status, account_key")
+        .in("status", ["live", "paused"] as never)
+        .limit(10000);
+      if (error) throw error;
+      const map = new Map<string, { platform: string; account_key: string | null }[]>();
+      for (const l of (data ?? []) as unknown as {
+        vehicle_id: string;
+        platform: string;
+        account_key: string | null;
+      }[]) {
+        map.set(l.vehicle_id, [
+          ...(map.get(l.vehicle_id) ?? []),
+          { platform: l.platform, account_key: l.account_key },
+        ]);
+      }
+      return map;
+    },
+  });
+
+  /** Zustand aller Fahrzeuge — nur für die Trefferanzahlen der Schnellfilter */
+  const { data: stateIndex } = useQuery({
+    queryKey: ["admin-vehicles-state-index"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("id, is_sold, reserved_at, archived_at")
+        .limit(5000);
+      if (error) throw error;
+      return (data ?? []) as {
+        id: string;
+        is_sold: boolean;
+        reserved_at: string | null;
+        archived_at: string | null;
+      }[];
+    },
+  });
+
+  const { data: deletedCount = 0 } = useQuery({
+    queryKey: ["admin-vehicles-deleted-count"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("vehicle_deletion_log")
+        .select("id", { count: "exact", head: true })
+        .eq("action", "deleted");
+      return count ?? 0;
+    },
+  });
+
+  /** Passt ein Fahrzeug zum gewählten Portalfilter? */
+  const matchesPortal = useCallback(
+    (id: string, portal: PortalFilter) => {
+      if (portal === "all") return true;
+      const rows = portalIndex?.get(id) ?? [];
+      if (portal === "portal_only") return rows.length === 0;
+      if (portal.startsWith("mobile_de:")) {
+        const key = portal.slice("mobile_de:".length);
+        return rows.some((r) => r.platform === "mobile_de" && r.account_key === key);
+      }
+      return rows.some((r) => r.platform === portal);
+    },
+    [portalIndex],
+  );
+
+  /** Passt ein Fahrzeug zur ersten Filterreihe? */
+  const matchesQuick = useCallback(
+    (
+      v: { id: string; is_sold: boolean; reserved_at: string | null; archived_at: string | null },
+      quick: QuickFilter,
+    ) => {
+      if (quick === "archived") return !!v.archived_at;
+      if (v.archived_at) return false;
+      if (quick === "reserved") return !v.is_sold && !!v.reserved_at;
+      if (quick === "sold") return v.is_sold;
+      return true;
+    },
+    [],
+  );
+
+  const quickCounts = useMemo(() => {
+    const out: Record<string, number> = { deleted: deletedCount };
+    for (const qf of QUICK_FILTERS) {
+      if (qf.value === "deleted") continue;
+      out[qf.value] = (stateIndex ?? []).filter(
+        (v) => matchesQuick(v, qf.value) && matchesPortal(v.id, filters.portal),
+      ).length;
+    }
+    return out;
+  }, [stateIndex, filters.portal, matchesQuick, matchesPortal, deletedCount]);
+
+  const portalCounts = useCallback(
+    (portal: PortalFilter) =>
+      (stateIndex ?? []).filter(
+        (v) => matchesQuick(v, filters.quick) && matchesPortal(v.id, portal),
+      ).length,
+    [stateIndex, filters.quick, matchesQuick, matchesPortal],
+  );
+
   const needsAccountIndex =
     filters.account !== "all" || filters.quick === "account_mismatch";
+
 
   const updateFilters = useCallback((patch: Partial<Filters>) => {
     setFilters((f) => ({ ...f, ...patch }));
