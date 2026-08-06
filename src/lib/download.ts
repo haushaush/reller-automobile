@@ -99,6 +99,8 @@ export async function saveBlob(blob: Blob, filename: string): Promise<SaveResult
     }
   }
 
+  console.info("[save]", { filename, mime: blob.type, image, touch, shareable, path: image && touch && shareable ? "share" : "download" });
+
   if (image && touch && shareable && file) {
     try {
       await (navigator as NavigatorWithShare).share!({ files: [file], title: filename });
