@@ -736,6 +736,28 @@ export default function VehiclesAdmin() {
   }, [filters, updateFilters, accounts]);
 
   const thumbFor = (v: AdminVehicleRow) => resolveVehicleImages(v)[0] ?? null;
+
+  /** Abschnitte für die Ansicht „Nach Konto gruppieren“ */
+  const groups = useMemo(() => {
+    if (!groupByAccount) return [{ key: "all", label: "", rows }];
+    const map = new Map<string, AdminVehicleRow[]>();
+    for (const v of rows) {
+      const key = accountIndex?.byVehicle.get(v.id) ?? "__none";
+      const list = map.get(key) ?? [];
+      list.push(v);
+      map.set(key, list);
+    }
+    return [...map.entries()]
+      .sort((a, b) => (a[0] === "__none" ? 1 : b[0] === "__none" ? -1 : a[0].localeCompare(b[0])))
+      .map(([key, list]) => ({
+        key,
+        label:
+          key === "__none"
+            ? "Ohne Mobile.de-Konto"
+            : accountShortLabel(accounts, key) ?? key,
+        rows: list,
+      }));
+  }, [groupByAccount, rows, accountIndex, accounts]);
   const optionalCount = cols.length;
 
   const rowMenu = (v: AdminVehicleRow) => (
@@ -1151,7 +1173,17 @@ export default function VehiclesAdmin() {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((v) => {
+              groups.flatMap((group) => [
+                ...(groupByAccount
+                  ? [
+                      <TableRow key={`head-${group.key}`} className="bg-muted/60 hover:bg-muted/60">
+                        <TableCell colSpan={7 + optionalCount} className="py-2 text-sm font-medium">
+                          {group.label} · {group.rows.length} Fahrzeug(e)
+                        </TableCell>
+                      </TableRow>,
+                    ]
+                  : []),
+                ...group.rows.map((v) => {
                 const thumb = thumbFor(v);
                 return (
                   <TableRow key={v.id} className={selected.includes(v.id) ? "bg-secondary/50" : ""}>
@@ -1202,7 +1234,12 @@ export default function VehiclesAdmin() {
                       <StatusBadge v={v} />
                     </TableCell>
                     <TableCell>
-                      <PlatformBadges listings={listingMap?.get(v.id)} className="flex-nowrap" />
+                      <PlatformBadges
+                        listings={listingMap?.get(v.id)}
+                        accounts={accounts}
+                        vehicleCategory={v.vehicle_category}
+                        className="flex-nowrap"
+                      />
                     </TableCell>
                     {OPTIONAL_COLUMNS.filter((c) => cols.includes(c.key)).map((c) => (
                       <TableCell key={c.key} className="text-xs text-muted-foreground whitespace-nowrap">
@@ -1212,7 +1249,8 @@ export default function VehiclesAdmin() {
                     <TableCell>{rowMenu(v)}</TableCell>
                   </TableRow>
                 );
-              })
+                }),
+              ])
             )}
           </TableBody>
         </Table>
@@ -1274,6 +1312,14 @@ export default function VehiclesAdmin() {
                     {rowMenu(v)}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{keyFacts(v)}</p>
+                  <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                    Konto: {accountNameFor(v.id)}
+                    {accountIndex?.mismatch.has(v.id) && (
+                      <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="h-3 w-3" /> passt nicht zur Fahrzeugart
+                      </span>
+                    )}
+                  </p>
                   <div className="mt-2 flex items-end justify-between gap-2">
                     <div>
                       <p className="text-lg font-semibold">{formatPrice(v.price, v.currency)}</p>
@@ -1283,7 +1329,12 @@ export default function VehiclesAdmin() {
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       <StatusBadge v={v} />
-                      <PlatformBadges listings={listingMap?.get(v.id)} hideNotListed />
+                      <PlatformBadges
+                        listings={listingMap?.get(v.id)}
+                        accounts={accounts}
+                        vehicleCategory={v.vehicle_category}
+                        hideNotListed
+                      />
                     </div>
                   </div>
                   {cols.length > 0 && (
