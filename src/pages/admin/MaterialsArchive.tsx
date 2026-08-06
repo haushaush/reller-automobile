@@ -4,6 +4,7 @@ import { de } from "date-fns/locale";
 import { toast } from "sonner";
 import { Download, FileText, Image as ImageIcon, LayoutGrid, Loader2, Maximize2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsTouchDevice, saveToastMessage, GALLERY_HINT } from "@/lib/download";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +55,7 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
   const [search, setSearch] = useState("");
   const [preview, setPreview] = useState<{ kind: MaterialKind; url: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const isTouch = useIsTouchDevice();
 
   const load = useCallback(async () => {
     setLoading(true);
