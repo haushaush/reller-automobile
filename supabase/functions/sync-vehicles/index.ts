@@ -16,6 +16,7 @@ const MOBILE_PASS =
 const LOCK_NAME = "mobile-de-reconcile";
 
 Deno.serve(async (req) => {
+  const dryRun = new URL(req.url).searchParams.get("dry") === "1";
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
@@ -92,7 +93,11 @@ Deno.serve(async (req) => {
       .from("vehicles").select("id", { count: "exact", head: true }).eq("publish_status", "published");
     if (countError) throw countError;
     const suspiciouslySmall = (publishedCount ?? 0) > 0 && ads.length < (publishedCount ?? 0) * 0.5;
-    const result = await reconcile(supabase, ads, "search", !suspiciouslySmall);
+    const result = await reconcile(supabase, ads, "search", {
+      accountKey: "standard",
+      claimLegacyVehicles: true,
+      allowUnpublish: !suspiciouslySmall && !dryRun,
+    });
     console.log(`Reconcile done: ${JSON.stringify(result)}`);
 
     finalStatus = suspiciouslySmall || error ? "success_with_warning" : "success";

@@ -171,19 +171,34 @@ export async function fetchSellerAds(
 
 export interface ReconcileResult {
   checked: number;
+  listingsInScope: number;
+  matched: number;
+  unmatched: number;
+  accountMismatch: number;
   orphanAds: number;
   missingAds: number;
   driftAds: number;
   issues: number;
 }
 
-/** Vergleicht Seller-Ads gegen vehicles und schreibt Abweichungen. */
+export interface ReconcileOptions {
+  /** account_key des Kontos, dessen Inserate gelesen wurden (z. B. "standard" / "unfall"). */
+  accountKey: string;
+  /** Fahrzeuge ohne eigenes mobile_de-Listing diesem Konto zurechnen (Altbestand). */
+  claimLegacyVehicles?: boolean;
+  allowUnpublish?: boolean;
+}
+
+/** Vergleicht Seller-Ads eines Kontos gegen die Listings genau dieses Kontos. */
 export async function reconcile(
   supabase: SupabaseClient,
   rawAds: SellerAd[],
   scope: string,
-  allowUnpublish = true,
+  options: ReconcileOptions,
 ): Promise<ReconcileResult> {
+  const { accountKey, claimLegacyVehicles = false } = options;
+  const allowUnpublish = options.allowUnpublish ?? true;
+
   // Entdopplung über die Inserats-ID: doppelte Seiten dürfen nie doppelte Meldungen erzeugen.
   const adMap = new Map<string, SellerAd>();
   for (const ad of rawAds) if (!adMap.has(ad.mobileAdId)) adMap.set(ad.mobileAdId, ad);
@@ -196,27 +211,100 @@ export async function reconcile(
     .from("vehicles")
     .select("id, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold");
   const vehicles = (rows ?? []) as Array<Record<string, unknown>>;
+  const vehicleById = new Map<string, Record<string, unknown>>();
+  for (const v of vehicles) vehicleById.set(String(v.id), v);
 
   const byAdId = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) {
     if (v.mobile_ad_id) byAdId.set(String(v.mobile_ad_id), v);
   }
 
+  // Kontozuordnung: mobile_de-Listings aller Konten
+  const { data: listingRows } = await supabase
+    .from("listings")
+    .select("id, vehicle_id, account_key, external_ad_id, status")
+    .eq("platform", "mobile_de");
+  const listings = (listingRows ?? []) as Array<Record<string, unknown>>;
+
+  const listingByAdId = new Map<string, Record<string, unknown>>();
+  const accountByVehicle = new Map<string, string>();
+  for (const l of listings) {
+    const key = String(l.account_key ?? "");
+    if (l.external_ad_id) listingByAdId.set(String(l.external_ad_id), l);
+    if (l.vehicle_id && key && !accountByVehicle.has(String(l.vehicle_id))) {
+      accountByVehicle.set(String(l.vehicle_id), key);
+    }
+  }
+  // Fallback: Fahrzeug-Ad-ID an Listing-Konto koppeln
+  for (const v of vehicles) {
+    if (!v.mobile_ad_id) continue;
+    const adId = String(v.mobile_ad_id);
+    if (!listingByAdId.has(adId)) {
+      const acc = accountByVehicle.get(String(v.id));
+      if (acc) listingByAdId.set(adId, { vehicle_id: v.id, account_key: acc, external_ad_id: adId, status: "live" });
+    }
+  }
+
+  const accountOfVehicle = (vehicleId: string): string | null =>
+    accountByVehicle.get(vehicleId) ?? (claimLegacyVehicles ? accountKey : null);
+
+  // Prüfumfang: nur Listings dieses Kontos (+ Altbestand ohne Listing, falls erlaubt)
+  const scopeListings = listings.filter(
+    (l) => String(l.account_key ?? "") === accountKey && l.status === "live",
+  );
+  const legacyVehicles = claimLegacyVehicles
+    ? vehicles.filter(
+      (v) => v.mobile_ad_id && v.publish_status === "published" && !accountByVehicle.has(String(v.id)),
+    )
+    : [];
+  const listingsInScope = scopeListings.length + legacyVehicles.length;
+
   const issues: Array<Record<string, unknown>> = [];
   const liveIds = new Set<string>();
-
+  let matched = 0;
+  let accountMismatch = 0;
 
   for (const ad of ads) {
     liveIds.add(ad.mobileAdId);
-    const v = byAdId.get(ad.mobileAdId);
-    if (!v) {
+    const listing = listingByAdId.get(ad.mobileAdId);
+    const v = byAdId.get(ad.mobileAdId) ??
+      (listing?.vehicle_id ? vehicleById.get(String(listing.vehicle_id)) : undefined);
+
+    if (!v && !listing) {
       issues.push({
         vehicle_id: null, mobile_ad_id: ad.mobileAdId, scope,
         issue_type: "orphan_ad", severity: "warning",
-        detail: `Inserat "${ad.title}" existiert bei Mobile.de, hat aber kein Fahrzeug im Portal.`,
+        detail: `Inserat "${ad.title}" existiert bei Mobile.de (Konto ${accountKey}), hat aber kein Fahrzeug im Portal.`,
       });
       continue;
     }
+
+    const ownerAccount = listing
+      ? String(listing.account_key ?? "")
+      : (v ? accountOfVehicle(String(v.id)) : null);
+
+    if (ownerAccount && ownerAccount !== accountKey) {
+      accountMismatch++;
+      issues.push({
+        vehicle_id: v?.id ?? null, mobile_ad_id: ad.mobileAdId, scope,
+        issue_type: "account_mismatch", severity: "error",
+        detail: `Inserat "${ad.title}" wurde auf Konto „${accountKey}“ gefunden, im Portal ist das Inserat aber dem Konto „${ownerAccount}“ zugeordnet. Bitte einzeln prüfen – es wird nichts automatisch geändert.`,
+      });
+      continue;
+    }
+    if (!ownerAccount) {
+      // Fahrzeug ohne Kontozuordnung: nicht bewertbar, gilt als nicht zugeordnet
+      issues.push({
+        vehicle_id: v?.id ?? null, mobile_ad_id: ad.mobileAdId, scope,
+        issue_type: "orphan_ad", severity: "warning",
+        detail: `Inserat "${ad.title}" ist keinem Konto-Inserat im Portal zugeordnet (Konto ${accountKey}).`,
+      });
+      continue;
+    }
+
+    matched++;
+    if (!v) continue;
+
     const priceLocal = typeof v.price === "number" ? v.price : null;
     if (ad.price !== null && priceLocal !== null && Math.abs(ad.price - priceLocal) >= 1) {
       issues.push({
@@ -235,25 +323,38 @@ export async function reconcile(
     }
   }
 
-  // Portal sagt "published", Mobile.de kennt das Inserat nicht mehr
-  const vanished = vehicles.filter(
-    (v) => v.publish_status === "published" && v.mobile_ad_id && !liveIds.has(String(v.mobile_ad_id)),
-  );
-  for (const v of vanished) {
+  // Portal sagt "live"/"published", Mobile.de kennt das Inserat nicht mehr – NUR eigenes Konto
+  const vanishedIds = new Set<string>();
+  const vanished: Array<{ vehicle_id: string | null; mobile_ad_id: string }> = [];
+  for (const l of scopeListings) {
+    const adId = l.external_ad_id ? String(l.external_ad_id) : null;
+    if (!adId || liveIds.has(adId) || vanishedIds.has(adId)) continue;
+    vanishedIds.add(adId);
+    vanished.push({ vehicle_id: l.vehicle_id ? String(l.vehicle_id) : null, mobile_ad_id: adId });
+  }
+  for (const v of legacyVehicles) {
+    const adId = String(v.mobile_ad_id);
+    if (liveIds.has(adId) || vanishedIds.has(adId)) continue;
+    vanishedIds.add(adId);
+    vanished.push({ vehicle_id: String(v.id), mobile_ad_id: adId });
+  }
+  for (const entry of vanished) {
     issues.push({
-      vehicle_id: v.id, mobile_ad_id: String(v.mobile_ad_id), scope,
+      vehicle_id: entry.vehicle_id, mobile_ad_id: entry.mobile_ad_id, scope,
       issue_type: "ad_missing", severity: "error",
-        detail: allowUnpublish
-          ? "Inserat ist bei Mobile.de nicht mehr auffindbar – Status auf „zurückgezogen“ gesetzt."
-          : "Inserat ist bei Mobile.de nicht mehr auffindbar – Statusänderung wegen ungewöhnlich kleiner Ergebnismenge übersprungen.",
+      detail: allowUnpublish
+        ? `Inserat ist bei Mobile.de (Konto ${accountKey}) nicht mehr auffindbar – Status auf „zurückgezogen“ gesetzt.`
+        : `Inserat ist bei Mobile.de (Konto ${accountKey}) nicht mehr auffindbar – Statusänderung übersprungen.`,
     });
   }
-  if (allowUnpublish && vanished.length) {
+  const vanishedVehicleIds = vanished.map((e) => e.vehicle_id).filter((id): id is string => !!id);
+  if (allowUnpublish && vanishedVehicleIds.length) {
     await supabase
       .from("vehicles")
       .update({ publish_status: "unpublished" })
-      .in("id", vanished.map((v) => v.id as string));
+      .in("id", vanishedVehicleIds);
   }
+
 
   // Alte offene Meldungen dieses Scopes schließen und neu schreiben
   await supabase
@@ -275,13 +376,19 @@ export async function reconcile(
   }
 
 
+  const orphanAds = uniqueIssues.filter((i) => i.issue_type === "orphan_ad").length;
   return {
     checked: ads.length,
-    orphanAds: uniqueIssues.filter((i) => i.issue_type === "orphan_ad").length,
+    listingsInScope,
+    matched,
+    unmatched: orphanAds + accountMismatch,
+    accountMismatch,
+    orphanAds,
     missingAds: vanished.length,
     driftAds: uniqueIssues.filter((i) => String(i.issue_type).endsWith("_drift")).length,
     issues: uniqueIssues.length,
   };
+
 }
 
 export function serviceClient() {
