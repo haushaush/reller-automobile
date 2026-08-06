@@ -13,12 +13,15 @@ Deno.serve(async (req) => {
   }
 
   let scope = "standard";
+  let sellerIdOverride: string | null = null;
   try {
     const body = await req.json();
     if (body?.scope === "accident") scope = "accident";
+    if (body?.sellerId) sellerIdOverride = String(body.sellerId);
   } catch {
     /* ohne Angabe: Standardkonto */
   }
+
 
   const username = Deno.env.get(
     scope === "accident" ? "MOBILE_DE_ACCIDENT_USERNAME" : "MOBILE_DE_USERNAME",
@@ -35,10 +38,15 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = "Basic " + btoa(`${username}:${password}`);
-  const customerId = Number(
-    (scope === "accident" ? Deno.env.get("MOBILE_DE_ACCIDENT_SELLER_ID") : null) || 451040,
+  const customerId = String(
+    sellerIdOverride ||
+      (scope === "accident" ? Deno.env.get("MOBILE_DE_ACCIDENT_SELLER_ID") : null) ||
+      451040,
   );
-  const url = `https://services.mobile.de/seller-api/sellers/${customerId}/ads`;
+  const url = sellerIdOverride === "me"
+    ? `https://services.mobile.de/seller-api/sellers`
+    : `https://services.mobile.de/seller-api/sellers/${customerId}/ads`;
+
 
   try {
     const res = await fetch(url, {
