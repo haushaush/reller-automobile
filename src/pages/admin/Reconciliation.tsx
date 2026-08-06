@@ -222,6 +222,26 @@ export default function Reconciliation() {
     toast.success("Als erledigt markiert.");
   };
 
+  /** Abweichung in eine der beiden Richtungen auflösen */
+  const resolveDrift = async (id: string, direction: "to_mobile" | "to_portal") => {
+    setBusyId(id);
+    const { data, error } = await supabase.functions.invoke("resolve-reconcile-issue", {
+      body: { issueId: id, direction },
+    });
+    setBusyId(null);
+    const errText = (data as { error?: string } | null)?.error;
+    if (error || errText) {
+      toast.error(errText || "Die Änderung konnte nicht ausgeführt werden.");
+      return;
+    }
+    setIssues((prev) => prev.filter((i) => i.id !== id));
+    toast.success(
+      direction === "to_mobile"
+        ? "Portalwert wurde zu Mobile.de übertragen."
+        : "Mobile.de-Wert wurde ins Portal übernommen.",
+    );
+  };
+
   const filters: { key: FilterKey; label: string; count: number }[] = [
     { key: "all", label: "Alle", count: counts.all },
     { key: "orphan_ad", label: "Inserate ohne Fahrzeug", count: counts.orphan_ad },
