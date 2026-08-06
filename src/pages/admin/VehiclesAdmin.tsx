@@ -32,6 +32,8 @@ import {
   expectedAccountKey,
   loadListingOverview,
   vehicleSaleStatus,
+  SALE_STATUS_LABELS,
+  type VehicleSaleStatus,
   type PlatformAccountRow,
 } from "@/lib/listings";
 import { Switch } from "@/components/ui/switch";
@@ -338,6 +340,11 @@ export default function VehiclesAdmin() {
   const [sortValue, setSortValue] = useState("created_at:desc");
   const [selected, setSelected] = useState<string[]>([]);
   const [statusFor, setStatusFor] = useState<AdminVehicleRow | null>(null);
+  const [statusTarget, setStatusTarget] = useState<VehicleSaleStatus | undefined>(undefined);
+  const openStatus = useCallback((v: AdminVehicleRow, target?: VehicleSaleStatus) => {
+    setStatusTarget(target);
+    setStatusFor(v);
+  }, []);
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | {
     label: string;
@@ -805,7 +812,7 @@ export default function VehiclesAdmin() {
         <DropdownMenuItem asChild>
           <Link to={`/admin/fahrzeuge/${v.id}`}>Fahrzeug öffnen</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setStatusFor(v)}>Status ändern</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => openStatus(v)}>Status ändern</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => toggleFeatured(v)}>
           {v.is_featured ? "Hervorhebung entfernen" : "Auf Startseite hervorheben"}
@@ -1265,7 +1272,7 @@ export default function VehiclesAdmin() {
                       </p>
                     </TableCell>
                     <TableCell>
-                      <StatusBadge v={v} />
+                      <StatusSelect v={v} onPick={openStatus} />
                     </TableCell>
                     <TableCell>
                       <PlatformBadges
@@ -1370,7 +1377,7 @@ export default function VehiclesAdmin() {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                      <StatusBadge v={v} />
+                      <StatusSelect v={v} onPick={openStatus} />
                       <PlatformBadges
                         listings={listingMap?.get(v.id)}
                         accounts={accounts}
@@ -1423,10 +1430,16 @@ export default function VehiclesAdmin() {
       {statusFor && (
         <VehicleStatusDialog
           open={!!statusFor}
-          onOpenChange={(o) => !o && setStatusFor(null)}
+          onOpenChange={(o) => {
+            if (!o) {
+              setStatusFor(null);
+              setStatusTarget(undefined);
+            }
+          }}
           vehicleId={statusFor.id}
           vehicleTitle={statusFor.title}
           current={vehicleSaleStatus(statusFor)}
+          initialTarget={statusTarget}
           onDone={refresh}
         />
       )}
