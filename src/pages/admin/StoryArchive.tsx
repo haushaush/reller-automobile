@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { saveFromUrl, saveToastMessage } from "@/lib/download";
+import { materialFileName } from "@/lib/materials";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -171,64 +173,23 @@ export default function StoryArchive({ embedded = false }: { embedded?: boolean 
 
     try {
       const pathMatch = story.story_image_url.match(/\/vehicle-stories\/(.+?)(\?|$)/);
-      if (!pathMatch) throw new Error("File-Path nicht extrahierbar");
-      const filePath = decodeURIComponent(pathMatch[1]);
+      const filePath = pathMatch ? decodeURIComponent(pathMatch[1]) : story.story_image_url;
+      const ext = /\.jpe?g$/i.test(filePath) ? "jpg" : "png";
+      const filename = materialFileName(
+        "story",
+        {
+          brand: story.vehicle?.brand,
+          model: story.vehicle?.model,
+          fallback: story.vehicle?.title,
+        },
+        `x.${ext}`,
+      );
 
-      const brand = story.vehicle?.brand?.replace(/[^a-zA-Z0-9]/g, "-") || "Fahrzeug";
-      const title =
-        story.vehicle?.title?.substring(0, 40).replace(/[^a-zA-Z0-9]/g, "-") || "Story";
-      // Detect extension from storage path (jpg for new stories, png for legacy)
-      const ext = filePath.toLowerCase().endsWith(".jpg") || filePath.toLowerCase().endsWith(".jpeg") ? "jpg" : "png";
-      const mime = ext === "jpg" ? "image/jpeg" : "image/png";
-      const filename = `Reller-Story-${brand}-${title}.${ext}`;
-
-      const { data: pubData } = supabase.storage
-        .from("vehicle-stories")
-        .getPublicUrl(filePath);
-      const publicUrl = pubData.publicUrl;
-
-      // Mobile: use Web Share API with file → opens native share sheet
-      // ("In Fotos sichern" on iOS, "Speichern" on Android)
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile && typeof navigator.share === "function") {
-        try {
-          const response = await fetch(publicUrl);
-          const blob = await response.blob();
-          const file = new File([blob], filename, { type: mime });
-          // Check if files can be shared (iOS/Android Chrome)
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], title: filename });
-            toast.success('Tippe „In Fotos sichern", um das Bild in die Galerie zu speichern');
-            return;
-          }
-        } catch (shareErr) {
-          // User cancelled or share failed — fall through to download
-          if ((shareErr as Error)?.name === "AbortError") return;
-          console.warn("Web Share failed, falling back to download:", shareErr);
-        }
-      }
-
-      // Desktop / fallback: direct download via Content-Disposition
-      const { data } = supabase.storage
-        .from("vehicle-stories")
-        .getPublicUrl(filePath, { download: filename });
-      const downloadUrl = data.publicUrl;
-
-      const newTab = window.open(downloadUrl, "_blank", "noopener,noreferrer");
-      if (newTab) {
-        toast.success("Download gestartet");
-        return;
-      }
-
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = filename;
-      link.rel = "noopener noreferrer";
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success("Download gestartet");
+      const { data: pubData } = supabase.storage.from("vehicle-stories").getPublicUrl(filePath);
+      // Zentrale Weiche: Bild + Touch-Gerät → Teilen-Dialog, sonst Download.
+      const result = await saveFromUrl(pubData.publicUrl, filename);
+      const msg = saveToastMessage(result, true);
+      if (msg) toast.success(msg);
     } catch (error) {
       console.error("Download failed:", error);
       toast.error("Download fehlgeschlagen", {

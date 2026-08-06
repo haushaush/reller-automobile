@@ -4,6 +4,7 @@ import { de } from "date-fns/locale";
 import { toast } from "sonner";
 import { Download, FileText, Image as ImageIcon, LayoutGrid, Loader2, Maximize2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsTouchDevice, saveToastMessage, GALLERY_HINT } from "@/lib/download";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ import {
   describeStorageError,
   downloadFromUrl,
   materialFileName,
+  isImageMaterial,
   storagePathFromValue,
   type MaterialKind,
 } from "@/lib/materials";
@@ -53,6 +55,7 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
   const [search, setSearch] = useState("");
   const [preview, setPreview] = useState<{ kind: MaterialKind; url: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const isTouch = useIsTouchDevice();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,7 +177,8 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
         row.path,
       );
       const mode = await downloadFromUrl(url, name);
-      toast.success(mode === "shared" ? "Datei geteilt" : "Datei gespeichert");
+      const msg = saveToastMessage(mode, isImageMaterial(row.kind, row.path));
+      if (msg) toast.success(msg);
     } catch (e) {
       const err = describeStorageError(e);
       toast.error("Download fehlgeschlagen", {
@@ -263,7 +267,9 @@ export default function MaterialsArchive({ embedded = false }: { embedded?: bool
                   >
                     <Maximize2 className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="sm" disabled={busy === row.key} onClick={() => download(row)}>
+                  <Button size="sm" disabled={busy === row.key} onClick={() => download(row)} title={
+                    isTouch && isImageMaterial(row.kind, row.path) ? GALLERY_HINT : undefined
+                  }>
                     {busy === row.key ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
