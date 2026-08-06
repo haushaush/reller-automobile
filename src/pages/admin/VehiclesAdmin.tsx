@@ -752,14 +752,27 @@ export default function VehiclesAdmin() {
       if (error) throw error;
       return { rows: (rows as unknown as AdminVehicleRow[]) ?? [], count: count ?? 0 };
     },
-    [filters, sortKey, sortDir, needsAccountIndex, accountIndex],
+    [filters, sortKey, sortDir, needsAccountIndex, accountIndex, stateIndex, matchesPortal],
   );
 
+  const needsPortalIndex = filters.portal !== "all";
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["admin-vehicles", filters, sortValue, page, needsAccountIndex && !!accountIndex],
-    enabled: !needsAccountIndex || !!accountIndex,
+    queryKey: [
+      "admin-vehicles",
+      filters,
+      sortValue,
+      page,
+      needsAccountIndex && !!accountIndex,
+      needsPortalIndex && !!portalIndex && !!stateIndex,
+    ],
+    enabled:
+      filters.quick !== "deleted" &&
+      (!needsAccountIndex || !!accountIndex) &&
+      (!needsPortalIndex || (!!portalIndex && !!stateIndex)),
     queryFn: () => fetchVehicles(page * PAGE_SIZE, PAGE_SIZE),
   });
+
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
   const total = data?.count ?? 0;
