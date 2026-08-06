@@ -833,6 +833,7 @@ Deno.serve((req) => withAccountLock(async () => {
     console.log(`Mobile.de ad created. mobileAdId=${mobileAdId ?? "(none)"} source=${idSource}`);
 
     // ── Verify: GET /sellers/{SELLER_ID}/ads/{mobileAdId} (best-effort) ──
+    let adImageUrls: string[] = [];
     if (mobileAdId) {
       try {
         const verifyRes = await fetch(`${API_BASE}/sellers/${SELLER_ID}/ads/${mobileAdId}`, {
@@ -849,6 +850,8 @@ Deno.serve((req) => withAccountLock(async () => {
             console.log(`Verify GET ${mobileAdId}: rootKeys=${Object.keys(vj).join(",")}`);
             console.log(`Verify optional fields returned: ${optionalEchoed.join(",")}`);
             console.log(`Verify image count: ${imgCount}`);
+            adImageUrls = extractAdImageUrls(vj);
+            console.log(`Verify image urls: ${adImageUrls.length}`);
           } catch {
             console.log(`Verify GET ${mobileAdId}: non-JSON response, status=${verifyRes.status}`);
           }
@@ -859,6 +862,12 @@ Deno.serve((req) => withAccountLock(async () => {
         console.warn(`Verify GET error: ${(e as Error).message}`);
       }
     }
+    if (adImageUrls.length === 0) {
+      // Fallback: Referenzen aus dem Upload, sofern sie bereits URLs sind
+      adImageUrls = refs.filter((r) => /^https?:\/\//.test(r));
+    }
+
+
 
     const skippedNote = skipped.length
       ? `Hinweis: ${skipped.length} Bild(er) übersprungen: ${skipped.map((s) => `#${s.index} (${s.reason})`).join("; ")}`
