@@ -1079,53 +1079,104 @@ export default function VehiclesAdmin() {
   }, [groupByAccount, rows, accountIndex, accounts]);
   const optionalCount = cols.length;
 
-  const rowMenu = (v: AdminVehicleRow) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Aktionen">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 bg-popover">
-        <DropdownMenuItem asChild>
-          <Link to={`/admin/fahrzeuge/${v.id}`}>Fahrzeug öffnen</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => openStatus(v)}>Status ändern</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setDuplicate({ id: v.id, title: v.title })}>
-          Duplizieren
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => toggleFeatured(v)}>
-          {v.is_featured ? "Hervorhebung entfernen" : "Auf Startseite hervorheben"}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {v.archived_at ? (
-          <DropdownMenuItem onSelect={() => setLifecycle({ mode: "restore", ids: [v.id] })}>
-            Zurückholen
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem onSelect={() => setLifecycle({ mode: "archive", ids: [v.id] })}>
-            Archivieren
-          </DropdownMenuItem>
-        )}
-        {canOfferDelete(v) && (
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onSelect={() => setLifecycle({ mode: "delete", ids: [v.id] })}
-          >
-            Endgültig löschen
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+  /** Öffentlich erreichbare Inserate des Fahrzeugs (nicht der Händlerbereich). */
+  const publicListings = (v: AdminVehicleRow) =>
+    (listingMap?.get(v.id) ?? [])
+      .filter((l) => l.status === "live" || l.status === "paused")
+      .map((l) => ({
+        platform: l.platform,
+        accountKey: l.account_key,
+        url: publicListingUrl(l, v.mobile_ad_id),
+        label:
+          l.platform === "mobile_de"
+            ? `Mobile.de · ${accountShortLabel(accounts, l.account_key) ?? "Konto unbekannt"}`
+            : PORTAL_BASE_LABELS[l.platform] ?? l.platform,
+      }));
 
-  /** Endgültiges Löschen nur anbieten, wenn offensichtlich zulässig. */
-  const canOfferDelete = (v: AdminVehicleRow) => {
-    if (v.is_sold) return false;
-    const listings = listingMap?.get(v.id) ?? [];
-    return !listings.some((l) => l.status === "live");
+  const rowMenu = (v: AdminVehicleRow) => {
+    const live = publicListings(v);
+    const single = live.length === 1 ? live[0] : null;
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label="Aktionen">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-64 bg-popover">
+          <DropdownMenuItem asChild>
+            <Link to={`/admin/fahrzeuge/${v.id}`}>Fahrzeug öffnen</Link>
+          </DropdownMenuItem>
+
+          {live.length === 0 && (
+            <DropdownMenuItem disabled>Inserat anzeigen — nicht inseriert</DropdownMenuItem>
+          )}
+          {single &&
+            (single.url ? (
+              <DropdownMenuItem asChild>
+                <a href={single.url} target="_blank" rel="noopener noreferrer">
+                  Inserat anzeigen
+                </a>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem asChild>
+                <Link to={`/admin/fahrzeuge/${v.id}`}>Inserats-Link hinterlegen</Link>
+              </DropdownMenuItem>
+            ))}
+          {live.length > 1 && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Inserat anzeigen</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="bg-popover">
+                {live.map((l, i) =>
+                  l.url ? (
+                    <DropdownMenuItem key={i} asChild>
+                      <a href={l.url} target="_blank" rel="noopener noreferrer">
+                        {l.label}
+                      </a>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem key={i} asChild>
+                      <Link to={`/admin/fahrzeuge/${v.id}`}>
+                        {l.label} — Inserats-Link hinterlegen
+                      </Link>
+                    </DropdownMenuItem>
+                  ),
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
+
+          <DropdownMenuItem onSelect={() => setDuplicate({ id: v.id, title: v.title })}>
+            Duplizieren
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+          {v.archived_at ? (
+            <DropdownMenuItem onSelect={() => setLifecycle({ mode: "restore", ids: [v.id] })}>
+              Wiederherstellen
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => setLifecycle({ mode: "archive", ids: [v.id] })}>
+              Archivieren (Daten bleiben erhalten)
+            </DropdownMenuItem>
+          )}
+          {v.is_sold ? (
+            <DropdownMenuItem disabled>
+              Endgültig löschen — verkaufte Fahrzeuge nur archivieren
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onSelect={() => setLifecycle({ mode: "delete", ids: [v.id] })}
+            >
+              Endgültig löschen
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
   };
+
 
   const optionalCell = (v: AdminVehicleRow, key: OptionalColumn) => {
     switch (key) {
