@@ -286,6 +286,48 @@ const SALE_STATUS_TRIGGER: Record<VehicleSaleStatus, string> = {
   sold: "bg-destructive text-destructive-foreground border-transparent",
 };
 
+/** Ein Übertragungsvorgang gilt nach 5 Minuten als abgebrochen. */
+const STUCK_PUBLISHING_MS = 5 * 60 * 1000;
+function isPublishing(v: { publish_status: string | null }) {
+  return (v.publish_status ?? "") === "publishing";
+}
+function isStalePublishing(v: { publish_status: string | null; updated_at: string }) {
+  return isPublishing(v) && Date.now() - new Date(v.updated_at).getTime() > STUCK_PUBLISHING_MS;
+}
+
+/** Hinweis „Wird veröffentlicht…“ — nach 5 Minuten mit Warnung und Prüfung. */
+function PublishingNotice({
+  v,
+  onCheck,
+  checking,
+}: {
+  v: AdminVehicleRow;
+  onCheck: () => void;
+  checking: boolean;
+}) {
+  if (!isPublishing(v)) return null;
+  const stale = isStalePublishing(v);
+  return (
+    <div className="mt-1 flex items-center gap-1">
+      <Badge
+        variant="outline"
+        className={
+          stale
+            ? "border-amber-500 text-amber-600 dark:text-amber-400"
+            : "border-sky-500 text-sky-600 dark:text-sky-400"
+        }
+      >
+        {stale ? "Übertragung hängt" : "Wird veröffentlicht …"}
+      </Badge>
+      {stale && (
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={checking} onClick={onCheck}>
+          {checking ? <Loader2 className="h-3 w-3 animate-spin" /> : "Status prüfen"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /** Status direkt in der Zeile ändern — öffnet den Bestätigungsdialog. */
 function StatusSelect({
   v,
@@ -514,10 +556,13 @@ export default function VehiclesAdmin() {
         case "attention":
           if (attentionIds && attentionIds.length > 0) {
             query = query.or(
-              `publish_status.in.(publish_error,out_of_sync),id.in.(${attentionIds.join(",")})`,
+              `publish_status.in.(publish_error,out_of_sync,publishing),id.in.(${attentionIds.join(",")})`,
             );
           } else {
-            query = query.in("publish_status", ["publish_error", "out_of_sync"] as never);
+            query = query.in(
+              "publish_status",
+              ["publish_error", "out_of_sync", "publishing"] as never,
+            );
           }
           break;
         default:
@@ -605,6 +650,35 @@ export default function VehiclesAdmin() {
     queryClient.invalidateQueries({ queryKey: ["admin-vehicles"] });
     queryClient.invalidateQueries({ queryKey: ["vehicles"] });
   };
+
+  /* Hängende Veröffentlichungen auflösen: die Function gleicht die
+   * Inseratsliste des Kontos ab und trägt gefundene Anzeigen nach. */
+  const [stuckChecking, setStuckChecking] = useState(false);
+  const checkStuckPublishing = useCallback(async () => {
+    setStuckChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("resolve-stuck-publishing", { body: {} });
+      if (error) throw error;
+      const res = data as { resolved?: number; failed?: number } | null;
+      if (res?.resolved) toast.success(`${res.resolved} Anzeige(n) nachträglich zugeordnet`);
+      else if (res?.failed) toast.warning(`${res.failed} Vorgang/Vorgänge abgebrochen — bitte prüfen`);
+      else toast.info("Keine hängenden Vorgänge gefunden");
+      refresh();
+    } catch (e) {
+      toast.error(`Prüfung fehlgeschlagen: ${(e as Error).message}`);
+    } finally {
+      setStuckChecking(false);
+    }
+  }, []);
+
+  // Beim Öffnen der Liste einmal automatisch prüfen, wenn etwas hängt
+  const autoCheckedRef = useRef(false);
+  useEffect(() => {
+    if (autoCheckedRef.current) return;
+    if (!rows.some(isStalePublishing)) return;
+    autoCheckedRef.current = true;
+    void checkStuckPublishing();
+  }, [rows, checkStuckPublishing]);
 
   const runBulk = async (label: string, patch: Record<string, unknown>, action: string) => {
     setIsRunning(true);
@@ -1329,6 +1403,7 @@ export default function VehiclesAdmin() {
                     </TableCell>
                     <TableCell>
                       <StatusSelect v={v} onPick={openStatus} />
+                      <PublishingNotice v={v} onCheck={checkStuckPublishing} checking={stuckChecking} />
                     </TableCell>
                     <TableCell>
                       <PlatformBadges
@@ -1434,6 +1509,7 @@ export default function VehiclesAdmin() {
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       <StatusSelect v={v} onPick={openStatus} />
+                      <PublishingNotice v={v} onCheck={checkStuckPublishing} checking={stuckChecking} />
                       <PlatformBadges
                         listings={listingMap?.get(v.id)}
                         accounts={accounts}
