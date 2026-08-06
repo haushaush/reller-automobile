@@ -9,6 +9,17 @@ export async function emitNotificationEvent(
   payload: Record<string, unknown>,
 ): Promise<void> {
   try {
+    // Testfahrzeuge lösen niemals Benachrichtigungen aus
+    const vehicleId = payload?.vehicleId;
+    if (typeof vehicleId === "string" && vehicleId) {
+      const { data: veh } = await admin
+        .from("vehicles").select("is_test").eq("id", vehicleId).maybeSingle();
+      if ((veh as { is_test?: boolean } | null)?.is_test) {
+        console.log(`emitNotificationEvent(${eventType}) übersprungen: Testfahrzeug`);
+        return;
+      }
+    }
+
     const { data: setting } = await admin
       .from("notification_settings")
       .select("is_enabled")
