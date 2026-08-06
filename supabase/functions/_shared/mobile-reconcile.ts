@@ -234,7 +234,7 @@ export async function reconcile(
   const accountByVehicle = new Map<string, string>();
   for (const l of listings) {
     const key = String(l.account_key ?? "");
-    if (l.external_ad_id) listingByAdId.set(String(l.external_ad_id), l);
+    if (l.external_ad_id) listingByAdId.set(bareAdId(l.external_ad_id), l);
     if (l.vehicle_id && key && !accountByVehicle.has(String(l.vehicle_id))) {
       accountByVehicle.set(String(l.vehicle_id), key);
     }
@@ -242,7 +242,7 @@ export async function reconcile(
   // Fallback: Fahrzeug-Ad-ID an Listing-Konto koppeln
   for (const v of vehicles) {
     if (!v.mobile_ad_id) continue;
-    const adId = String(v.mobile_ad_id);
+    const adId = bareAdId(v.mobile_ad_id);
     if (!listingByAdId.has(adId)) {
       const acc = accountByVehicle.get(String(v.id));
       if (acc) listingByAdId.set(adId, { vehicle_id: v.id, account_key: acc, external_ad_id: adId, status: "live" });
