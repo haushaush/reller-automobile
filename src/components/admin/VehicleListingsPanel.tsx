@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ExternalLink, Loader2, Lock } from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,13 @@ import {
   MANUAL_STATUS_CHOICES,
   PLATFORM_LABELS,
   PLATFORM_ORDER,
+  accountBadgeClass,
+  accountFullLabel,
   accountLabel,
+  accountShortLabel,
   ensureListingRows,
+  findAccount,
+  isAccountCategoryMismatch,
   isAccountLocked,
   isManualPlatform,
   suggestAccountKey,
@@ -142,10 +147,26 @@ export default function VehicleListingsPanel({ vehicleId, vehicleCategory }: Pro
                 </Badge>
               )}
               {listing.account_key && (
-                <Badge variant="outline" className="text-[10px]">
-                  {accountLabel(accounts, platform, listing.account_key)}
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] ${
+                    platform === "mobile_de"
+                      ? accountBadgeClass(findAccount(accounts, platform, listing.account_key)?.badge_color)
+                      : ""
+                  }`}
+                >
+                  Konto:{" "}
+                  {platform === "mobile_de"
+                    ? accountFullLabel(accounts, listing.account_key)
+                    : accountLabel(accounts, platform, listing.account_key)}
                 </Badge>
               )}
+              {platform === "mobile_de" &&
+                isAccountCategoryMismatch(accounts, listing.account_key, vehicleCategory) && (
+                  <Badge variant="outline" className="gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-3 w-3" /> Konto passt nicht zur Fahrzeugart
+                  </Badge>
+                )}
               <span className="ml-auto text-xs text-muted-foreground">
                 Zuletzt geändert: {formatDate(listing.updated_at)}
               </span>
@@ -215,8 +236,9 @@ export default function VehicleListingsPanel({ vehicleId, vehicleCategory }: Pro
 
             {locked && isAccountLocked(listing) && (
               <p className="text-xs text-muted-foreground">
-                Dieses Inserat läuft über „{accountLabel(accounts, platform, listing.account_key) ??
-                  "—"}“. Ein Wechsel des Kontos ist nicht möglich — dafür müssten Sie das Inserat
+                Dieses Inserat läuft über das Konto „{(platform === "mobile_de"
+                  ? accountFullLabel(accounts, listing.account_key)
+                  : accountLabel(accounts, platform, listing.account_key)) ?? "—"}“. Ein Wechsel des Kontos ist nicht möglich — dafür müssten Sie das Inserat
                 löschen und neu erstellen.
               </p>
             )}
@@ -243,7 +265,8 @@ export default function VehicleListingsPanel({ vehicleId, vehicleCategory }: Pro
       {!byPlatform.get("mobile_de")?.account_key && (
         <div className="p-4 text-xs text-muted-foreground sm:p-6">
           Vorschlag für das Mobile.de-Konto:{" "}
-          {accountLabel(accounts, "mobile_de", suggestAccountKey(accounts, vehicleCategory))}
+          {accountFullLabel(accounts, suggestAccountKey(accounts, vehicleCategory)) ??
+            accountShortLabel(accounts, suggestAccountKey(accounts, vehicleCategory))}
         </div>
       )}
     </Card>
