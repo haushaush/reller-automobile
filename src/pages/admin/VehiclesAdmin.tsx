@@ -3,8 +3,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  Download,
   ImageOff,
   MoreHorizontal,
   Search,
@@ -25,8 +27,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import PlatformBadges from "@/components/admin/PlatformBadges";
 import VehicleStatusDialog from "@/components/admin/VehicleStatusDialog";
 import BulkStatusDialog from "@/components/admin/BulkStatusDialog";
-import { vehicleSaleStatus } from "@/lib/listings";
-import { loadListingOverview } from "@/lib/listings";
+import {
+  accountShortLabel,
+  expectedAccountKey,
+  loadListingOverview,
+  vehicleSaleStatus,
+  type PlatformAccountRow,
+} from "@/lib/listings";
+import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -147,7 +155,13 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "mileage:desc", label: "Kilometerstand: meiste zuerst" },
 ];
 
-type QuickFilter = "all" | "not_listed" | "reserved" | "sold" | "attention";
+type QuickFilter =
+  | "all"
+  | "not_listed"
+  | "reserved"
+  | "sold"
+  | "attention"
+  | "account_mismatch";
 
 const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "all", label: "Alle" },
@@ -155,11 +169,14 @@ const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "reserved", label: "Reserviert" },
   { value: "sold", label: "Verkauft" },
   { value: "attention", label: "Braucht Aufmerksamkeit" },
+  { value: "account_mismatch", label: "Konto passt nicht zur Fahrzeugart" },
 ];
 
 interface Filters {
   q: string;
   quick: QuickFilter;
+  /** Mobile.de-Konto: "all" oder account_key */
+  account: string;
   category: string;
   publish: string;
   condition: string;
@@ -174,6 +191,7 @@ interface Filters {
 const EMPTY_FILTERS: Filters = {
   q: "",
   quick: "all",
+  account: "all",
   category: "all",
   publish: "all",
   condition: "all",
