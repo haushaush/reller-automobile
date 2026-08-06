@@ -691,19 +691,32 @@ Deno.serve((req) => withAccountLock(async () => {
 
     if (missing.length) {
       const labels = missingFields.map((f) => f.label);
-      const msg = `Pflichtangaben fehlen oder sind ungültig: ${labels.join(", ")}`;
-      console.error(`${msg} (${missing.join(", ")})`);
-      await failVehicle(msg);
-      await logPush("publish", mobilePayload, null, msg);
+      const msg = missingFields.length === 1
+        ? `${labels[0]}: Pflichtangabe für Mobile.de.`
+        : `${missingFields.length} Angaben müssen korrigiert werden.`;
+      const errorId = messageCode("publish:missing", labels.join(","));
+      console.error(`[${errorId}] Pflichtangaben fehlen: ${missing.join(", ")}`);
+      await failVehicle(`Pflichtangaben fehlen: ${labels.join(", ")}`);
+      await logPush("publish", mobilePayload, null, `[${errorId}] missing: ${missing.join(", ")}`);
       return json(400, {
         error: msg,
+        errorId,
         missing,
+        issues: missingFields.map((f) => ({
+          key: "missing-field",
+          path: f.api,
+          value: null,
+          message: `${f.label}: Pflichtangabe für Mobile.de.`,
+          code: errorId,
+          field: { form: f.form, label: f.label, section: f.section },
+        })),
         missingFields: missingFields.map((f) => ({
           api: f.api, form: f.form, label: f.label, section: f.section,
         })),
         warnings,
       });
     }
+
 
     // ── Preis-Plausibilität (unter 500 € / über 500.000 €) ────
     {
