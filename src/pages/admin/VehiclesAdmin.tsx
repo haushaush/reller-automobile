@@ -391,9 +391,8 @@ export default function VehiclesAdmin() {
     setSelected([]);
   };
 
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["admin-vehicles", filters, sortValue, page],
-    queryFn: async () => {
+  const fetchVehicles = useCallback(
+    async (offset: number, size: number) => {
       const term = filters.q.trim();
 
       // Suche schließt VIN und interne Nummer mit ein
@@ -417,7 +416,26 @@ export default function VehiclesAdmin() {
         attentionIds = [...new Set((issues ?? []).map((i) => i.vehicle_id))];
       }
 
+      // Kontofilter und „falsches Konto“ laufen über die Inserate
+      let accountIds: string[] | null = null;
+      if (needsAccountIndex) {
+        const entries = [...(accountIndex?.byVehicle.entries() ?? [])];
+        accountIds = entries
+          .filter(
+            ([id, key]) =>
+              (filters.account === "all" || key === filters.account) &&
+              (filters.quick !== "account_mismatch" || accountIndex?.mismatch.has(id)),
+          )
+          .map(([id]) => id)
+          .slice(0, 1000);
+      }
+
+      if (accountIds !== null && accountIds.length === 0) {
+        return { rows: [] as AdminVehicleRow[], count: 0 };
+      }
+
       let query = supabase.from("vehicles").select(SELECT_COLUMNS, { count: "exact" });
+      if (accountIds !== null) query = query.in("id", accountIds);
 
       if (term) {
         const like = `%${term}%`;
@@ -477,12 +495,19 @@ export default function VehiclesAdmin() {
 
       query = query
         .order(dbKey, { ascending, nullsFirst: false })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        .range(offset, offset + size - 1);
 
       const { data: rows, count, error } = await query;
       if (error) throw error;
       return { rows: (rows as unknown as AdminVehicleRow[]) ?? [], count: count ?? 0 };
     },
+    [filters, sortKey, sortDir, needsAccountIndex, accountIndex],
+  );
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["admin-vehicles", filters, sortValue, page, needsAccountIndex && !!accountIndex],
+    enabled: !needsAccountIndex || !!accountIndex,
+    queryFn: () => fetchVehicles(page * PAGE_SIZE, PAGE_SIZE),
   });
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
