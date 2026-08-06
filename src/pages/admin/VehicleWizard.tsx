@@ -637,8 +637,16 @@ export default function VehicleWizard() {
         />
       )}
 
+      {imagesTransferring && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Fotos werden zu Mobile.de übertragen …
+        </p>
+      )}
+
       {/* Navigation */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background p-3 flex gap-2 md:static md:border-0 md:bg-transparent md:p-0">
+
         <Button
           variant="outline"
           className="flex-1 md:flex-none"
