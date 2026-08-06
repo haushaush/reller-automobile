@@ -1024,11 +1024,21 @@ Deno.serve((req) => withAccountLock(async () => {
       mobileAdId,
       detailPageUrl,
       mobileWarnings,
+      // 303 ist kein Fehler: Die Anzeige bestand bereits und wurde verknüpft.
+      alreadyExisted: alreadyCreated,
+      message: alreadyCreated
+        ? "Das Inserat bestand bereits und wurde verknüpft."
+        : "Fahrzeug wurde bei Mobile.de veröffentlicht.",
       uploadedImages: refs.length,
       skippedImages: skipped,
     });
   } catch (err) {
-    console.error("publish-mobile-ad fatal:", err);
-    return json(500, { error: String((err as Error).message || err) });
+    const errorId = messageCode("publish:fatal", String((err as Error).message || err));
+    console.error(`[${errorId}] publish-mobile-ad fatal:`, err);
+    return json(500, {
+      error: "Das Inserat konnte nicht an Mobile.de übertragen werden. Bitte erneut versuchen.",
+      errorId,
+    });
   }
+
 }));
