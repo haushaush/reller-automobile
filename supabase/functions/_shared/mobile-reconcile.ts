@@ -48,22 +48,47 @@ function normalizeAd(raw: Record<string, unknown>): SellerAd | null {
   };
 }
 
-/** Liest alle eigenen Inserate über die Seller-API (paginiert). */
+function pickPaginationInfo(json: Record<string, unknown>): Record<string, unknown> {
+  const info: Record<string, unknown> = {};
+  const interesting = /total|page|size|count|num|links|next|last/i;
+  for (const [k, v] of Object.entries(json)) {
+    if (!interesting.test(k)) continue;
+    if (v === null || typeof v !== "object") info[k] = v;
+    else if (Array.isArray(v)) info[k] = `array(${v.length})`;
+    else info[k] = Object.keys(v as Record<string, unknown>);
+  }
+  const links = json._links as Record<string, unknown> | undefined;
+  if (links) info["_links.keys"] = Object.keys(links);
+  return info;
+}
+
+function nextHref(json: Record<string, unknown>): string | null {
+  const links = json._links as Record<string, unknown> | undefined;
+  const next = links?.next as Record<string, unknown> | string | undefined;
+  if (!next) return null;
+  const href = typeof next === "string" ? next : (next.href as string | undefined);
+  return href ?? null;
+}
+
+/** Liest alle eigenen Inserate über die Seller-API (paginiert, mit Stillstands-Schutz). */
 export async function fetchSellerAds(
   sellerId: string,
   auth: string,
 ): Promise<SellerAdsResult> {
   const ads: SellerAd[] = [];
+  const seen = new Set<string>();
   let page = 1;
   const pageSize = 100;
   const maxPages = 50;
   const startedAt = Date.now();
   let rootKeys: string[] = [];
-  while (page <= maxPages) {
+  let url: string | null =
+    `${API_BASE}/sellers/${sellerId}/ads?page.size=${pageSize}&page.number=${page}`;
+
+  while (url && page <= maxPages) {
     if (Date.now() - startedAt >= 90_000) {
       return { ads, pages: page - 1, rootKeys, error: "Gesamtbudget der Seller-API-Pagination (90 Sekunden) überschritten" };
     }
-    const url = `${API_BASE}/sellers/${sellerId}/ads?page.size=${pageSize}&page.number=${page}`;
     let res: Response;
     try {
       res = await fetch(url, {
@@ -92,6 +117,7 @@ export async function fetchSellerAds(
     if (page === 1) {
       rootKeys = Object.keys(json);
       console.log(`Seller-API first response root keys: ${rootKeys.join(", ") || "(none)"}`);
+      console.log(`Seller-API pagination fields: ${JSON.stringify(pickPaginationInfo(json))}`);
     }
     const embedded = json._embedded as Record<string, unknown> | undefined;
     const searchResult = json.searchResult as Record<string, unknown> | unknown[] | undefined;
@@ -104,16 +130,41 @@ export async function fetchSellerAds(
       []
     ) as unknown[];
     const arr = Array.isArray(list) ? list : [];
+
+    let fresh = 0;
     for (const item of arr) {
       const ad = normalizeAd(item as Record<string, unknown>);
-      if (ad) ads.push(ad);
+      if (!ad || seen.has(ad.mobileAdId)) continue;
+      seen.add(ad.mobileAdId);
+      ads.push(ad);
+      fresh++;
     }
-    if (arr.length < pageSize) return { ads, pages: page, rootKeys };
+    console.log(`Seller-API Seite ${page}: ${arr.length} Einträge, davon ${fresh} neu (gesamt ${ads.length})`);
+
+    // Stillstands-Schutz: Seite enthält ausschließlich bereits bekannte Inserate
+    if (page > 1 && arr.length > 0 && fresh === 0) {
+      return {
+        ads,
+        pages: page,
+        rootKeys,
+        error: "Pagination liefert wiederholt dieselben Inserate",
+      };
+    }
+
+    const next = nextHref(json);
+    if (next) {
+      url = next.startsWith("http") ? next : `https://services.mobile.de${next.startsWith("/") ? "" : "/"}${next}`;
+    } else if (arr.length === 0) {
+      return { ads, pages: page, rootKeys };
+    } else {
+      url = `${API_BASE}/sellers/${sellerId}/ads?page.size=${pageSize}&page.number=${page + 1}`;
+    }
     page++;
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  return { ads, pages: maxPages, rootKeys, error: "Maximale Seitenzahl der Seller-API erreicht" };
+  return { ads, pages: Math.min(page - 1, maxPages), rootKeys, error: "Maximale Seitenzahl der Seller-API erreicht" };
 }
+
 
 export interface ReconcileResult {
   checked: number;
