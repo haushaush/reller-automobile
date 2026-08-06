@@ -647,6 +647,24 @@ Deno.serve((req) => withAccountLock(async () => {
       });
     }
 
+    // ── Preis-Plausibilität (unter 500 € / über 500.000 €) ────
+    {
+      const priceRaw = (mobilePayload.price as Record<string, unknown> | undefined)?.consumerPriceGross;
+      const priceNum = Number(String(priceRaw ?? "").replace(/[^0-9]/g, ""));
+      if (Number.isFinite(priceNum) && priceNum > 0 && (priceNum < 500 || priceNum > 500000) && !confirmPrice) {
+        const msg = priceNum < 500
+          ? `Der Preis von ${priceNum.toLocaleString("de-DE")} € wirkt sehr niedrig. Bitte prüfen und bestätigen.`
+          : `Der Preis von ${priceNum.toLocaleString("de-DE")} € wirkt sehr hoch. Bitte prüfen und bestätigen.`;
+        await admin
+          .from("vehicles")
+          .update({ publish_status: "draft", publish_error: null } as never)
+          .eq("id", vehicleId);
+        await syncMobileListing(admin, vehicleId, {
+          status: "draft", error_message: null, account_key: ACCOUNT.account_key,
+        });
+        return json(422, { error: msg, needsPriceConfirmation: true, price: priceNum });
+      }
+    }
 
 
     // ── Step 1: upload images one by one (skip individual failures) ──
