@@ -210,7 +210,7 @@ export async function reconcile(
 
   const { data: rows } = await supabase
     .from("vehicles")
-    .select("id, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold");
+    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at");
   const vehicles = (rows ?? []) as Array<Record<string, unknown>>;
   const vehicleById = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) vehicleById.set(String(v.id), v);
@@ -218,6 +218,7 @@ export async function reconcile(
   const byAdId = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) {
     if (v.mobile_ad_id) byAdId.set(String(v.mobile_ad_id), v);
+    if (v.mobile_de_id && !byAdId.has(String(v.mobile_de_id))) byAdId.set(String(v.mobile_de_id), v);
   }
 
   // Kontozuordnung: mobile_de-Listings aller Konten
