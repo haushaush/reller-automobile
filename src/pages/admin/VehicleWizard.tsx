@@ -151,8 +151,12 @@ export default function VehicleWizard() {
       if (s?.signedUrl) map[p] = s.signedUrl;
     }));
     setPreviews(map);
+    const savedPublic = (payload?._imagePublicUrls ?? {}) as Record<string, string>;
+    setPublicUrls(savedPublic && typeof savedPublic === "object" ? savedPublic : {});
+    publicUrlsRef.current = savedPublic ?? {};
     setVehicleId(id);
     setDirty(false);
+
   }, []);
 
   useEffect(() => {
