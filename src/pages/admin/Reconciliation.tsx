@@ -95,7 +95,7 @@ function adLink(adId: string) {
   return `https://suchen.mobile.de/fahrzeuge/details.html?id=${adId}`;
 }
 
-type FilterKey = "all" | "orphan_ad" | "drift";
+type FilterKey = "all" | "orphan_ad" | "account_mismatch" | "drift";
 
 export default function Reconciliation() {
   const [issues, setIssues] = useState<IssueRow[]>([]);
@@ -146,14 +146,21 @@ export default function Reconciliation() {
 
   const counts = useMemo(() => {
     const orphan = issues.filter((i) => i.issue_type === "orphan_ad").length;
-    return { all: issues.length, orphan_ad: orphan, drift: issues.length - orphan };
+    const mismatch = issues.filter((i) => i.issue_type === "account_mismatch").length;
+    return {
+      all: issues.length,
+      orphan_ad: orphan,
+      account_mismatch: mismatch,
+      drift: issues.length - orphan - mismatch,
+    };
   }, [issues]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return issues.filter((i) => {
       if (filter === "orphan_ad" && i.issue_type !== "orphan_ad") return false;
-      if (filter === "drift" && i.issue_type === "orphan_ad") return false;
+      if (filter === "account_mismatch" && i.issue_type !== "account_mismatch") return false;
+      if (filter === "drift" && (i.issue_type === "orphan_ad" || i.issue_type === "account_mismatch")) return false;
       if (!q) return true;
       const title = i.vehicle_id ? vehicles[i.vehicle_id]?.title ?? "" : "";
       return (
@@ -182,6 +189,7 @@ export default function Reconciliation() {
   const filters: { key: FilterKey; label: string; count: number }[] = [
     { key: "all", label: "Alle", count: counts.all },
     { key: "orphan_ad", label: "Inserate ohne Fahrzeug", count: counts.orphan_ad },
+    { key: "account_mismatch", label: "Falsches Konto", count: counts.account_mismatch },
     { key: "drift", label: "Abweichende Daten", count: counts.drift },
   ];
 
@@ -204,7 +212,7 @@ export default function Reconciliation() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <AlertTriangle className="h-4 w-4" /> Offene Punkte
@@ -216,6 +224,12 @@ export default function Reconciliation() {
             <Unlink className="h-4 w-4" /> Inserate ohne Fahrzeug
           </div>
           <div className="mt-1 text-2xl font-semibold">{counts.orphan_ad}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Unlink className="h-4 w-4" /> Falsches Konto
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{counts.account_mismatch}</div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
