@@ -1,3 +1,4 @@
+import { primaryVehicleImage } from "@/lib/vehicleImages";
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -170,7 +171,7 @@ export default function InquiryDetail() {
               <div className="space-y-3">
                 {vehicles.map((v) => {
                   const s = v.vehicle_snapshot || {};
-                  const img = s.image_urls?.[0];
+                  const img = primaryVehicleImage(s);
                   return (
                     <Link
                       key={v.id}

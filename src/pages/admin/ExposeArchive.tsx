@@ -1,3 +1,4 @@
+import { primaryVehicleImage } from "@/lib/vehicleImages";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -451,7 +452,7 @@ export default function ExposeArchive() {
           {filtered.map((v) => {
             const exp = exposeMap.get(v.id);
             const isBusy = busyId === v.id;
-            const thumb = v.image_urls?.[0];
+            const thumb = primaryVehicleImage(v);
             return (
               <Card
                 key={v.id}

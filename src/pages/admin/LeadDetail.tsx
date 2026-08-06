@@ -1,3 +1,4 @@
+import { primaryVehicleImage } from "@/lib/vehicleImages";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -457,9 +458,9 @@ export default function LeadDetail() {
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Fahrzeug</h2>
             {vehicle ? (
               <div className="mt-3">
-                {vehicle.image_urls?.[0] && (
+                {primaryVehicleImage(vehicle) && (
                   <img
-                    src={vehicle.image_urls[0]}
+                    src={primaryVehicleImage(vehicle)}
                     alt={vehicle.title}
                     className="mb-3 aspect-video w-full rounded-md object-cover"
                     loading="lazy"

@@ -1,3 +1,4 @@
+import { primaryVehicleImage } from "@/lib/vehicleImages";
 import {
   Document,
   Page,
@@ -38,7 +39,7 @@ interface VehicleExposeProps {
 }
 
 const VehicleExpose = ({ vehicle }: VehicleExposeProps) => {
-  const mainImage = vehicle.image_urls?.[0];
+  const mainImage = primaryVehicleImage(vehicle);
   const additionalImages = vehicle.image_urls?.slice(1, 7) || [];
   const ps = vehicle.power ? Math.round(vehicle.power * 1.36) : null;
   const formattedPrice = vehicle.price

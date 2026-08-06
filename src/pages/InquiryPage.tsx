@@ -1,3 +1,4 @@
+import { primaryVehicleImage } from "@/lib/vehicleImages";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, X, Send, Loader2 } from "lucide-react";
@@ -88,7 +89,7 @@ const InquiryPage = () => {
             brand: v.brand,
             price: v.price,
             currency: v.currency,
-            image: v.image_urls?.[0] || null,
+            image: primaryVehicleImage(v) || null,
           })),
         })
       );
@@ -133,7 +134,7 @@ const InquiryPage = () => {
             ) : (
               <ul className="space-y-3">
                 {inquiryList.map((v) => {
-                  const img = v.image_urls?.[0];
+                  const img = primaryVehicleImage(v);
                   const price = v.price
                     ? `${v.price.toLocaleString("de-DE")} ${
                         v.currency?.toUpperCase() === "EUR" || !v.currency ? "€" : v.currency

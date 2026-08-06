@@ -1,3 +1,4 @@
+import { primaryVehicleImage } from "@/lib/vehicleImages";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Scale, Send, X } from "lucide-react";
 import { useInquiry } from "@/contexts/InquiryContext";
@@ -64,7 +65,7 @@ const FloatingActionBar = () => {
               {/* Desktop thumbs */}
               <div className="hidden lg:flex items-center gap-1.5">
                 {compareList.map((v) => {
-                  const img = v.image_urls?.[0];
+                  const img = primaryVehicleImage(v);
                   return (
                     <div
                       key={v.id}
@@ -122,7 +123,7 @@ const FloatingActionBar = () => {
               {/* Desktop thumbs */}
               <div className="hidden md:flex -space-x-2">
                 {visibleThumbs.map((v) => {
-                  const img = v.image_urls?.[0];
+                  const img = primaryVehicleImage(v);
                   return (
                     <div
                       key={v.id}
