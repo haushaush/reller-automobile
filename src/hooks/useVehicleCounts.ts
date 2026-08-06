@@ -20,6 +20,7 @@ async function fetchCounts(): Promise<VehicleCounts> {
       .select("id", { count: "exact", head: true })
       .eq("is_sold", false)
       .eq("is_test", false)
+      .is("archived_at", null)
       .in("vehicle_category", cat.dbCategories as VehicleCategoryKey[]);
     return { slug: cat.slug, count: count ?? 0 };
   });
@@ -28,7 +29,8 @@ async function fetchCounts(): Promise<VehicleCounts> {
     .from("vehicles")
     .select("id", { count: "exact", head: true })
     .eq("is_sold", false)
-    .eq("is_test", false);
+    .eq("is_test", false)
+    .is("archived_at", null);
 
   const [perCategory, totalRes] = await Promise.all([
     Promise.all(queries),
