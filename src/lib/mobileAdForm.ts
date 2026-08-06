@@ -212,13 +212,80 @@ export const EMPTY: FormState = {
   description: "", consumerPriceGross: "", vatRate: "",
 };
 
+/* ── Referenzdaten mit 24-Stunden-Zwischenspeicher ───────────────────────────
+ * Die deutschen Bezeichnungen kommen von Mobile.de. Damit nicht bei jedem
+ * Formularaufruf neu abgefragt wird, landen sie für 24 Stunden im lokalen
+ * Speicher des Browsers. */
+const REF_TTL_MS = 24 * 60 * 60 * 1000;
+const refMemory = new Map<string, RefItem[]>();
+
+function refCacheKey(kind: string, make?: string) {
+  return `mobile-refdata:v2:${kind}${make ? `:${make}` : ""}`;
+}
+
+function readRefCache(key: string): RefItem[] | null {
+  const mem = refMemory.get(key);
+  if (mem) return mem;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { at: number; items: RefItem[] };
+    if (!parsed?.items || Date.now() - parsed.at > REF_TTL_MS) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    refMemory.set(key, parsed.items);
+    return parsed.items;
+  } catch {
+    return null;
+  }
+}
+
+function writeRefCache(key: string, items: RefItem[]) {
+  refMemory.set(key, items);
+  try {
+    localStorage.setItem(key, JSON.stringify({ at: Date.now(), items }));
+  } catch { /* Speicher voll — Zwischenspeicher ist optional */ }
+}
+
+/** Schlüssel ohne Bezeichnung lesbar darstellen: AUTOMATIC_GEAR → „Automatic Gear“. */
+export function humanizeRefKey(key: string): string {
+  return key
+    .toLowerCase()
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+const missingLabelLogged = new Set<string>();
+
+/** Deutsche Bezeichnung zu einem Schlüssel aus einer Referenzliste. */
+export function refLabel(items: RefItem[], key: string, kind = "refdata"): string {
+  if (!key) return "";
+  const hit = items.find((i) => i.key === key);
+  if (hit?.name) return hit.name;
+  const id = `${kind}:${key}`;
+  if (!missingLabelLogged.has(id)) {
+    missingLabelLogged.add(id);
+    console.warn(`Keine deutsche Bezeichnung für ${kind}-Schlüssel "${key}"`);
+  }
+  return humanizeRefKey(key);
+}
+
 export async function loadRef(kind: string, make?: string): Promise<RefItem[]> {
+  const key = refCacheKey(kind, make);
+  const cached = readRefCache(key);
+  if (cached) return cached;
   const { data, error } = await supabase.functions.invoke("mobile-refdata", {
     body: { kind, make },
   });
   if (error) throw error;
-  return (data as { items: RefItem[] })?.items ?? [];
+  const items = (data as { items: RefItem[] })?.items ?? [];
+  if (items.length) writeRefCache(key, items);
+  return items;
 }
+
 
 export function payloadToForm(payload: Record<string, unknown> | null | undefined): FormState {
   if (!payload) return EMPTY;
