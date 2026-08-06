@@ -98,6 +98,8 @@ export default function VehicleWizard() {
 
   const [accounts, setAccounts] = useState<PlatformAccountRow[]>([]);
   const [accountKey, setAccountKey] = useState("");
+  const [accountTouched, setAccountTouched] = useState(false);
+
   const [manual, setManual] = useState({ autoscout24: false, kleinanzeigen: false });
 
   const refdata = useMobileRefdata(form.make);
