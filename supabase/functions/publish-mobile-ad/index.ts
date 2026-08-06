@@ -177,7 +177,7 @@ export function extractMobileAdId(
 // ─────────────────────────────────────────────────────────────────────────────
 
 type AdPayload = Record<string, unknown>;
-type BuildResult = { adBody: AdPayload; missing: string[]; warnings: string[] };
+type BuildResult = { adBody: AdPayload; missing: string[]; missingFields: RequiredAdField[]; warnings: string[] };
 
 const SAFE_CLIMATISATION = new Set([
   "MANUAL_CLIMATISATION",
@@ -602,16 +602,24 @@ Deno.serve((req) => withAccountLock(async () => {
       .eq("id", vehicleId);
 
     // ── Build flat Mobile.de payload — tolerate flat or nested drafts ──
-    const { adBody: mobilePayload, missing, warnings } = buildMobileAdPayload(payload, []);
+    const { adBody: mobilePayload, missing, missingFields, warnings } = buildMobileAdPayload(payload, []);
     console.log(`buildMobileAdPayload: keys=${Object.keys(mobilePayload).join(",")}`);
     if (warnings.length) console.warn(`buildMobileAdPayload warnings:`, warnings);
 
     if (missing.length) {
-      const msg = `Pflichtfelder fehlen oder ungültig: ${missing.join(", ")}`;
-      console.error(msg);
+      const labels = missingFields.map((f) => f.label);
+      const msg = `Pflichtangaben fehlen oder sind ungültig: ${labels.join(", ")}`;
+      console.error(`${msg} (${missing.join(", ")})`);
       await failVehicle(msg);
       await logPush("publish", mobilePayload, null, msg);
-      return json(400, { error: msg, missing, warnings });
+      return json(400, {
+        error: msg,
+        missing,
+        missingFields: missingFields.map((f) => ({
+          api: f.api, form: f.form, label: f.label, section: f.section,
+        })),
+        warnings,
+      });
     }
 
 
