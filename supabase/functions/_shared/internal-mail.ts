@@ -1,9 +1,8 @@
 // Interne Betriebs-Mails: kein Abmeldelink, keine Suppression-Prüfung.
 // Kundenmails laufen weiterhin über die Queue (send-transactional-email).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { assertSendableAddresses, formatFrom, loadMailSettings, type MailSettings } from "./mail-config.ts";
+import { assertSendableAddresses, formatFrom, loadMailSettings, queueMail, type MailSettings } from "./mail-config.ts";
 
-const RESEND_GATEWAY = "https://connector-gateway.lovable.dev/resend";
 
 type Admin = ReturnType<typeof createClient>;
 
@@ -50,53 +49,27 @@ export async function sendInternalMail(
 
   const emailLogId = await logEmail(admin, input, recipients, "sending", null, settings);
 
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  const resendKey = Deno.env.get("RESEND_API_KEY");
-  if (!lovableKey || !resendKey) {
-    const message = "Mailversand nicht konfiguriert (LOVABLE_API_KEY/RESEND_API_KEY fehlt)";
-    await updateLog(admin, emailLogId, { status: "failed", error_message: message });
-    return { ok: false, error: message, emailLogId, recipients };
+  // Versand über Lovable Emails (verifizierte Domain), nicht über Resend.
+  const result = await queueMail(admin, {
+    from,
+    to: recipients,
+    subject: input.subject,
+    html: input.html,
+    replyTo: replyTo ?? null,
+    label: `internal:${input.eventType}`,
+  });
+  if (!result.ok) {
+    await updateLog(admin, emailLogId, { status: "failed", error_message: (result.error ?? "").slice(0, 1000) });
+    return { ok: false, error: result.error, emailLogId, recipients };
   }
-
-  try {
-    const response = await fetch(`${RESEND_GATEWAY}/emails`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${lovableKey}`,
-        "X-Connection-Api-Key": resendKey,
-      },
-      body: JSON.stringify({
-        from,
-        to: recipients,
-        subject: input.subject,
-        html: input.html,
-        ...(replyTo ? { reply_to: replyTo } : {}),
-      }),
-    });
-    const bodyText = await response.text();
-    if (!response.ok) {
-      const message = `Versand fehlgeschlagen [${response.status}]: ${bodyText}`.slice(0, 1000);
-      console.error("sendInternalMail failed:", message);
-      await updateLog(admin, emailLogId, { status: "failed", error_message: message });
-      return { ok: false, error: message, emailLogId, recipients };
-    }
-    let providerId: string | null = null;
-    try {
-      providerId = (JSON.parse(bodyText) as { id?: string }).id ?? null;
-    } catch { /* ignore */ }
-    await updateLog(admin, emailLogId, {
-      status: "sent",
-      sent_at: new Date().toISOString(),
-      provider_message_id: providerId,
-    });
-    return { ok: true, emailLogId, recipients };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await updateLog(admin, emailLogId, { status: "failed", error_message: message.slice(0, 1000) });
-    return { ok: false, error: message, emailLogId, recipients };
-  }
+  await updateLog(admin, emailLogId, {
+    status: "sent",
+    sent_at: new Date().toISOString(),
+    provider_message_id: result.messageIds[0] ?? null,
+  });
+  return { ok: true, emailLogId, recipients };
 }
+
 
 async function logEmail(
   admin: Admin,

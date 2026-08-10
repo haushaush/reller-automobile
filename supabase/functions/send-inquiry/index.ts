@@ -1,8 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const RESEND_GATEWAY = "https://connector-gateway.lovable.dev/resend";
-import { loadMailSettings, formatFrom, assertSendableAddresses, serviceClient } from "../_shared/mail-config.ts";
+import { loadMailSettings, formatFrom, assertSendableAddresses, serviceClient, queueMail } from "../_shared/mail-config.ts";
 import { loadRecipients } from "../_shared/internal-mail.ts";
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://reller-automobile.lovable.app";
 
@@ -240,35 +239,17 @@ async function sendResendMail(args: {
     replyTo: args.replyTo ?? null,
   });
   if (!guard.ok) return { ok: false, error: guard.error };
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  const resendKey = Deno.env.get("RESEND_API_KEY");
-  if (!lovableKey) return { ok: false, error: "LOVABLE_API_KEY not configured" };
-  if (!resendKey) return { ok: false, error: "RESEND_API_KEY not configured" };
-
-  const body: Record<string, unknown> = {
+  const to = Array.isArray(args.to) ? args.to : [args.to];
+  const recipients = args.bcc && args.bcc.length > 0 ? [...to, ...args.bcc] : to;
+  const result = await queueMail(admin, {
     from: FROM,
-    to: Array.isArray(args.to) ? args.to : [args.to],
+    to: recipients,
     subject: args.subject,
     html: args.html,
-  };
-  if (args.replyTo) body.reply_to = args.replyTo;
-  if (args.bcc && args.bcc.length > 0) body.bcc = args.bcc;
-
-  const res = await fetch(`${RESEND_GATEWAY}/emails`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": resendKey,
-    },
-    body: JSON.stringify(body),
+    replyTo: args.replyTo ?? null,
+    label: "inquiry",
   });
-
-  if (!res.ok) {
-    const txt = await res.text();
-    return { ok: false, error: `Resend ${res.status}: ${txt}` };
-  }
-  await res.text();
+  if (!result.ok) return { ok: false, error: result.error };
   return { ok: true };
 }
 
