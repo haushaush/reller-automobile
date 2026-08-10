@@ -32,6 +32,85 @@ export type Database = {
         }
         Relationships: []
       }
+      appointment_requests: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          ip_hash: string | null
+          lead_id: string | null
+          mail_error: string | null
+          mail_sent_at: string | null
+          message: string | null
+          name: string
+          phone: string
+          preferred_date: string
+          preferred_time_slot: string
+          sales_contact_id: string | null
+          source_slug: string | null
+          user_agent: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          ip_hash?: string | null
+          lead_id?: string | null
+          mail_error?: string | null
+          mail_sent_at?: string | null
+          message?: string | null
+          name: string
+          phone: string
+          preferred_date: string
+          preferred_time_slot: string
+          sales_contact_id?: string | null
+          source_slug?: string | null
+          user_agent?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          ip_hash?: string | null
+          lead_id?: string | null
+          mail_error?: string | null
+          mail_sent_at?: string | null
+          message?: string | null
+          name?: string
+          phone?: string
+          preferred_date?: string
+          preferred_time_slot?: string
+          sales_contact_id?: string | null
+          source_slug?: string | null
+          user_agent?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_requests_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_requests_sales_contact_id_fkey"
+            columns: ["sales_contact_id"]
+            isOneToOne: false
+            referencedRelation: "sales_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_requests_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_logs: {
         Row: {
           audience: string
@@ -938,6 +1017,118 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sales_card_events: {
+        Row: {
+          button_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          sales_contact_id: string
+        }
+        Insert: {
+          button_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          sales_contact_id: string
+        }
+        Update: {
+          button_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          sales_contact_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_card_events_sales_contact_id_fkey"
+            columns: ["sales_contact_id"]
+            isOneToOne: false
+            referencedRelation: "sales_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_contact_slug_redirects: {
+        Row: {
+          created_at: string
+          old_slug: string
+          sales_contact_id: string
+        }
+        Insert: {
+          created_at?: string
+          old_slug: string
+          sales_contact_id: string
+        }
+        Update: {
+          created_at?: string
+          old_slug?: string
+          sales_contact_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_contact_slug_redirects_sales_contact_id_fkey"
+            columns: ["sales_contact_id"]
+            isOneToOne: false
+            referencedRelation: "sales_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_contacts: {
+        Row: {
+          buttons: Json
+          card_printed_at: string | null
+          created_at: string
+          email: string
+          first_name: string
+          id: string
+          is_active: boolean
+          last_name: string
+          mobile: string | null
+          phone: string | null
+          photo_url: string | null
+          role: string | null
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          buttons?: Json
+          card_printed_at?: string | null
+          created_at?: string
+          email: string
+          first_name: string
+          id?: string
+          is_active?: boolean
+          last_name: string
+          mobile?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          role?: string | null
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          buttons?: Json
+          card_printed_at?: string | null
+          created_at?: string
+          email?: string
+          first_name?: string
+          id?: string
+          is_active?: boolean
+          last_name?: string
+          mobile?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          role?: string | null
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       suppressed_emails: {
         Row: {

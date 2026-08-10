@@ -14,6 +14,7 @@ import {
   Images,
   ListChecks,
   Unlink,
+  IdCard,
   type LucideIcon,
 } from "lucide-react";
 
@@ -79,6 +80,13 @@ export const SETTINGS_NAV: AdminNavEntry[] = [
     icon: Users,
     adminOnly: true,
     description: "Zugänge für Mitarbeiter anlegen und Rechte vergeben",
+  },
+  {
+    label: "Visitenkarten",
+    path: "/admin/einstellungen/visitenkarten",
+    icon: IdCard,
+    adminOnly: true,
+    description: "Persönliche Kartenseiten mit QR-Code für gedruckte Visitenkarten",
   },
   {
     label: "Status-Log",

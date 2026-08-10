@@ -1,6 +1,6 @@
-import { Globe, Phone, MessageSquare, FileText, type LucideIcon } from "lucide-react";
+import { Globe, Phone, MessageSquare, FileText, IdCard, type LucideIcon } from "lucide-react";
 
-export type LeadSource = "MOBILE" | "KLEINANZEIGEN" | "AUTOSCOUT24" | "SANDBOX" | "MANUAL" | "WEBSITE";
+export type LeadSource = "MOBILE" | "KLEINANZEIGEN" | "AUTOSCOUT24" | "SANDBOX" | "MANUAL" | "WEBSITE" | "BUSINESS_CARD";
 export type LeadStatus = "IN_PROGRESS" | "SOLD" | "NOT_INTERESTED" | "SPAM";
 
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
@@ -17,12 +17,14 @@ export const LEAD_SOURCE_LABELS: Record<string, string> = {
   SANDBOX: "Testumgebung",
   MANUAL: "Handeintrag",
   WEBSITE: "Eigene Website",
+  BUSINESS_CARD: "Visitenkarte",
 };
 
 export const LEAD_TYPE_LABELS: Record<string, string> = {
   messaging: "Nachricht",
   leasing: "Leasinganfrage",
   phone_call: "Telefonanruf",
+  appointment: "Terminanfrage",
 };
 
 export const LEAD_EVENT_LABELS: Record<string, string> = {
@@ -33,10 +35,13 @@ export const LEAD_EVENT_LABELS: Record<string, string> = {
   PhoneCallReceived: "Telefonanruf",
   BuyerPreferencesUpdated: "Käuferwünsche",
   BuyerSearchBehaviourAdded: "Suchverhalten",
+  AppointmentRequested: "Terminanfrage über Visitenkarte",
 };
 
 export function leadSourceIcon(source: string): LucideIcon {
   switch (source) {
+    case "BUSINESS_CARD":
+      return IdCard;
     case "WEBSITE":
       return Globe;
     case "MANUAL":
@@ -60,6 +65,8 @@ export function leadSourceTone(source: string): string {
       return "bg-accent text-accent-foreground";
     case "AUTOSCOUT24":
       return "bg-secondary text-secondary-foreground";
+    case "BUSINESS_CARD":
+      return "bg-primary/10 text-primary";
     case "WEBSITE":
       return "bg-muted text-muted-foreground";
     default:
