@@ -1,9 +1,8 @@
 // Interne Betriebs-Mails: kein Abmeldelink, keine Suppression-Prüfung.
 // Kundenmails laufen weiterhin über die Queue (send-transactional-email).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { assertSendableAddresses, formatFrom, loadMailSettings, type MailSettings } from "./mail-config.ts";
+import { assertSendableAddresses, formatFrom, loadMailSettings, VERIFIED_SENDER_DOMAIN, type MailSettings } from "./mail-config.ts";
 
-const RESEND_GATEWAY = "https://connector-gateway.lovable.dev/resend";
 
 type Admin = ReturnType<typeof createClient>;
 
