@@ -2,7 +2,7 @@
 // Die Mailadresse des Verkäufers wird ausschließlich serverseitig über den Slug ermittelt.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { loadMailSettings, formatFrom, assertSendableAddresses, serviceClient } from "../_shared/mail-config.ts";
+import { loadMailSettings, formatFrom, assertSendableAddresses, serviceClient, queueMail } from "../_shared/mail-config.ts";
 import { loadRecipients } from "../_shared/internal-mail.ts";
 import { emitNotificationEvent } from "../_shared/emit-event.ts";
 

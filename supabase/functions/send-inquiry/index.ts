@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const RESEND_GATEWAY = "https://connector-gateway.lovable.dev/resend";
-import { loadMailSettings, formatFrom, assertSendableAddresses, serviceClient } from "../_shared/mail-config.ts";
+import { loadMailSettings, formatFrom, assertSendableAddresses, serviceClient, queueMail } from "../_shared/mail-config.ts";
 import { loadRecipients } from "../_shared/internal-mail.ts";
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://reller-automobile.lovable.app";
 
