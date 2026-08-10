@@ -1,7 +1,7 @@
 // Interne Betriebs-Mails: kein Abmeldelink, keine Suppression-Prüfung.
 // Kundenmails laufen weiterhin über die Queue (send-transactional-email).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { assertSendableAddresses, formatFrom, loadMailSettings, VERIFIED_SENDER_DOMAIN, type MailSettings } from "./mail-config.ts";
+import { assertSendableAddresses, formatFrom, loadMailSettings, queueMail, type MailSettings } from "./mail-config.ts";
 
 
 type Admin = ReturnType<typeof createClient>;
@@ -50,35 +50,24 @@ export async function sendInternalMail(
   const emailLogId = await logEmail(admin, input, recipients, "sending", null, settings);
 
   // Versand über Lovable Emails (verifizierte Domain), nicht über Resend.
-  try {
-    const messageIds: string[] = [];
-    for (const recipient of recipients) {
-      const messageId = crypto.randomUUID();
-      const { error } = await admin.rpc("enqueue_email", {
-        queue_name: "transactional_emails",
-        payload: {
-          message_id: messageId,
-          to: recipient,
-          from,
-          sender_domain: VERIFIED_SENDER_DOMAIN,
-          subject: input.subject,
-          html: input.html,
-          purpose: "transactional",
-          label: `internal:${input.eventType}`,
-          idempotency_key: `${input.eventType}-${messageId}`,
-          ...(replyTo ? { reply_to: replyTo } : {}),
-          queued_at: new Date().toISOString(),
-        },
-      });
-      if (error) throw new Error(error.message);
-      messageIds.push(messageId);
-    }
-    await updateLog(admin, emailLogId, {
-      status: "sent",
-      sent_at: new Date().toISOString(),
-      provider_message_id: messageIds[0] ?? null,
-    });
-    return { ok: true, emailLogId, recipients };
+  const result = await queueMail(admin, {
+    from,
+    to: recipients,
+    subject: input.subject,
+    html: input.html,
+    replyTo: replyTo ?? null,
+    label: `internal:${input.eventType}`,
+  });
+  if (!result.ok) {
+    await updateLog(admin, emailLogId, { status: "failed", error_message: (result.error ?? "").slice(0, 1000) });
+    return { ok: false, error: result.error, emailLogId, recipients };
+  }
+  await updateLog(admin, emailLogId, {
+    status: "sent",
+    sent_at: new Date().toISOString(),
+    provider_message_id: result.messageIds[0] ?? null,
+  });
+  return { ok: true, emailLogId, recipients };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await updateLog(admin, emailLogId, { status: "failed", error_message: message.slice(0, 1000) });

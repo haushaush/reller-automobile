@@ -120,6 +120,19 @@ export function formatFrom(settings: MailSettings): string {
  * Stellt eine fertig gerenderte Mail in die Lovable-Emails-Queue.
  * Der Versand über Resend scheitert, weil dort keine Domain verifiziert ist.
  */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/(p|div|tr|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export async function queueMail(
   admin: Admin,
   args: { from: string; to: string | string[]; subject: string; html: string; replyTo?: string | null; label?: string },
@@ -140,6 +153,7 @@ export async function queueMail(
           sender_domain: VERIFIED_SENDER_DOMAIN,
           subject: args.subject,
           html: args.html,
+          text: htmlToText(args.html),
           purpose: "transactional",
           label: args.label ?? "internal",
           idempotency_key: messageId,
