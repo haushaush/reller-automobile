@@ -6,7 +6,6 @@ import { loadMailSettings, formatFrom, assertSendableAddresses, serviceClient, q
 import { loadRecipients } from "../_shared/internal-mail.ts";
 import { emitNotificationEvent } from "../_shared/emit-event.ts";
 
-const RESEND_GATEWAY = "https://connector-gateway.lovable.dev/resend";
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://fahrzeuge.reller-automobile.de";
 
 const TIME_SLOT_LABELS: Record<string, string> = {
