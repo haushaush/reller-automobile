@@ -120,6 +120,26 @@ export function formatFrom(settings: MailSettings): string {
  * Stellt eine fertig gerenderte Mail in die Lovable-Emails-Queue.
  * Der Versand über Resend scheitert, weil dort keine Domain verifiziert ist.
  */
+async function getUnsubscribeToken(admin: Admin, email: string): Promise<string> {
+  const normalized = email.trim().toLowerCase();
+  const { data: existing } = await admin
+    .from("email_unsubscribe_tokens")
+    .select("token")
+    .eq("email", normalized)
+    .maybeSingle();
+  if (existing?.token) return existing.token as string;
+  const token = crypto.randomUUID().replace(/-/g, "");
+  await admin
+    .from("email_unsubscribe_tokens")
+    .upsert({ token, email: normalized }, { onConflict: "email" });
+  const { data: stored } = await admin
+    .from("email_unsubscribe_tokens")
+    .select("token")
+    .eq("email", normalized)
+    .maybeSingle();
+  return (stored?.token as string) ?? token;
+}
+
 function htmlToText(html: string): string {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -144,6 +164,7 @@ export async function queueMail(
   try {
     for (const recipient of recipients) {
       const messageId = crypto.randomUUID();
+      const unsubscribeToken = await getUnsubscribeToken(admin, recipient);
       const { error } = await admin.rpc("enqueue_email", {
         queue_name: "transactional_emails",
         payload: {
@@ -157,6 +178,7 @@ export async function queueMail(
           purpose: "transactional",
           label: args.label ?? "internal",
           idempotency_key: messageId,
+          unsubscribe_token: unsubscribeToken,
           ...(args.replyTo ? { reply_to: args.replyTo } : {}),
           queued_at: new Date().toISOString(),
         },
