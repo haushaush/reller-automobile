@@ -50,45 +50,34 @@ export async function sendInternalMail(
 
   const emailLogId = await logEmail(admin, input, recipients, "sending", null, settings);
 
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  const resendKey = Deno.env.get("RESEND_API_KEY");
-  if (!lovableKey || !resendKey) {
-    const message = "Mailversand nicht konfiguriert (LOVABLE_API_KEY/RESEND_API_KEY fehlt)";
-    await updateLog(admin, emailLogId, { status: "failed", error_message: message });
-    return { ok: false, error: message, emailLogId, recipients };
-  }
-
+  // Versand über Lovable Emails (verifizierte Domain), nicht über Resend.
   try {
-    const response = await fetch(`${RESEND_GATEWAY}/emails`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${lovableKey}`,
-        "X-Connection-Api-Key": resendKey,
-      },
-      body: JSON.stringify({
-        from,
-        to: recipients,
-        subject: input.subject,
-        html: input.html,
-        ...(replyTo ? { reply_to: replyTo } : {}),
-      }),
-    });
-    const bodyText = await response.text();
-    if (!response.ok) {
-      const message = `Versand fehlgeschlagen [${response.status}]: ${bodyText}`.slice(0, 1000);
-      console.error("sendInternalMail failed:", message);
-      await updateLog(admin, emailLogId, { status: "failed", error_message: message });
-      return { ok: false, error: message, emailLogId, recipients };
+    const messageIds: string[] = [];
+    for (const recipient of recipients) {
+      const messageId = crypto.randomUUID();
+      const { error } = await admin.rpc("enqueue_email", {
+        queue_name: "transactional_emails",
+        payload: {
+          message_id: messageId,
+          to: recipient,
+          from,
+          sender_domain: VERIFIED_SENDER_DOMAIN,
+          subject: input.subject,
+          html: input.html,
+          purpose: "transactional",
+          label: `internal:${input.eventType}`,
+          idempotency_key: `${input.eventType}-${messageId}`,
+          ...(replyTo ? { reply_to: replyTo } : {}),
+          queued_at: new Date().toISOString(),
+        },
+      });
+      if (error) throw new Error(error.message);
+      messageIds.push(messageId);
     }
-    let providerId: string | null = null;
-    try {
-      providerId = (JSON.parse(bodyText) as { id?: string }).id ?? null;
-    } catch { /* ignore */ }
     await updateLog(admin, emailLogId, {
       status: "sent",
       sent_at: new Date().toISOString(),
-      provider_message_id: providerId,
+      provider_message_id: messageIds[0] ?? null,
     });
     return { ok: true, emailLogId, recipients };
   } catch (err) {
@@ -96,6 +85,7 @@ export async function sendInternalMail(
     await updateLog(admin, emailLogId, { status: "failed", error_message: message.slice(0, 1000) });
     return { ok: false, error: message, emailLogId, recipients };
   }
+
 }
 
 async function logEmail(
