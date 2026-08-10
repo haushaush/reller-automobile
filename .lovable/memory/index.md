@@ -23,3 +23,4 @@ vehicle_category persisted in DB ('oldtimer'|'youngtimer'|'used'|'accident'|'com
 - [Favorites System](mem://features/favorites-system) — LocalStorage, Heart icon animations, context, side drawer
 - [Categories & Hub](mem://features/categories-hub) — 4 UI buckets, CATEGORIES def in src/lib/categories.ts, hub page, useVehicleCounts hook
 - [Anfragen-Posteingang](mem://features/leads-inbox) — Mobile.de Lead-API, Cursor-Abruf, Statusrückmeldung, DSGVO-Löschung
+- [Digitale Visitenkarten](mem://features/digital-business-cards) — /karte/{slug}, QR-Codes, Terminformular mit Spamschutz, Verkäufer-Mails, Auswertung
