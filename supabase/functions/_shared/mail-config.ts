@@ -12,13 +12,26 @@ export type MailSettings = {
   inquiry_inbox: string;
 };
 
+// Nur diese Domain ist beim Mail-Provider verifiziert. Absender MUSS darauf liegen,
+// sonst lehnt der Provider den Versand ab ("domain is not verified").
+export const VERIFIED_SENDER_DOMAIN = "notify.viral-connect.de";
+
 export const MAIL_SETTINGS_FALLBACK: MailSettings = {
-  sender_address: "no-reply@reller-automobile.de",
+  sender_address: `no-reply@${VERIFIED_SENDER_DOMAIN}`,
   sender_name: "Reller Automobile",
   reply_to_customer: "anfrage@reller-automobile.de",
   reply_to_internal: null,
   inquiry_inbox: "anfrage@reller-automobile.de",
 };
+
+/** Erzwingt die verifizierte Absenderdomain, behält aber den lokalen Teil bei. */
+export function enforceSenderDomain(address: string | null | undefined): string {
+  const raw = String(address ?? "").trim();
+  const inner = raw.match(/<([^>]+)>/)?.[1]?.trim() ?? raw;
+  const local = (inner.split("@")[0] || "no-reply").replace(/[^a-zA-Z0-9._-]/g, "") || "no-reply";
+  return `${local}@${VERIFIED_SENDER_DOMAIN}`;
+}
+
 
 type Admin = ReturnType<typeof createClient>;
 
