@@ -81,32 +81,15 @@ async function sendMail(args: {
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  const resendKey = Deno.env.get("RESEND_API_KEY");
-  if (!lovableKey || !resendKey) return { ok: false, error: "Mailversand nicht konfiguriert" };
-
-  const body: Record<string, unknown> = {
+  const result = await queueMail(admin, {
     from: FROM,
-    to: Array.isArray(args.to) ? args.to : [args.to],
+    to: args.to,
     subject: args.subject,
     html: args.html,
-  };
-  if (args.replyTo) body.reply_to = args.replyTo;
-
-  const res = await fetch(`${RESEND_GATEWAY}/emails`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": resendKey,
-    },
-    body: JSON.stringify(body),
+    replyTo: args.replyTo ?? null,
+    label: "appointment-request",
   });
-  if (!res.ok) {
-    const txt = await res.text();
-    return { ok: false, error: `Resend ${res.status}: ${txt}` };
-  }
-  await res.text();
+  if (!result.ok) return { ok: false, error: result.error };
   return { ok: true };
 }
 
