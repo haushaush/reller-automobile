@@ -20,6 +20,7 @@ const VehicleDetail = lazy(() => import("./pages/VehicleDetail"));
 const ComparePage = lazy(() => import("./pages/ComparePage"));
 const InquiryPage = lazy(() => import("./pages/InquiryPage"));
 const InquirySuccessPage = lazy(() => import("./pages/InquirySuccessPage"));
+const SalesCard = lazy(() => import("./pages/SalesCard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Login = lazy(() => import("./pages/Login"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
@@ -45,6 +46,7 @@ const VehicleWizard = lazy(() => import("./pages/admin/VehicleWizard"));
 const EmailLogs = lazy(() => import("./pages/admin/EmailLogs"));
 const Storys = lazy(() => import("./pages/admin/Storys"));
 const ListingTasks = lazy(() => import("./pages/admin/ListingTasks"));
+const SalesContacts = lazy(() => import("./pages/admin/SalesContacts"));
 
 /** Alte Anfragen-Detaillinks auf den neuen Pfad umleiten */
 const LegacyInquiryRedirect = () => {
@@ -85,6 +87,7 @@ const App = () => (
                     <Route path="/vergleich" element={<ComparePage />} />
                     <Route path="/anfrage" element={<InquiryPage />} />
                     <Route path="/anfrage/erfolg" element={<InquirySuccessPage />} />
+                    <Route path="/karte/:slug" element={<SalesCard />} />
                     <Route path="/login" element={<Login />} />
                     <Route
                       path="/admin"
@@ -114,6 +117,7 @@ const App = () => (
                       <Route path="einstellungen" element={<Settings />} />
                       <Route path="einstellungen/benachrichtigungen" element={<NotificationSettings />} />
                       <Route path="einstellungen/accounts" element={<Accounts />} />
+                      <Route path="einstellungen/visitenkarten" element={<SalesContacts />} />
                       <Route path="einstellungen/status-log" element={<SyncStatus />} />
                       <Route path="einstellungen/datenqualitaet" element={<DataQuality />} />
                       <Route path="einstellungen/abgleich" element={<Reconciliation />} />
