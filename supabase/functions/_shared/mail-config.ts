@@ -113,5 +113,5 @@ export async function assertSendableAddresses(
 }
 
 export function formatFrom(settings: MailSettings): string {
-  return `${settings.sender_name} <${settings.sender_address}>`;
+  return `${settings.sender_name} <${enforceSenderDomain(settings.sender_address)}>`;
 }
