@@ -68,13 +68,8 @@ export async function sendInternalMail(
     provider_message_id: result.messageIds[0] ?? null,
   });
   return { ok: true, emailLogId, recipients };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await updateLog(admin, emailLogId, { status: "failed", error_message: message.slice(0, 1000) });
-    return { ok: false, error: message, emailLogId, recipients };
-  }
-
 }
+
 
 async function logEmail(
   admin: Admin,
