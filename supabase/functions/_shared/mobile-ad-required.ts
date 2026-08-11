@@ -16,6 +16,12 @@ export interface RequiredAdField {
   section: AdFieldSection;
   /** Art der Prüfung. */
   kind: "text" | "number" | "boolean" | "yyyymm" | "amount";
+  /**
+   * "required" = Mobile.de lehnt das Inserat ohne diese Angabe ab (blockiert).
+   * "recommended" = nur empfohlen, blockiert die Veröffentlichung NICHT.
+   * Fehlt die Angabe, gilt "required".
+   */
+  severity?: "required" | "recommended";
 }
 
 export const REQUIRED_AD_FIELDS: RequiredAdField[] = [
@@ -27,17 +33,18 @@ export const REQUIRED_AD_FIELDS: RequiredAdField[] = [
   { api: "mileage", form: "mileage", label: "Kilometerstand", section: "basis", kind: "number" },
   { api: "firstRegistration", form: "regYear", label: "Erstzulassung", section: "basis", kind: "yyyymm" },
   { api: "condition", form: "condition", label: "Zustand", section: "basis", kind: "text" },
-  { api: "accidentDamaged", form: "accidentDamaged", label: "Unfallschaden", section: "basis", kind: "boolean" },
+  { api: "accidentDamaged", form: "accidentDamaged", label: "Unfallschaden", section: "basis", kind: "boolean", severity: "recommended" },
   { api: "damageUnrepaired", form: "damageUnrepaired", label: "Unfallschaden repariert", section: "basis", kind: "boolean" },
-  { api: "roadworthy", form: "roadworthy", label: "Fahrbereit", section: "basis", kind: "boolean" },
+  { api: "roadworthy", form: "roadworthy", label: "Fahrbereit", section: "basis", kind: "boolean", severity: "recommended" },
 
   { api: "fuel", form: "fuel", label: "Kraftstoff", section: "technik", kind: "text" },
   { api: "gearbox", form: "gearbox", label: "Getriebe", section: "technik", kind: "text" },
   { api: "power", form: "power", label: "Leistung (kW)", section: "technik", kind: "number" },
   { api: "cubicCapacity", form: "cubicCapacity", label: "Hubraum (ccm)", section: "technik", kind: "number" },
   { api: "price.consumerPriceGross", form: "consumerPriceGross", label: "Preis (Brutto, EUR)", section: "preis", kind: "amount" },
-  { api: "price.vatRate", form: "vatRate", label: "Mehrwertsteuer", section: "preis", kind: "text" },
+  { api: "price.vatRate", form: "vatRate", label: "Mehrwertsteuer", section: "preis", kind: "text", severity: "recommended" },
 ];
+
 
 /** Deutsche Beschriftung zu einem Mobile.de-Feldnamen (für Fehlermeldungen). */
 export function labelForApiField(api: string): string {
@@ -68,16 +75,32 @@ function filled(kind: RequiredAdField["kind"], value: unknown): boolean {
   }
 }
 
+/** Elektroantrieb? Dann verlangt Mobile.de keinen Hubraum. */
+function isElectric(values: Record<string, unknown>, by: "api" | "form"): boolean {
+  const raw = String((by === "api" ? values["fuel"] : values["fuel"]) ?? "").toUpperCase();
+  return raw.includes("ELECTRICITY") && !raw.includes("HYBRID");
+}
+
+/** Feld für dieses Fahrzeug gar nicht anwendbar? */
+function notApplicable(f: RequiredAdField, values: Record<string, unknown>, by: "api" | "form"): boolean {
+  if (f.form === "cubicCapacity" && isElectric(values, by)) return true;
+  return false;
+}
+
 /**
  * Prüft die Pflichtfelder. `values` wird über den API-Schlüssel ODER den
  * Formularnamen gelesen — je nachdem, welche Seite prüft.
+ * Standardmäßig werden nur blockierende Pflichtfelder gemeldet
+ * (severity !== "recommended"); mit `includeRecommended` auch die Empfehlungen.
  */
 export function checkRequiredAdFields(
   values: Record<string, unknown>,
-  opts?: { by?: "api" | "form"; skipPortalOnly?: boolean },
+  opts?: { by?: "api" | "form"; skipPortalOnly?: boolean; includeRecommended?: boolean },
 ): RequiredAdField[] {
   const by = opts?.by ?? "api";
   return REQUIRED_AD_FIELDS.filter((f) => {
+    if (!opts?.includeRecommended && f.severity === "recommended") return false;
+    if (notApplicable(f, values, by)) return false;
     if (by === "api") {
       if (!f.api) return false; // Portalfeld — nicht Teil des Mobile.de-Payloads
       return !filled(f.kind, values[f.api]);
@@ -86,6 +109,7 @@ export function checkRequiredAdFields(
     return !filled(f.kind, values[f.form]);
   });
 }
+
 
 /** Portal-Fahrzeugart (vehicles.vehicle_category) — genau diese fünf Werte. */
 export const PORTAL_VEHICLE_CATEGORIES: { key: string; label: string }[] = [
