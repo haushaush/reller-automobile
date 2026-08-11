@@ -49,15 +49,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Then load existing session
-    supabase.auth.getSession().then(({ data: { session: existing } }) => {
-      setSession(existing);
-      setUser(existing?.user ?? null);
-      if (existing?.user) {
-        checkAdminRole(existing.user.id).finally(() => setIsLoading(false));
-      } else {
+    // Then load existing session and verify it against the server:
+    // a locally cached session of a deleted user must not block the login page.
+    supabase.auth.getSession().then(async ({ data: { session: existing } }) => {
+      if (!existing?.user) {
+        setSession(null);
+        setUser(null);
+        setIsAdmin(false);
         setIsLoading(false);
+        return;
       }
+
+      const { data: verified, error: verifyError } = await supabase.auth.getUser();
+      if (verifyError || !verified?.user) {
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        setSession(null);
+        setUser(null);
+        setIsAdmin(false);
+        setIsLoading(false);
+        return;
+      }
+
+      setSession(existing);
+      setUser(verified.user);
+      checkAdminRole(verified.user.id).finally(() => setIsLoading(false));
     });
 
     return () => subscription.unsubscribe();

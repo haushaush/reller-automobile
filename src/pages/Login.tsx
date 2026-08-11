@@ -17,17 +17,17 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, user, isAdmin, isLoading: authLoading } = useAuth();
+  const { signIn, signOut, user, isAdmin, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading || !user || !isAdmin) return;
     const state = location.state as LocationState | null;
     const fromPath = state?.from?.pathname;
-    const target = isAdmin ? fromPath || "/admin" : "/";
-    navigate(target, { replace: true });
+    navigate(fromPath || "/admin", { replace: true });
   }, [user, isAdmin, authLoading, navigate, location.state]);
+
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -55,8 +55,13 @@ export default function Login() {
 
       const state = location.state as LocationState | null;
       const fromPath = state?.from?.pathname;
-      const target = roleData ? fromPath || "/admin" : "/";
-      navigate(target, { replace: true });
+      if (roleData) {
+        navigate(fromPath || "/admin", { replace: true });
+      } else {
+        toast.error("Kein Admin-Zugang", {
+          description: "Dieses Konto hat keine Admin-Rechte.",
+        });
+      }
     }
 
     setIsLoading(false);
@@ -69,6 +74,31 @@ export default function Login() {
       </div>
     );
   }
+
+  if (user && !isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <Card className="w-full max-w-md p-8 space-y-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Kein Admin-Zugang</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Angemeldet als {user.email}. Dieses Konto hat keine Admin-Rechte.
+            </p>
+          </div>
+          <Button onClick={() => signOut()} className="w-full">
+            Abmelden
+          </Button>
+          <Link
+            to="/"
+            className="block text-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Zurück zum Portal
+          </Link>
+        </Card>
+      </div>
+    );
+  }
+
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
