@@ -22,12 +22,12 @@ export default function Login() {
   const location = useLocation();
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading || !user || !isAdmin) return;
     const state = location.state as LocationState | null;
     const fromPath = state?.from?.pathname;
-    const target = isAdmin ? fromPath || "/admin" : "/";
-    navigate(target, { replace: true });
+    navigate(fromPath || "/admin", { replace: true });
   }, [user, isAdmin, authLoading, navigate, location.state]);
+
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
