@@ -16,6 +16,12 @@ export interface RequiredAdField {
   section: AdFieldSection;
   /** Art der Prüfung. */
   kind: "text" | "number" | "boolean" | "yyyymm" | "amount";
+  /**
+   * "required" = Mobile.de lehnt das Inserat ohne diese Angabe ab (blockiert).
+   * "recommended" = nur empfohlen, blockiert die Veröffentlichung NICHT.
+   * Fehlt die Angabe, gilt "required".
+   */
+  severity?: "required" | "recommended";
 }
 
 export const REQUIRED_AD_FIELDS: RequiredAdField[] = [
@@ -27,17 +33,18 @@ export const REQUIRED_AD_FIELDS: RequiredAdField[] = [
   { api: "mileage", form: "mileage", label: "Kilometerstand", section: "basis", kind: "number" },
   { api: "firstRegistration", form: "regYear", label: "Erstzulassung", section: "basis", kind: "yyyymm" },
   { api: "condition", form: "condition", label: "Zustand", section: "basis", kind: "text" },
-  { api: "accidentDamaged", form: "accidentDamaged", label: "Unfallschaden", section: "basis", kind: "boolean" },
+  { api: "accidentDamaged", form: "accidentDamaged", label: "Unfallschaden", section: "basis", kind: "boolean", severity: "recommended" },
   { api: "damageUnrepaired", form: "damageUnrepaired", label: "Unfallschaden repariert", section: "basis", kind: "boolean" },
-  { api: "roadworthy", form: "roadworthy", label: "Fahrbereit", section: "basis", kind: "boolean" },
+  { api: "roadworthy", form: "roadworthy", label: "Fahrbereit", section: "basis", kind: "boolean", severity: "recommended" },
 
   { api: "fuel", form: "fuel", label: "Kraftstoff", section: "technik", kind: "text" },
   { api: "gearbox", form: "gearbox", label: "Getriebe", section: "technik", kind: "text" },
   { api: "power", form: "power", label: "Leistung (kW)", section: "technik", kind: "number" },
   { api: "cubicCapacity", form: "cubicCapacity", label: "Hubraum (ccm)", section: "technik", kind: "number" },
   { api: "price.consumerPriceGross", form: "consumerPriceGross", label: "Preis (Brutto, EUR)", section: "preis", kind: "amount" },
-  { api: "price.vatRate", form: "vatRate", label: "Mehrwertsteuer", section: "preis", kind: "text" },
+  { api: "price.vatRate", form: "vatRate", label: "Mehrwertsteuer", section: "preis", kind: "text", severity: "recommended" },
 ];
+
 
 /** Deutsche Beschriftung zu einem Mobile.de-Feldnamen (für Fehlermeldungen). */
 export function labelForApiField(api: string): string {
