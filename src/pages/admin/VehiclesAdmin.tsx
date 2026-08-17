@@ -1734,6 +1734,7 @@ export default function VehiclesAdmin() {
                           <Star className="h-3 w-3 inline ml-1 text-amber-500 fill-amber-500" />
                         )}
                       </Link>
+                      <DraftBadge v={v} />
                       <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                         {keyFacts(v)}
                       </p>
@@ -1834,6 +1835,7 @@ export default function VehiclesAdmin() {
                         <Star className="h-3 w-3 inline ml-1 text-amber-500 fill-amber-500" />
                       )}
                     </Link>
+                    <DraftBadge v={v} />
                     {rowMenu(v)}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{keyFacts(v)}</p>
