@@ -371,6 +371,21 @@ function PublishingNotice({
   );
 }
 
+/** Kennzeichnet Fahrzeuge, die (noch) nicht im öffentlichen Bestand stehen. */
+function DraftBadge({ v }: { v: { publish_status: string | null } }) {
+  const s = v.publish_status ?? "";
+  if (s !== "draft" && s !== "unpublished") return null;
+  return (
+    <Badge
+      variant="outline"
+      className="ml-1 align-middle border-dashed border-muted-foreground/60 text-muted-foreground"
+    >
+      {s === "draft" ? "Entwurf" : "Nicht veröffentlicht"}
+    </Badge>
+  );
+}
+
+
 /** Status direkt in der Zeile ändern — öffnet den Bestätigungsdialog. */
 function StatusSelect({
   v,
