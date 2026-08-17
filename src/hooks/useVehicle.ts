@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Vehicle } from "./useVehicles";
+import { PUBLIC_PUBLISH_FILTER, type Vehicle } from "./useVehicles";
 
 const VEHICLE_COLUMNS = [
   "id",
@@ -53,6 +53,7 @@ async function fetchVehicle(id: string): Promise<Vehicle> {
     .select(VEHICLE_COLUMNS)
     .eq("is_test", false)
     .is("archived_at", null)
+    .or(PUBLIC_PUBLISH_FILTER)
     .eq("id", id)
     .single();
 

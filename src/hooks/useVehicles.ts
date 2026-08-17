@@ -93,12 +93,18 @@ const VEHICLE_COLUMNS = [
   "is_featured",
 ].join(",");
 
+/** Entwürfe & unveröffentlichte Fahrzeuge gehören nicht in den öffentlichen Bestand.
+ *  publish_status ist NULL bei Altbestand aus dem Sync — der bleibt sichtbar. */
+export const PUBLIC_PUBLISH_FILTER =
+  "publish_status.is.null,publish_status.in.(published,out_of_sync)";
+
 async function fetchVehicles(): Promise<Vehicle[]> {
   const { data, error } = await supabase
     .from("vehicles")
     .select(VEHICLE_COLUMNS)
     .eq("is_test", false)
     .is("archived_at", null)
+    .or(PUBLIC_PUBLISH_FILTER)
     .order("synced_at", { ascending: false });
 
   if (error) throw error;
