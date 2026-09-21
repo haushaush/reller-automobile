@@ -98,14 +98,11 @@ const VEHICLE_COLUMNS = [
 export const PUBLIC_PUBLISH_FILTER =
   "publish_status.is.null,publish_status.in.(published,out_of_sync)";
 
-/** Karenzzeit, bevor ein bei Mobile.de nicht mehr gefundenes Fahrzeug verschwindet. */
-const MOBILE_MISSING_GRACE_HOURS = 6;
-
-/** Öffentlich sichtbar ist nur, was aktuell auch bei Mobile.de steht. */
+/** Öffentlich sichtbar ist nur, was beim letzten Abgleich auch bei Mobile.de stand. */
 export function publicMobileFilter() {
-  const cutoff = new Date(Date.now() - MOBILE_MISSING_GRACE_HOURS * 3600_000).toISOString();
-  return `mobile_missing_since.is.null,mobile_missing_since.gt.${cutoff}`;
+  return "mobile_missing_since.is.null";
 }
+
 
 async function fetchVehicles(): Promise<Vehicle[]> {
   const { data, error } = await supabase
