@@ -577,6 +577,13 @@ export async function reconcile(
         .update({ mobile_live_at: now, mobile_missing_since: null })
         .in("id", liveList);
       if (error) console.error("mobile_live_at konnte nicht gesetzt werden:", error.message);
+      // Bei Mobile.de wieder online, im Portal aber als verkauft markiert → Verkauft-Status aufheben.
+      const { error: soldError } = await supabase
+        .from("vehicles")
+        .update({ is_sold: false, sold_at: null })
+        .in("id", liveList)
+        .eq("is_sold", true);
+      if (soldError) console.error("Verkauft-Status konnte nicht aufgehoben werden:", soldError.message);
       // Bei Mobile.de online, im Portal aber als zurückgezogen markiert → wieder sichtbar schalten.
       const { error: reviveError } = await supabase
         .from("vehicles")
