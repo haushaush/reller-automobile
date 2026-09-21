@@ -175,8 +175,11 @@ Deno.serve(async (req) => {
     for (const ad of ads) {
       const adKey = bare(ad.mobileAdId);
       if (byAdId.has(adKey)) { alreadyLinked.push(ad.mobileAdId); continue; }
-      const viaUrl = ad.detailPageUrl ? byUrl.get(ad.detailPageUrl.split("?")[0]) : undefined;
-      const viaId = byMobileDeId.get(adKey);
+      const adUrl = ad.detailPageUrl ? ad.detailPageUrl.split("?")[0] : null;
+      const viaUrl = adUrl ? byUrl.get(adUrl) : undefined;
+      const urlNumber = adUrl?.match(/(\d{6,})\.html$/)?.[1] ?? null;
+      const viaId = byMobileDeId.get(adKey) ??
+        (urlNumber ? byMobileDeId.get(urlNumber) ?? byAdId.get(urlNumber) : undefined);
       const hit = viaId ?? viaUrl;
       if (hit) {
         // Fahrzeug hängt bereits an einer anderen Anzeigen-Nummer → nicht eindeutig
