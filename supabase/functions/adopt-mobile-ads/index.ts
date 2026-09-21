@@ -2,7 +2,7 @@
 // und übernimmt sie als vehicles-Zeilen. Zweistufig: dryRun → apply. Admin-only.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { basicAuth, fetchSearchAds, fetchSellerAds, SellerAd } from "../_shared/mobile-reconcile.ts";
+import { adSlug, basicAuth, fetchSearchAds, fetchSellerAds, SellerAd } from "../_shared/mobile-reconcile.ts";
 
 const SEARCH_USER = Deno.env.get("MOBILE_DE_SEARCH_USERNAME") || "";
 const SEARCH_PASS = Deno.env.get("MOBILE_DE_SEARCH_PASSWORD") || "";
@@ -164,10 +164,15 @@ Deno.serve(async (req) => {
     const byAdId = new Map<string, Row>();
     const byMobileDeId = new Map<string, Row>();
     const byUrl = new Map<string, Row>();
+    const bySlug = new Map<string, Row>();
     for (const v of vehicles) {
       if (v.mobile_ad_id) byAdId.set(bare(v.mobile_ad_id), v);
       if (v.mobile_de_id) byMobileDeId.set(bare(v.mobile_de_id), v);
-      if (v.detail_page_url) byUrl.set(String(v.detail_page_url).split("?")[0], v);
+      if (v.detail_page_url) {
+        byUrl.set(String(v.detail_page_url).split("?")[0], v);
+        const slug = adSlug(v.detail_page_url);
+        if (slug && !bySlug.has(slug)) bySlug.set(slug, v);
+      }
     }
 
     const toCreate: SellerAd[] = [];
@@ -179,14 +184,14 @@ Deno.serve(async (req) => {
       const adKey = bare(ad.mobileAdId);
       if (byAdId.has(adKey)) { alreadyLinked.push(ad.mobileAdId); continue; }
       const adUrl = ad.detailPageUrl ? ad.detailPageUrl.split("?")[0] : null;
-      const viaUrl = adUrl ? byUrl.get(adUrl) : undefined;
+      const viaUrl = adUrl ? byUrl.get(adUrl) ?? bySlug.get(adSlug(adUrl) ?? "") : undefined;
       const urlNumber = adUrl?.match(/(\d{6,})\.html$/)?.[1] ?? null;
       const viaId = byMobileDeId.get(adKey) ??
         (urlNumber ? byMobileDeId.get(urlNumber) ?? byAdId.get(urlNumber) : undefined);
       const hit = viaId ?? viaUrl;
       if (hit) {
         // Fahrzeug hängt bereits an einer anderen Anzeigen-Nummer → nicht eindeutig
-        if (hit.mobile_ad_id && bare(hit.mobile_ad_id) !== adKey) {
+        if (source !== "search-api" && hit.mobile_ad_id && bare(hit.mobile_ad_id) !== adKey) {
           unclear.push({
             mobileAdId: ad.mobileAdId,
             title: ad.title,
