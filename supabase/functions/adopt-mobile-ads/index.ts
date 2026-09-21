@@ -58,6 +58,15 @@ function int(v: unknown): number | null {
 
 function adToVehicle(ad: SellerAd, source = "seller-api"): Row {
   const r = ad.raw;
+  const portalCategory = (firstReg: string, category: string | null): string => {
+    const cat = (category ?? "").toLowerCase();
+    if (cat.includes("van") || cat.includes("truck") || cat.includes("transport")) return "commercial";
+    const year = Number(firstReg.slice(0, 4));
+    const age = Number.isFinite(year) && year > 1900 ? new Date().getFullYear() - year : 0;
+    if (age >= 30) return "oldtimer";
+    if (age >= 20) return "youngtimer";
+    return "used";
+  };
   const firstReg = String(r.firstRegistration ?? "");
   const price = (r.price ?? {}) as Row;
   const fromSearch = source === "search-api";
