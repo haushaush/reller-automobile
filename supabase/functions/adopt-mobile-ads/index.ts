@@ -74,7 +74,7 @@ function adToVehicle(ad: SellerAd, source = "seller-api"): Row {
     model: str(r.model),
     model_description: str(r.modelDescription),
     category: str(r.category),
-    vehicle_category: str(r.category),
+    vehicle_category: portalCategory(firstReg, str(r.category)),
     body_type: str(r.category),
     year: firstReg.length >= 4 ? firstReg.slice(0, 4) : null,
     mileage: int(r.mileage),
