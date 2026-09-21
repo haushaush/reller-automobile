@@ -367,6 +367,7 @@ export async function reconcile(
   const issues: Array<Record<string, unknown>> = [];
   const liveIds = new Set<string>();
   const liveVehicleIds = new Set<string>();
+  const priceAdoptions: Array<{ id: string; price: number; from: number }> = [];
   let matched = 0;
   let accountMismatch = 0;
 
