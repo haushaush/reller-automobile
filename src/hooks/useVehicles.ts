@@ -98,6 +98,15 @@ const VEHICLE_COLUMNS = [
 export const PUBLIC_PUBLISH_FILTER =
   "publish_status.is.null,publish_status.in.(published,out_of_sync)";
 
+/** Karenzzeit, bevor ein bei Mobile.de nicht mehr gefundenes Fahrzeug verschwindet. */
+const MOBILE_MISSING_GRACE_HOURS = 6;
+
+/** Öffentlich sichtbar ist nur, was aktuell auch bei Mobile.de steht. */
+export function publicMobileFilter() {
+  const cutoff = new Date(Date.now() - MOBILE_MISSING_GRACE_HOURS * 3600_000).toISOString();
+  return `mobile_missing_since.is.null,mobile_missing_since.gt.${cutoff}`;
+}
+
 async function fetchVehicles(): Promise<Vehicle[]> {
   const { data, error } = await supabase
     .from("vehicles")
@@ -105,7 +114,9 @@ async function fetchVehicles(): Promise<Vehicle[]> {
     .eq("is_test", false)
     .is("archived_at", null)
     .or(PUBLIC_PUBLISH_FILTER)
+    .or(publicMobileFilter())
     .order("synced_at", { ascending: false });
+
 
   if (error) throw error;
   return (data as unknown as Vehicle[]) ?? [];
