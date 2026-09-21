@@ -410,7 +410,7 @@ export async function reconcile(
   for (const ad of ads) {
     liveIds.add(ad.mobileAdId);
     const listing = listingByAdId.get(ad.mobileAdId);
-    const v = byAdId.get(ad.mobileAdId) ??
+    const v = findVehicleForAd(ad) ??
       (listing?.vehicle_id ? vehicleById.get(String(listing.vehicle_id)) : undefined);
 
     if (!v && !listing) {
