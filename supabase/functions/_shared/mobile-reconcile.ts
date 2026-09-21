@@ -334,10 +334,29 @@ export async function reconcile(
   // Interne Präfixe (z. B. "accident_") gehören nicht zur echten Mobile.de-Inseratsnummer.
   const bareAdId = (value: unknown) => String(value).replace(/^accident_/, "");
   const byAdId = new Map<string, Record<string, unknown>>();
+  const byUrl = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) {
     if (v.mobile_ad_id) byAdId.set(bareAdId(v.mobile_ad_id), v);
     if (v.mobile_de_id && !byAdId.has(bareAdId(v.mobile_de_id))) byAdId.set(bareAdId(v.mobile_de_id), v);
+    if (v.detail_page_url) {
+      const url = String(v.detail_page_url).split("?")[0];
+      byUrl.set(url, v);
+      const fromUrl = url.match(/(\d{6,})\.html$/)?.[1];
+      if (fromUrl && !byAdId.has(fromUrl)) byAdId.set(fromUrl, v);
+    }
   }
+
+  /**
+   * Die Search-API liefert eine andere Inseratsnummer als die Seller-API.
+   * Deshalb zusätzlich über die Inseratsadresse (und die darin enthaltene Nummer) zuordnen.
+   */
+  const findVehicleForAd = (ad: SellerAd): Record<string, unknown> | undefined => {
+    const direct = byAdId.get(ad.mobileAdId);
+    if (direct) return direct;
+    if (!ad.detailPageUrl) return undefined;
+    const url = String(ad.detailPageUrl).split("?")[0];
+    return byUrl.get(url) ?? byAdId.get(url.match(/(\d{6,})\.html$/)?.[1] ?? "");
+  };
 
   // Kontozuordnung: mobile_de-Listings aller Konten
   const { data: listingRows } = await supabase
