@@ -198,16 +198,30 @@ Deno.serve(async (req) => {
     const matches: { vehicle: Row; ad: SellerAd }[] = [];
     const unmatched: string[] = [];
     const seenVehicles = new Set<string>();
-    for (const ad of ads) {
+
+    // Zuerst alle Inserate zuordnen, die eindeutig über ihre Nummer passen.
+    const exactFor = (ad: SellerAd) => {
       const key = bare(ad.mobileAdId);
       const u = ad.detailPageUrl ? ad.detailPageUrl.split("?")[0] : null;
       const n = urlNumberOf(u);
-      const v =
-        byAdId.get(key) ??
-        byMobileDeId.get(key) ??
+      return byAdId.get(key) ?? byMobileDeId.get(key) ??
         (u ? byUrl.get(u) : undefined) ??
-        (n ? byMobileDeId.get(n) ?? byAdId.get(n) : undefined) ??
-        (u ? bySlug.get(adSlug(u) ?? "") : undefined);
+        (n ? byMobileDeId.get(n) ?? byAdId.get(n) : undefined);
+    };
+    const claimed = new Set<string>();
+    for (const ad of ads) {
+      const v = exactFor(ad);
+      if (v) claimed.add(String(v.id));
+    }
+
+    for (const ad of ads) {
+      const u = ad.detailPageUrl ? ad.detailPageUrl.split("?")[0] : null;
+      let v = exactFor(ad);
+      if (!v && u) {
+        const bySlugHit = bySlug.get(adSlug(u) ?? "");
+        // Nur übernehmen, wenn das Fahrzeug nicht schon zu einem anderen Inserat gehört.
+        if (bySlugHit && !claimed.has(String(bySlugHit.id))) v = bySlugHit;
+      }
       if (!v) { unmatched.push(`${ad.mobileAdId} – ${ad.title}`); continue; }
       if (seenVehicles.has(String(v.id))) continue; // Inserat doppelt bei Mobile.de
       seenVehicles.add(String(v.id));

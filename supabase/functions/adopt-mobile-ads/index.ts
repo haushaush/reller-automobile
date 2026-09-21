@@ -56,6 +56,23 @@ function int(v: unknown): number | null {
   return null;
 }
 
+/** Aus "MERCEDES-BENZ 220 220 SE Ponton" wird "Mercedes-Benz 220 SE Ponton". */
+function prettyTitle(ad: SellerAd): string {
+  const r = ad.raw;
+  const decode = (t: string) =>
+    t.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  const brandRaw = String(r.make ?? "").trim();
+  const brand = brandRaw
+    .split(/([\s-])/)
+    .map((part) => (/^[A-ZÄÖÜ]{2,}$/.test(part) ? part[0] + part.slice(1).toLowerCase() : part))
+    .join("");
+  const desc = decode(String(r.modelDescription ?? "").trim());
+  const model = String(r.model ?? "").trim();
+  const base = desc || model;
+  const combined = brand && base ? `${brand} ${base}` : brand || base || decode(ad.title);
+  return combined.replace(/\s+/g, " ").trim();
+}
+
 function adToVehicle(ad: SellerAd, source = "seller-api"): Row {
   const r = ad.raw;
   const portalCategory = (firstReg: string, category: string | null): string => {
@@ -78,7 +95,7 @@ function adToVehicle(ad: SellerAd, source = "seller-api"): Row {
     source: "adopted",
     publish_status: "published",
     published_at: new Date().toISOString(),
-    title: ad.title,
+    title: prettyTitle(ad),
     brand: str(r.make),
     model: str(r.model),
     model_description: str(r.modelDescription),
@@ -189,11 +206,25 @@ Deno.serve(async (req) => {
     const unclear: { mobileAdId: string; title: string; reason: string }[] = [];
     const alreadyLinked: string[] = [];
 
+    // Fahrzeuge, die eindeutig über die Inseratsnummer zu einem anderen Inserat
+    // gehören, dürfen nicht über den Sprechtext der Adresse mitbenutzt werden –
+    // sonst verschwinden echte Zweitfahrzeuge mit fast gleichem Titel.
+    const claimed = new Set<string>();
+    for (const ad of ads) {
+      const k = bare(ad.mobileAdId);
+      const n = (ad.detailPageUrl ?? "").split("?")[0].match(/(\d{6,})\.html$/)?.[1] ?? null;
+      const owner = byAdId.get(k) ?? byMobileDeId.get(k) ??
+        (n ? byMobileDeId.get(n) ?? byAdId.get(n) : undefined);
+      if (owner) claimed.add(String(owner.id));
+    }
+    const usedBySlug = new Set<string>();
+
     for (const ad of ads) {
       const adKey = bare(ad.mobileAdId);
       if (byAdId.has(adKey)) { alreadyLinked.push(ad.mobileAdId); continue; }
       const adUrl = ad.detailPageUrl ? ad.detailPageUrl.split("?")[0] : null;
-      const viaUrl = adUrl ? byUrl.get(adUrl) ?? bySlug.get(adSlug(adUrl) ?? "") : undefined;
+      let viaUrl = adUrl ? byUrl.get(adUrl) ?? bySlug.get(adSlug(adUrl) ?? "") : undefined;
+      if (viaUrl && (claimed.has(String(viaUrl.id)) || usedBySlug.has(String(viaUrl.id)))) viaUrl = undefined;
       const urlNumber = adUrl?.match(/(\d{6,})\.html$/)?.[1] ?? null;
       const viaId = byMobileDeId.get(adKey) ??
         (urlNumber ? byMobileDeId.get(urlNumber) ?? byAdId.get(urlNumber) : undefined);
@@ -208,6 +239,7 @@ Deno.serve(async (req) => {
           });
           continue;
         }
+        if (!viaId) usedBySlug.add(String(hit.id));
         toMatch.push({ vehicleId: hit.id as string, ad, via: viaId ? "mobile_de_id" : "detail_page_url" });
       } else {
         toCreate.push(ad);

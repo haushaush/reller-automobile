@@ -346,32 +346,55 @@ export async function reconcile(
   const bareAdId = (value: unknown) => String(value).replace(/^accident_/, "");
   const byAdId = new Map<string, Record<string, unknown>>();
   const byUrl = new Map<string, Record<string, unknown>>();
+  const byUrlNumber = new Map<string, Record<string, unknown>>();
   const bySlug = new Map<string, Record<string, unknown>>();
+  // Erst alle gespeicherten Inseratsnummern erfassen …
   for (const v of vehicles) {
     if (v.mobile_ad_id) byAdId.set(bareAdId(v.mobile_ad_id), v);
+  }
+  for (const v of vehicles) {
     if (v.mobile_de_id && !byAdId.has(bareAdId(v.mobile_de_id))) byAdId.set(bareAdId(v.mobile_de_id), v);
-    if (v.detail_page_url) {
-      const url = String(v.detail_page_url).split("?")[0];
-      byUrl.set(url, v);
-      const fromUrl = url.match(/(\d{6,})\.html$/)?.[1];
-      if (fromUrl && !byAdId.has(fromUrl)) byAdId.set(fromUrl, v);
-      const slug = adSlug(url);
-      if (slug && !bySlug.has(slug)) bySlug.set(slug, v);
-    }
+  }
+  // … und erst danach die aus der Adresse abgeleiteten Nummern, damit ein
+  // Fahrzeug mit eigener Nummer immer Vorrang hat.
+  for (const v of vehicles) {
+    if (!v.detail_page_url) continue;
+    const url = String(v.detail_page_url).split("?")[0];
+    if (!byUrl.has(url)) byUrl.set(url, v);
+    const fromUrl = url.match(/(\d{6,})\.html$/)?.[1];
+    if (fromUrl && !byAdId.has(fromUrl) && !byUrlNumber.has(fromUrl)) byUrlNumber.set(fromUrl, v);
+    const slug = adSlug(url);
+    if (slug && !bySlug.has(slug)) bySlug.set(slug, v);
   }
 
   /**
    * Die Search-API liefert eine andere Inseratsnummer als die Seller-API.
    * Deshalb zusätzlich über die Inseratsadresse (und die darin enthaltene Nummer) zuordnen.
    */
-  const findVehicleForAd = (ad: SellerAd): Record<string, unknown> | undefined => {
+  const exactVehicleForAd = (ad: SellerAd): Record<string, unknown> | undefined => {
     const direct = byAdId.get(ad.mobileAdId);
     if (direct) return direct;
     if (!ad.detailPageUrl) return undefined;
     const url = String(ad.detailPageUrl).split("?")[0];
-    return byUrl.get(url) ??
-      byAdId.get(url.match(/(\d{6,})\.html$/)?.[1] ?? "") ??
-      bySlug.get(adSlug(url) ?? "");
+    const num = url.match(/(\d{6,})\.html$/)?.[1] ?? "";
+    return byUrl.get(url) ?? byAdId.get(num) ?? byUrlNumber.get(num);
+  };
+
+  // Fahrzeuge, die eindeutig zu einem anderen Inserat gehören, dürfen nicht
+  // über den Sprechtext der Adresse mitbenutzt werden.
+  const claimedVehicleIds = new Set<string>();
+  for (const ad of ads) {
+    const v = exactVehicleForAd(ad);
+    if (v) claimedVehicleIds.add(String(v.id));
+  }
+
+  const findVehicleForAd = (ad: SellerAd): Record<string, unknown> | undefined => {
+    const exact = exactVehicleForAd(ad);
+    if (exact) return exact;
+    if (!ad.detailPageUrl) return undefined;
+    const url = String(ad.detailPageUrl).split("?")[0];
+    const hit = bySlug.get(adSlug(url) ?? "");
+    return hit && !claimedVehicleIds.has(String(hit.id)) ? hit : undefined;
   };
 
   // Kontozuordnung: mobile_de-Listings aller Konten
