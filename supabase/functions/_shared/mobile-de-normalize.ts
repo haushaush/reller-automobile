@@ -103,6 +103,7 @@ export const MOBILE_DE_LABELS: Record<NormField, Record<string, string>> = {
   },
   usage_type: {
     New: "Neufahrzeug",
+    Classic: "Oldtimer",
     Used: "Gebrauchtfahrzeug",
     Demonstration: "Vorführwagen",
     EmployeesCar: "Mitarbeiterfahrzeug",

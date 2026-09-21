@@ -62,7 +62,7 @@ function adToPatch(ad: SellerAd): Row {
   const images = imagesOf(r);
 
   const patch: Row = {
-    title: ad.title,
+    // Titel bleibt unangetastet – im Portal ist er sauber formatiert.
     brand: str(r.make),
     model: str(r.model),
     model_description: str(r.modelDescription),
