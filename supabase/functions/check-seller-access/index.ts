@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   let sellerIdOverride: string | null = null;
   try {
     const body = await req.json();
-    if (body?.scope === "accident") scope = "accident";
+    if (body?.scope === "accident" || body?.scope === "search") scope = body.scope;
     if (body?.sellerId) sellerIdOverride = String(body.sellerId);
   } catch {
     /* ohne Angabe: Standardkonto */
@@ -24,10 +24,18 @@ Deno.serve(async (req) => {
 
 
   const username = Deno.env.get(
-    scope === "accident" ? "MOBILE_DE_ACCIDENT_USERNAME" : "MOBILE_DE_USERNAME",
+    scope === "accident"
+      ? "MOBILE_DE_ACCIDENT_USERNAME"
+      : scope === "search"
+      ? "MOBILE_DE_SEARCH_USERNAME"
+      : "MOBILE_DE_USERNAME",
   );
   const password = Deno.env.get(
-    scope === "accident" ? "MOBILE_DE_ACCIDENT_PASSWORD" : "MOBILE_DE_PASSWORD",
+    scope === "accident"
+      ? "MOBILE_DE_ACCIDENT_PASSWORD"
+      : scope === "search"
+      ? "MOBILE_DE_SEARCH_PASSWORD"
+      : "MOBILE_DE_PASSWORD",
   );
 
   if (!username || !password) {
@@ -43,9 +51,12 @@ Deno.serve(async (req) => {
       (scope === "accident" ? Deno.env.get("MOBILE_DE_ACCIDENT_SELLER_ID") : null) ||
       451040,
   );
-  const url = sellerIdOverride === "me"
+  const url = scope === "search"
+    ? `https://services.mobile.de/search-api/search?customerId=${customerId}&page.size=10`
+    : sellerIdOverride === "me"
     ? `https://services.mobile.de/seller-api/sellers`
     : `https://services.mobile.de/seller-api/sellers/${customerId}/ads`;
+
 
 
   try {
