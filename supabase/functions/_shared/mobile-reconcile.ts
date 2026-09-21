@@ -12,6 +12,9 @@ export interface SellerAd {
   detailPageUrl: string | null;
   reserved: boolean | null;
   title: string;
+  /** Einstelldatum des Inserats bei Mobile.de (Basis für "Neueste zuerst"). */
+  creationDate: string | null;
+  modificationDate: string | null;
   raw: Record<string, unknown>;
 }
 
@@ -35,6 +38,12 @@ function toNum(v: unknown): number | null {
   return null;
 }
 
+function toIso(v: unknown): string | null {
+  if (typeof v !== "string" || !v.trim()) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 function normalizeAd(raw: Record<string, unknown>): SellerAd | null {
   const id = raw.mobileAdId ?? raw.id ?? raw.adId;
   if (id === undefined || id === null) return null;
@@ -48,6 +57,8 @@ function normalizeAd(raw: Record<string, unknown>): SellerAd | null {
       ? raw.reserved
       : (raw.reserved === "true" ? true : raw.reserved === "false" ? false : null),
     title: [raw.make, raw.model, raw.modelDescription].filter(Boolean).join(" ") || String(id),
+    creationDate: toIso(raw.creationDate),
+    modificationDate: toIso(raw.modificationDate),
     raw,
   };
 }
@@ -254,6 +265,7 @@ export interface ReconcileResult {
   soldButListed: number;
   issues: number;
   pricesAdopted?: number;
+  datesAdopted?: number;
 }
 
 export interface ReconcileOptions {
@@ -273,6 +285,8 @@ export interface ReconcileOptions {
    * pushen kann). Manuelle Preis-Overrides bleiben unangetastet.
    */
   adoptPrices?: boolean;
+  /** Einstell-/Änderungsdatum der Inserate ins Portal übernehmen. */
+  adoptDates?: boolean;
 }
 
 
@@ -310,7 +324,7 @@ export async function reconcile(
 
   const { data: rows } = await supabase
     .from("vehicles")
-    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at, reserved_at, is_test, manual_overrides")
+    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at, reserved_at, is_test, manual_overrides, creation_date, modification_date")
     .eq("is_test", false);
   const vehicles = (rows ?? []) as Array<Record<string, unknown>>;
 
@@ -369,6 +383,7 @@ export async function reconcile(
   const liveIds = new Set<string>();
   const liveVehicleIds = new Set<string>();
   const priceAdoptions: Array<{ id: string; price: number; from: number }> = [];
+  const dateAdoptions: Array<{ id: string; creation: string | null; modification: string | null }> = [];
   let matched = 0;
   let accountMismatch = 0;
 
@@ -414,6 +429,21 @@ export async function reconcile(
     matched++;
     if (!v) continue;
     liveVehicleIds.add(String(v.id));
+
+    // Einstell-/Änderungsdatum von Mobile.de übernehmen (Basis für "Neueste zuerst")
+    if (options.adoptDates) {
+      const sameTs = (a: unknown, b: string | null) =>
+        (a ? new Date(String(a)).getTime() : null) === (b ? new Date(b).getTime() : null);
+      const creationDiff = ad.creationDate && !sameTs(v.creation_date, ad.creationDate);
+      const modificationDiff = ad.modificationDate && !sameTs(v.modification_date, ad.modificationDate);
+      if (creationDiff || modificationDiff) {
+        dateAdoptions.push({
+          id: String(v.id),
+          creation: creationDiff ? ad.creationDate : null,
+          modification: modificationDiff ? ad.modificationDate : null,
+        });
+      }
+    }
 
 
     if (v.is_sold === true) {
@@ -554,6 +584,22 @@ export async function reconcile(
     console.log(`Preise von Mobile.de übernommen: ${pricesAdopted}`);
   }
 
+  // Einstell-/Änderungsdatum der Inserate übernehmen
+  let datesAdopted = 0;
+  for (const d of dateAdoptions) {
+    const patch: Record<string, string> = {};
+    if (d.creation) patch.creation_date = d.creation;
+    if (d.modification) patch.modification_date = d.modification;
+    if (!Object.keys(patch).length) continue;
+    const { error } = await supabase.from("vehicles").update(patch).eq("id", d.id);
+    if (error) {
+      console.error(`Datumsübernahme für ${d.id} fehlgeschlagen:`, error.message);
+      continue;
+    }
+    datesAdopted++;
+  }
+  if (datesAdopted) console.log(`Inseratsdaten von Mobile.de übernommen: ${datesAdopted}`);
+
 
   // Alte offene Meldungen dieses Scopes schließen und neu schreiben
   await supabase
@@ -588,6 +634,7 @@ export async function reconcile(
     soldButListed: uniqueIssues.filter((i) => i.issue_type === "sold_but_listed").length,
     issues: uniqueIssues.length,
     pricesAdopted,
+    datesAdopted,
   };
 
 }

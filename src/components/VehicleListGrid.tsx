@@ -261,8 +261,17 @@ const VehicleListGrid = ({
       return result;
     }
 
+    // "Neueste zuerst" = Einstelldatum des Inserats bei Mobile.de
+    const listedAt = (v: Vehicle) => {
+      const ref = v.creation_date || v.synced_at;
+      const t = ref ? new Date(ref).getTime() : 0;
+      return Number.isNaN(t) ? 0 : t;
+    };
+
     const sortFn = (a: Vehicle, b: Vehicle): number => {
       switch (filters.sort) {
+        case "newest":
+          return listedAt(b) - listedAt(a);
         case "year-asc":
           return (a.year || "").localeCompare(b.year || "");
         case "year-desc":
@@ -276,7 +285,7 @@ const VehicleListGrid = ({
         case "price-desc":
           return (b.price || 0) - (a.price || 0);
         default:
-          return (b.year || "").localeCompare(a.year || "");
+          return listedAt(b) - listedAt(a) || (b.year || "").localeCompare(a.year || "");
       }
     };
 
