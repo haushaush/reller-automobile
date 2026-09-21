@@ -210,15 +210,24 @@ const VehicleListGrid = ({
 
     if (filters.category !== "all") result = result.filter((v) => v.category === filters.category);
     if (filters.brand !== "all") result = result.filter((v) => v.brand === filters.brand);
-    if (filters.bodyType !== "all") result = result.filter((v) => v.body_type === filters.bodyType);
+    if (filters.bodyType !== "all") {
+      const want = getBodyTypeLabel(filters.bodyType);
+      result = result.filter((v) => getBodyTypeLabel(v.body_type) === want);
+    }
     if (filters.yearFrom) result = result.filter((v) => (v.year || "") >= filters.yearFrom);
     if (filters.yearTo) result = result.filter((v) => (v.year || "") <= filters.yearTo);
     if (filters.mileageFrom)
       result = result.filter((v) => (v.mileage || 0) >= Number(filters.mileageFrom));
     if (filters.mileageTo)
       result = result.filter((v) => (v.mileage || 0) <= Number(filters.mileageTo));
-    if (filters.fuel !== "all") result = result.filter((v) => v.fuel === filters.fuel);
-    if (filters.gearbox !== "all") result = result.filter((v) => v.gearbox === filters.gearbox);
+    if (filters.fuel !== "all") {
+      const want = getFuelLabel(filters.fuel);
+      result = result.filter((v) => getFuelLabel(v.fuel) === want);
+    }
+    if (filters.gearbox !== "all") {
+      const want = getGearboxLabel(filters.gearbox);
+      result = result.filter((v) => getGearboxLabel(v.gearbox) === want);
+    }
     if (filters.color !== "all") result = result.filter((v) => v.exterior_color === filters.color);
     if (filters.priceFrom)
       result = result.filter((v) => (v.price || 0) >= Number(filters.priceFrom));
