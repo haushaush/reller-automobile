@@ -125,6 +125,8 @@ Deno.serve(async (req) => {
       syncVisibility: listComplete && !suspiciouslySmall && !dryRun,
       // Mobile.de ist Preisquelle, solange das Portal nicht pushen kann.
       adoptPrices: !suspiciouslySmall && !dryRun,
+      // Einstelldatum der Inserate übernehmen → "Neueste zuerst" wie bei Mobile.de.
+      adoptDates: !dryRun,
     });
 
     console.log(`Reconcile done (${source}): ${JSON.stringify(result)}`);

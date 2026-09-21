@@ -265,6 +265,7 @@ export interface ReconcileResult {
   soldButListed: number;
   issues: number;
   pricesAdopted?: number;
+  datesAdopted?: number;
 }
 
 export interface ReconcileOptions {
@@ -583,6 +584,22 @@ export async function reconcile(
     console.log(`Preise von Mobile.de übernommen: ${pricesAdopted}`);
   }
 
+  // Einstell-/Änderungsdatum der Inserate übernehmen
+  let datesAdopted = 0;
+  for (const d of dateAdoptions) {
+    const patch: Record<string, string> = {};
+    if (d.creation) patch.creation_date = d.creation;
+    if (d.modification) patch.modification_date = d.modification;
+    if (!Object.keys(patch).length) continue;
+    const { error } = await supabase.from("vehicles").update(patch).eq("id", d.id);
+    if (error) {
+      console.error(`Datumsübernahme für ${d.id} fehlgeschlagen:`, error.message);
+      continue;
+    }
+    datesAdopted++;
+  }
+  if (datesAdopted) console.log(`Inseratsdaten von Mobile.de übernommen: ${datesAdopted}`);
+
 
   // Alte offene Meldungen dieses Scopes schließen und neu schreiben
   await supabase
@@ -617,6 +634,7 @@ export async function reconcile(
     soldButListed: uniqueIssues.filter((i) => i.issue_type === "sold_but_listed").length,
     issues: uniqueIssues.length,
     pricesAdopted,
+    datesAdopted,
   };
 
 }
