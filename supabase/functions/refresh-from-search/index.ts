@@ -121,6 +121,27 @@ function adToPatch(ad: SellerAd): Row {
   return patch;
 }
 
+/** Detail-Abruf: die Trefferliste liefert nur ein Bild und keinen Beschreibungstext. */
+async function fetchAdDetail(adId: string, auth: string): Promise<Row | null> {
+  for (const url of [
+    `https://services.mobile.de/search-api/ad/${adId}`,
+    `https://services.mobile.de/search-api/ad?mobileAdId=${adId}`,
+  ]) {
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: auth, Accept: "application/vnd.de.mobile.api+json" },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!res.ok) { console.log(`Detail ${adId} ${url} → ${res.status}`); continue; }
+      const json = await res.json();
+      return (json?.ad ?? json) as Row;
+    } catch (e) {
+      console.log(`Detail ${adId} Fehler: ${(e as Error).message}`);
+    }
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const json = (status: number, body: unknown) =>
