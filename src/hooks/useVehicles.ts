@@ -98,6 +98,12 @@ const VEHICLE_COLUMNS = [
 export const PUBLIC_PUBLISH_FILTER =
   "publish_status.is.null,publish_status.in.(published,out_of_sync)";
 
+/** Öffentlich sichtbar ist nur, was beim letzten Abgleich auch bei Mobile.de stand. */
+export function publicMobileFilter() {
+  return "mobile_missing_since.is.null";
+}
+
+
 async function fetchVehicles(): Promise<Vehicle[]> {
   const { data, error } = await supabase
     .from("vehicles")
@@ -105,7 +111,9 @@ async function fetchVehicles(): Promise<Vehicle[]> {
     .eq("is_test", false)
     .is("archived_at", null)
     .or(PUBLIC_PUBLISH_FILTER)
+    .or(publicMobileFilter())
     .order("synced_at", { ascending: false });
+
 
   if (error) throw error;
   return (data as unknown as Vehicle[]) ?? [];

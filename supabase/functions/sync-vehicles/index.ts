@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
     console.log(`Reconcile start against ${API_BASE}/sellers/${SELLER_ID}/ads`);
     let source = "seller-api";
     let { ads, pages, error, rootKeys } = await fetchSellerAds(SELLER_ID, basicAuth(MOBILE_USER, MOBILE_PASS));
+    let listComplete = !error;
 
     // Fallback: Seller-API lehnt die Zugangsdaten ab → öffentliche Search-API verwenden.
     const authBlocked = !!error && /Seller-API (401|403)/.test(error);
@@ -97,9 +98,11 @@ Deno.serve(async (req) => {
         ads = fallback.ads;
         pages = fallback.pages;
         rootKeys = fallback.rootKeys;
+        listComplete = !fallback.error;
         error = [error ? `Seller-API nicht verfügbar (${error})` : null, fallback.error].filter(Boolean).join("; ") || undefined;
       }
     }
+
 
     finalExtra = { pages_fetched: pages, vehicles_total: ads.length, stop_reason: error ? `partial: ${error}` : "complete" };
     if (ads.length === 0) {
@@ -118,7 +121,10 @@ Deno.serve(async (req) => {
       // Der Suchindex ist verzögert und kennt keine pausierten Inserate:
       // aus Search-API-Daten niemals automatisch depublizieren.
       allowUnpublish: source === "seller-api" && !suspiciouslySmall && !dryRun,
+      // Sichtbarkeit nur bei vollständig gelesener Liste anpassen.
+      syncVisibility: listComplete && !suspiciouslySmall && !dryRun,
     });
+
     console.log(`Reconcile done (${source}): ${JSON.stringify(result)}`);
 
     finalStatus = suspiciouslySmall || error ? "success_with_warning" : "success";

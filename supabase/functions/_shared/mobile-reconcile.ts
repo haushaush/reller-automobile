@@ -261,7 +261,14 @@ export interface ReconcileOptions {
   /** Fahrzeuge ohne eigenes mobile_de-Listing diesem Konto zurechnen (Altbestand). */
   claimLegacyVehicles?: boolean;
   allowUnpublish?: boolean;
+  /**
+   * Vollständige Inseratsliste gelesen? Dann wird pro Fahrzeug festgehalten, ob es
+   * aktuell bei Mobile.de gefunden wurde (mobile_live_at / mobile_missing_since).
+   * Die öffentliche Seite blendet fehlende Fahrzeuge nach einer Karenzzeit aus.
+   */
+  syncVisibility?: boolean;
 }
+
 
 /** Vergleicht Seller-Ads eines Kontos gegen die Listings genau dieses Kontos. */
 export async function reconcile(
@@ -354,8 +361,10 @@ export async function reconcile(
 
   const issues: Array<Record<string, unknown>> = [];
   const liveIds = new Set<string>();
+  const liveVehicleIds = new Set<string>();
   let matched = 0;
   let accountMismatch = 0;
+
 
   for (const ad of ads) {
     liveIds.add(ad.mobileAdId);
@@ -397,6 +406,8 @@ export async function reconcile(
 
     matched++;
     if (!v) continue;
+    liveVehicleIds.add(String(v.id));
+
 
     if (v.is_sold === true) {
       const soldAt = v.sold_at ? new Date(String(v.sold_at)).toLocaleDateString("de-DE") : "unbekannt";
@@ -472,6 +483,41 @@ export async function reconcile(
       .update({ publish_status: "unpublished" })
       .in("id", vanishedVehicleIds);
   }
+
+  // Sichtbarkeit im Portal an Mobile.de koppeln: gefundene Fahrzeuge werden als
+  // "live" markiert, alle übrigen veröffentlichten Fahrzeuge bekommen einen
+  // Fehlt-seit-Zeitstempel. Die öffentliche Seite blendet sie nach Karenzzeit aus.
+  if (options.syncVisibility) {
+    const now = new Date().toISOString();
+    const liveList = [...liveVehicleIds];
+    if (liveList.length) {
+      const { error } = await supabase
+        .from("vehicles")
+        .update({ mobile_live_at: now, mobile_missing_since: null })
+        .in("id", liveList);
+      if (error) console.error("mobile_live_at konnte nicht gesetzt werden:", error.message);
+    }
+    const { data: publishedRows } = await supabase
+      .from("vehicles")
+      .select("id")
+      .eq("is_test", false)
+      .is("archived_at", null)
+      .is("mobile_missing_since", null)
+      .or("publish_status.is.null,publish_status.in.(published,out_of_sync)");
+    const missingIds = ((publishedRows ?? []) as Array<{ id: string }>)
+      .map((r) => String(r.id))
+      .filter((id) => !liveVehicleIds.has(id));
+    if (missingIds.length) {
+      const { error } = await supabase
+        .from("vehicles")
+        .update({ mobile_missing_since: now })
+        .in("id", missingIds);
+      if (error) console.error("mobile_missing_since konnte nicht gesetzt werden:", error.message);
+      console.log(`Sichtbarkeit: ${liveList.length} Fahrzeuge live, ${missingIds.length} neu als "bei Mobile.de nicht gefunden" markiert.`);
+    }
+  }
+
+
 
 
   // Alte offene Meldungen dieses Scopes schließen und neu schreiben

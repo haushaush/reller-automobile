@@ -1676,6 +1676,8 @@ export type Database = {
           mileage: number | null
           mobile_ad_id: string | null
           mobile_de_id: string
+          mobile_live_at: string | null
+          mobile_missing_since: string | null
           mobile_payload: Json | null
           model: string | null
           model_description: string | null
@@ -1756,6 +1758,8 @@ export type Database = {
           mileage?: number | null
           mobile_ad_id?: string | null
           mobile_de_id: string
+          mobile_live_at?: string | null
+          mobile_missing_since?: string | null
           mobile_payload?: Json | null
           model?: string | null
           model_description?: string | null
@@ -1836,6 +1840,8 @@ export type Database = {
           mileage?: number | null
           mobile_ad_id?: string | null
           mobile_de_id?: string
+          mobile_live_at?: string | null
+          mobile_missing_since?: string | null
           mobile_payload?: Json | null
           model?: string | null
           model_description?: string | null
