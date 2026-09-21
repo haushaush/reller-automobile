@@ -56,13 +56,16 @@ function int(v: unknown): number | null {
   return null;
 }
 
-function adToVehicle(ad: SellerAd): Row {
+function adToVehicle(ad: SellerAd, source = "seller-api"): Row {
   const r = ad.raw;
   const firstReg = String(r.firstRegistration ?? "");
   const price = (r.price ?? {}) as Row;
+  const fromSearch = source === "search-api";
+  const urlNumber = ad.detailPageUrl?.split("?")[0].match(/(\d{6,})\.html$/)?.[1] ?? null;
   return {
-    mobile_de_id: ad.mobileAdId,
-    mobile_ad_id: ad.mobileAdId,
+    mobile_de_id: fromSearch ? (urlNumber ?? ad.mobileAdId) : ad.mobileAdId,
+    // Die Such-API liefert eine andere Nummer als die Verkäufer-API → nicht als Anzeigen-ID speichern.
+    mobile_ad_id: fromSearch ? null : ad.mobileAdId,
     source: "adopted",
     publish_status: "published",
     published_at: new Date().toISOString(),
