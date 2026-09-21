@@ -309,7 +309,7 @@ export async function reconcile(
 
   const { data: rows } = await supabase
     .from("vehicles")
-    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at, reserved_at, is_test")
+    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at, reserved_at, is_test, manual_overrides")
     .eq("is_test", false);
   const vehicles = (rows ?? []) as Array<Record<string, unknown>>;
 
@@ -441,11 +441,19 @@ export async function reconcile(
 
     const priceLocal = typeof v.price === "number" ? v.price : null;
     if (ad.price !== null && priceLocal !== null && Math.abs(ad.price - priceLocal) >= 1) {
-      issues.push({
-        vehicle_id: v.id, mobile_ad_id: ad.mobileAdId, scope,
-        issue_type: "price_drift", severity: "warning",
-        detail: `Preis weicht ab: Portal ${priceLocal} € / Mobile.de ${ad.price} €.`,
-      });
+      const overrides = (v.manual_overrides ?? {}) as Record<string, unknown>;
+      const priceLocked = Object.prototype.hasOwnProperty.call(overrides, "price");
+      if (options.adoptPrices && !priceLocked) {
+        priceAdoptions.push({ id: String(v.id), price: ad.price, from: priceLocal });
+      } else {
+        issues.push({
+          vehicle_id: v.id, mobile_ad_id: ad.mobileAdId, scope,
+          issue_type: "price_drift", severity: "warning",
+          detail: priceLocked
+            ? `Preis weicht ab: Portal ${priceLocal} € / Mobile.de ${ad.price} €. Portalpreis ist manuell gesetzt und wurde nicht überschrieben.`
+            : `Preis weicht ab: Portal ${priceLocal} € / Mobile.de ${ad.price} €.`,
+        });
+      }
     }
     const mileageLocal = typeof v.mileage === "number" ? v.mileage : null;
     if (ad.mileage !== null && mileageLocal !== null && Math.abs(ad.mileage - mileageLocal) >= 1) {
