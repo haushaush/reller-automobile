@@ -2,7 +2,10 @@
 // und übernimmt sie als vehicles-Zeilen. Zweistufig: dryRun → apply. Admin-only.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { basicAuth, fetchSellerAds, SellerAd } from "../_shared/mobile-reconcile.ts";
+import { basicAuth, fetchSearchAds, fetchSellerAds, SellerAd } from "../_shared/mobile-reconcile.ts";
+
+const SEARCH_USER = Deno.env.get("MOBILE_DE_SEARCH_USERNAME") || "";
+const SEARCH_PASS = Deno.env.get("MOBILE_DE_SEARCH_PASSWORD") || "";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -131,7 +134,20 @@ Deno.serve(async (req) => {
     }
     console.log(`adopt-mobile-ads Konto=${account.accountKey} seller=${account.sellerId} dryRun=${dryRun}`);
 
-    const { ads, error } = await fetchSellerAds(account.sellerId, basicAuth(account.user, account.pass));
+    let source = "seller-api";
+    let { ads, error } = await fetchSellerAds(account.sellerId, basicAuth(account.user, account.pass));
+
+    // Fallback: Seller-Zugang wird abgelehnt → öffentlichen Such-Zugang verwenden.
+    const authBlocked = !!error && /Seller-API (401|403)/.test(error);
+    if ((authBlocked || ads.length === 0) && SEARCH_USER && SEARCH_PASS) {
+      console.log(`adopt-mobile-ads: Seller-API nicht nutzbar (${error ?? "keine Inserate"}) → Search-API`);
+      const fallback = await fetchSearchAds(account.sellerId, basicAuth(SEARCH_USER, SEARCH_PASS));
+      if (fallback.ads.length > 0) {
+        source = "search-api";
+        ads = fallback.ads;
+        error = fallback.error;
+      }
+    }
     if (error && ads.length === 0) return json(502, { error });
 
     const { data: rows } = await admin
