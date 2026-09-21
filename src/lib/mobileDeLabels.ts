@@ -33,6 +33,9 @@ const BODY_TYPE_LABELS: Record<string, string> = {
   Truck: "LKW",
   Tractor: "Traktor",
   Trailer: "Anhänger",
+  OtherTrailer: "Anhänger sonstige",
+  TipperVan: "Kipper",
+  Caravan: "Wohnwagen",
   SemiTrailerTruck: "Sattelzugmaschine",
   Tipper: "Kipper",
   // Sonstige
@@ -265,13 +268,16 @@ export function toLabelOptions(
   values: Array<string | null | undefined>,
   getLabel: (v: string | null | undefined) => string
 ): Array<{ raw: string; label: string }> {
-  const seen = new Set<string>();
+  // Nach Anzeigename entdoppeln: Mobile.de liefert für dieselbe Karosserieform
+  // teils den englischen Schlüssel und teils den deutschen Klartext.
+  const seenLabels = new Set<string>();
   const result: Array<{ raw: string; label: string }> = [];
   values.forEach((v) => {
-    if (v && !seen.has(v)) {
-      seen.add(v);
-      result.push({ raw: v, label: getLabel(v) });
-    }
+    if (!v) return;
+    const label = getLabel(v);
+    if (seenLabels.has(label)) return;
+    seenLabels.add(label);
+    result.push({ raw: v, label });
   });
   return result.sort((a, b) => a.label.localeCompare(b.label, "de"));
 }
