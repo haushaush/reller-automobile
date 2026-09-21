@@ -364,14 +364,29 @@ export async function reconcile(
    * Die Search-API liefert eine andere Inseratsnummer als die Seller-API.
    * Deshalb zusätzlich über die Inseratsadresse (und die darin enthaltene Nummer) zuordnen.
    */
-  const findVehicleForAd = (ad: SellerAd): Record<string, unknown> | undefined => {
+  const exactVehicleForAd = (ad: SellerAd): Record<string, unknown> | undefined => {
     const direct = byAdId.get(ad.mobileAdId);
     if (direct) return direct;
     if (!ad.detailPageUrl) return undefined;
     const url = String(ad.detailPageUrl).split("?")[0];
-    return byUrl.get(url) ??
-      byAdId.get(url.match(/(\d{6,})\.html$/)?.[1] ?? "") ??
-      bySlug.get(adSlug(url) ?? "");
+    return byUrl.get(url) ?? byAdId.get(url.match(/(\d{6,})\.html$/)?.[1] ?? "");
+  };
+
+  // Fahrzeuge, die eindeutig zu einem anderen Inserat gehören, dürfen nicht
+  // über den Sprechtext der Adresse mitbenutzt werden.
+  const claimedVehicleIds = new Set<string>();
+  for (const ad of ads) {
+    const v = exactVehicleForAd(ad);
+    if (v) claimedVehicleIds.add(String(v.id));
+  }
+
+  const findVehicleForAd = (ad: SellerAd): Record<string, unknown> | undefined => {
+    const exact = exactVehicleForAd(ad);
+    if (exact) return exact;
+    if (!ad.detailPageUrl) return undefined;
+    const url = String(ad.detailPageUrl).split("?")[0];
+    const hit = bySlug.get(adSlug(url) ?? "");
+    return hit && !claimedVehicleIds.has(String(hit.id)) ? hit : undefined;
   };
 
   // Kontozuordnung: mobile_de-Listings aller Konten
