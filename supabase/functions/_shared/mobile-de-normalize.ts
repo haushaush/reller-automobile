@@ -103,6 +103,7 @@ export const MOBILE_DE_LABELS: Record<NormField, Record<string, string>> = {
   },
   usage_type: {
     New: "Neufahrzeug",
+    Classic: "Oldtimer",
     Used: "Gebrauchtfahrzeug",
     Demonstration: "Vorführwagen",
     EmployeesCar: "Mitarbeiterfahrzeug",
@@ -124,6 +125,7 @@ export const MOBILE_DE_LABELS: Record<NormField, Record<string, string>> = {
   },
   interior_type: {
     Cloth: "Stoff",
+    Leather: "Leder",
     PartLeather: "Teilleder",
     FullLeather: "Leder",
     Velour: "Velours",
@@ -163,7 +165,33 @@ function reverseMap(field: NormField): Map<string, string> {
 }
 
 function camelToWords(value: string): string {
+  // Reine Großschreibung (z. B. "MANUAL_GEAR") nicht buchstabenweise trennen.
+  if (/^[A-Z0-9_]+$/.test(value)) {
+    return value
+      .split("_")
+      .filter(Boolean)
+      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+      .join(" ");
+  }
   return value.replace(/([A-Z])/g, " $1").trim();
+}
+
+/** Vergleichsform: nur Buchstaben/Ziffern, klein. "MANUAL_GEAR" == "ManualGear". */
+function loose(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+const LOOSE_CACHE: Partial<Record<NormField, Map<string, string>>> = {};
+function looseKeyMap(field: NormField): Map<string, string> {
+  let m = LOOSE_CACHE[field];
+  if (m) return m;
+  m = new Map<string, string>();
+  for (const key of Object.keys(MOBILE_DE_LABELS[field])) {
+    const lk = loose(key);
+    if (!m.has(lk)) m.set(lk, key);
+  }
+  LOOSE_CACHE[field] = m;
+  return m;
 }
 
 /**
@@ -200,7 +228,14 @@ export function normalizeField(
       label = labels[ciKey];
       break;
     }
-    // 3) Label-Treffer (deutscher Klartext aus local-description)
+    // 3) Key-Treffer ohne Trennzeichen (Search-API liefert "MANUAL_GEAR")
+    const looseKey = looseKeyMap(field).get(loose(trimmed));
+    if (looseKey) {
+      key = looseKey;
+      label = labels[looseKey];
+      break;
+    }
+    // 4) Label-Treffer (deutscher Klartext aus local-description)
     const revKey = rev.get(trimmed.toLowerCase());
     if (revKey) {
       key = revKey;
