@@ -56,6 +56,23 @@ function int(v: unknown): number | null {
   return null;
 }
 
+/** Aus "MERCEDES-BENZ 220 220 SE Ponton" wird "Mercedes-Benz 220 SE Ponton". */
+function prettyTitle(ad: SellerAd): string {
+  const r = ad.raw;
+  const decode = (t: string) =>
+    t.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  const brandRaw = String(r.make ?? "").trim();
+  const brand = brandRaw
+    .split(/([\s-])/)
+    .map((part) => (/^[A-ZÄÖÜ]{2,}$/.test(part) ? part[0] + part.slice(1).toLowerCase() : part))
+    .join("");
+  const desc = decode(String(r.modelDescription ?? "").trim());
+  const model = String(r.model ?? "").trim();
+  const base = desc || model;
+  const combined = brand && base ? `${brand} ${base}` : brand || base || decode(ad.title);
+  return combined.replace(/\s+/g, " ").trim();
+}
+
 function adToVehicle(ad: SellerAd, source = "seller-api"): Row {
   const r = ad.raw;
   const portalCategory = (firstReg: string, category: string | null): string => {
@@ -78,7 +95,7 @@ function adToVehicle(ad: SellerAd, source = "seller-api"): Row {
     source: "adopted",
     publish_status: "published",
     published_at: new Date().toISOString(),
-    title: ad.title,
+    title: prettyTitle(ad),
     brand: str(r.make),
     model: str(r.model),
     model_description: str(r.modelDescription),
