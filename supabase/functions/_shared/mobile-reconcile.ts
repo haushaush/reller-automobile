@@ -261,7 +261,14 @@ export interface ReconcileOptions {
   /** Fahrzeuge ohne eigenes mobile_de-Listing diesem Konto zurechnen (Altbestand). */
   claimLegacyVehicles?: boolean;
   allowUnpublish?: boolean;
+  /**
+   * Vollständige Inseratsliste gelesen? Dann wird pro Fahrzeug festgehalten, ob es
+   * aktuell bei Mobile.de gefunden wurde (mobile_live_at / mobile_missing_since).
+   * Die öffentliche Seite blendet fehlende Fahrzeuge nach einer Karenzzeit aus.
+   */
+  syncVisibility?: boolean;
 }
+
 
 /** Vergleicht Seller-Ads eines Kontos gegen die Listings genau dieses Kontos. */
 export async function reconcile(
