@@ -44,6 +44,17 @@ function toIso(v: unknown): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/**
+ * Sprechender Teil der Inseratsadresse ohne Nummer – erlaubt die Zuordnung,
+ * wenn Such- und Verkäufer-Schnittstelle unterschiedliche Nummern vergeben.
+ */
+export function adSlug(url: unknown): string | null {
+  if (typeof url !== "string" || !url) return null;
+  const path = url.split("?")[0];
+  const match = path.match(/\/([a-z0-9-]+)\/\d{6,}\.html$/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
 function normalizeAd(raw: Record<string, unknown>): SellerAd | null {
   const id = raw.mobileAdId ?? raw.id ?? raw.adId;
   if (id === undefined || id === null) return null;
@@ -233,11 +244,7 @@ export async function fetchSearchAds(
     const arr = Array.isArray(json.ads) ? (json.ads as unknown[]) : [];
     let fresh = 0;
     for (const item of arr) {
-      const row = item as Record<string, unknown>;
-      if (!row.mobileAdId) {
-        console.log(`Search-API Inserat ohne mobileAdId: keys=${Object.keys(row).slice(0, 25).join(",")} url=${row.detailPageUrl ?? "-"}`);
-      }
-      const ad = normalizeAd(row);
+      const ad = normalizeAd(item as Record<string, unknown>);
       if (!ad || seen.has(ad.mobileAdId)) continue;
       seen.add(ad.mobileAdId);
       ads.push(ad);
@@ -339,6 +346,7 @@ export async function reconcile(
   const bareAdId = (value: unknown) => String(value).replace(/^accident_/, "");
   const byAdId = new Map<string, Record<string, unknown>>();
   const byUrl = new Map<string, Record<string, unknown>>();
+  const bySlug = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) {
     if (v.mobile_ad_id) byAdId.set(bareAdId(v.mobile_ad_id), v);
     if (v.mobile_de_id && !byAdId.has(bareAdId(v.mobile_de_id))) byAdId.set(bareAdId(v.mobile_de_id), v);
@@ -347,6 +355,8 @@ export async function reconcile(
       byUrl.set(url, v);
       const fromUrl = url.match(/(\d{6,})\.html$/)?.[1];
       if (fromUrl && !byAdId.has(fromUrl)) byAdId.set(fromUrl, v);
+      const slug = adSlug(url);
+      if (slug && !bySlug.has(slug)) bySlug.set(slug, v);
     }
   }
 
@@ -359,7 +369,9 @@ export async function reconcile(
     if (direct) return direct;
     if (!ad.detailPageUrl) return undefined;
     const url = String(ad.detailPageUrl).split("?")[0];
-    return byUrl.get(url) ?? byAdId.get(url.match(/(\d{6,})\.html$/)?.[1] ?? "");
+    return byUrl.get(url) ??
+      byAdId.get(url.match(/(\d{6,})\.html$/)?.[1] ?? "") ??
+      bySlug.get(adSlug(url) ?? "");
   };
 
   // Kontozuordnung: mobile_de-Listings aller Konten
@@ -418,7 +430,6 @@ export async function reconcile(
       (listing?.vehicle_id ? vehicleById.get(String(listing.vehicle_id)) : undefined);
 
     if (!v && !listing) {
-      console.log(`Orphan-Debug: id=${ad.mobileAdId} url=${ad.detailPageUrl ?? "-"} title=${ad.title}`);
       issues.push({
         vehicle_id: null, mobile_ad_id: ad.mobileAdId, scope,
         issue_type: "orphan_ad", severity: "warning",
