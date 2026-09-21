@@ -522,12 +522,13 @@ export async function reconcile(
   for (const l of scopeListings) {
     const adId = l.external_ad_id ? bareAdId(l.external_ad_id) : null;
     if (!adId || liveIds.has(adId) || vanishedIds.has(adId)) continue;
+    if (l.vehicle_id && liveVehicleIds.has(String(l.vehicle_id))) continue;
     vanishedIds.add(adId);
     vanished.push({ vehicle_id: l.vehicle_id ? String(l.vehicle_id) : null, mobile_ad_id: adId });
   }
   for (const v of legacyVehicles) {
     const adId = bareAdId(v.mobile_ad_id);
-    if (liveIds.has(adId) || vanishedIds.has(adId)) continue;
+    if (liveIds.has(adId) || vanishedIds.has(adId) || liveVehicleIds.has(String(v.id))) continue;
     vanishedIds.add(adId);
     vanished.push({ vehicle_id: String(v.id), mobile_ad_id: adId });
   }
