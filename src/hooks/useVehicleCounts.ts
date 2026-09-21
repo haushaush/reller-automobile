@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { PUBLIC_PUBLISH_FILTER } from "./useVehicles";
+import { PUBLIC_PUBLISH_FILTER, publicMobileFilter } from "./useVehicles";
 import { CATEGORIES, VehicleCategoryKey, CategorySlug } from "@/lib/categories";
 
 export type VehicleCounts = Record<CategorySlug, number> & { total: number };
@@ -23,6 +23,7 @@ async function fetchCounts(): Promise<VehicleCounts> {
       .eq("is_test", false)
       .is("archived_at", null)
       .or(PUBLIC_PUBLISH_FILTER)
+      .or(publicMobileFilter())
       .in("vehicle_category", cat.dbCategories as VehicleCategoryKey[]);
     return { slug: cat.slug, count: count ?? 0 };
   });
@@ -33,7 +34,8 @@ async function fetchCounts(): Promise<VehicleCounts> {
     .eq("is_sold", false)
     .eq("is_test", false)
     .is("archived_at", null)
-    .or(PUBLIC_PUBLISH_FILTER);
+    .or(PUBLIC_PUBLISH_FILTER)
+    .or(publicMobileFilter());
 
   const [perCategory, totalRes] = await Promise.all([
     Promise.all(queries),
