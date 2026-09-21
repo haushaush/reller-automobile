@@ -418,6 +418,7 @@ export async function reconcile(
       (listing?.vehicle_id ? vehicleById.get(String(listing.vehicle_id)) : undefined);
 
     if (!v && !listing) {
+      console.log(`Orphan-Debug: id=${ad.mobileAdId} url=${ad.detailPageUrl ?? "-"} title=${ad.title}`);
       issues.push({
         vehicle_id: null, mobile_ad_id: ad.mobileAdId, scope,
         issue_type: "orphan_ad", severity: "warning",
