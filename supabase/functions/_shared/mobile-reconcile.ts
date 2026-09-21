@@ -284,6 +284,8 @@ export interface ReconcileOptions {
    * pushen kann). Manuelle Preis-Overrides bleiben unangetastet.
    */
   adoptPrices?: boolean;
+  /** Einstell-/Änderungsdatum der Inserate ins Portal übernehmen. */
+  adoptDates?: boolean;
 }
 
 
