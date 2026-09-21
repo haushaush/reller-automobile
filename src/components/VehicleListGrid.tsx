@@ -285,7 +285,7 @@ const VehicleListGrid = ({
         case "price-desc":
           return (b.price || 0) - (a.price || 0);
         default:
-          return (b.year || "").localeCompare(a.year || "");
+          return listedAt(b) - listedAt(a) || (b.year || "").localeCompare(a.year || "");
       }
     };
 
