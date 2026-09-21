@@ -3,7 +3,7 @@
 // Läuft stündlich; Ergebnisse landen in mobile_reconciliation_issues.
 import { corsHeaders } from "../_shared/cors.ts";
 import {
-  API_BASE, basicAuth, fetchSellerAds, reconcile, serviceClient,
+  API_BASE, basicAuth, fetchSearchAds, fetchSellerAds, reconcile, serviceClient,
 } from "../_shared/mobile-reconcile.ts";
 
 const SELLER_ID = "451040";
@@ -13,7 +13,10 @@ const MOBILE_USER =
 const MOBILE_PASS =
   Deno.env.get("MOBILE_DE_SELLER_PASSWORD") ||
   Deno.env.get("MOBILE_DE_PASSWORD") || "";
+const SEARCH_USER = Deno.env.get("MOBILE_DE_SEARCH_USERNAME") || "";
+const SEARCH_PASS = Deno.env.get("MOBILE_DE_SEARCH_PASSWORD") || "";
 const LOCK_NAME = "mobile-de-reconcile";
+
 
 Deno.serve(async (req) => {
   const dryRun = new URL(req.url).searchParams.get("dry") === "1";
