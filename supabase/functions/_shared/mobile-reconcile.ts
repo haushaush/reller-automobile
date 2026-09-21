@@ -172,6 +172,75 @@ export async function fetchSellerAds(
   return { ads, pages: Math.min(page - 1, maxPages), rootKeys, error: "Maximale Seitenzahl der Seller-API erreicht" };
 }
 
+export const SEARCH_API_BASE = "https://services.mobile.de/search-api";
+
+/**
+ * Liest die öffentlich sichtbaren Inserate eines Händlers über die Search-API.
+ * Fallback, wenn die Seller-API keine Zugangsdaten akzeptiert (401/403).
+ * Achtung: Suchindex ist verzögert und kennt keine pausierten/beendeten Inserate.
+ */
+export async function fetchSearchAds(
+  sellerId: string,
+  auth: string,
+): Promise<SellerAdsResult> {
+  const ads: SellerAd[] = [];
+  const seen = new Set<string>();
+  const pageSize = 100;
+  const maxPages = 50;
+  const startedAt = Date.now();
+  let rootKeys: string[] = [];
+  let page = 1;
+  let knownMaxPages = 1;
+
+  while (page <= maxPages) {
+    if (Date.now() - startedAt >= 90_000) {
+      return { ads, pages: page - 1, rootKeys, error: "Gesamtbudget der Search-API-Pagination (90 Sekunden) überschritten" };
+    }
+    const url = `${SEARCH_API_BASE}/search?customerId=${sellerId}&page.size=${pageSize}&page.number=${page}`;
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { Authorization: auth, Accept: MOBILE_MIME },
+        signal: AbortSignal.timeout(Math.min(20_000, 90_000 - (Date.now() - startedAt))),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { ads, pages: page - 1, rootKeys, error: `Search-API Timeout/Netzwerkfehler auf Seite ${page}: ${message}` };
+    }
+    const text = await res.text();
+    if (!res.ok) {
+      return { ads, pages: page - 1, rootKeys, error: `Search-API ${res.status}: ${text.slice(0, 300)}` };
+    }
+    let json: Record<string, unknown> = {};
+    try { json = JSON.parse(text); } catch { return { ads, pages: page - 1, rootKeys, error: "Ungültige Search-API-Antwort" }; }
+    if (page === 1) {
+      rootKeys = Object.keys(json);
+      console.log(`Search-API: total=${json.total} maxPages=${json.maxPages} pageSize=${json.pageSize}`);
+    }
+    const mp = toNum(json.maxPages);
+    if (mp && mp > 0) knownMaxPages = mp;
+    const arr = Array.isArray(json.ads) ? (json.ads as unknown[]) : [];
+    let fresh = 0;
+    for (const item of arr) {
+      const ad = normalizeAd(item as Record<string, unknown>);
+      if (!ad || seen.has(ad.mobileAdId)) continue;
+      seen.add(ad.mobileAdId);
+      ads.push(ad);
+      fresh++;
+    }
+    console.log(`Search-API Seite ${page}/${knownMaxPages}: ${arr.length} Einträge, davon ${fresh} neu (gesamt ${ads.length})`);
+    if (arr.length === 0) return { ads, pages: page, rootKeys };
+    if (page > 1 && fresh === 0) {
+      return { ads, pages: page, rootKeys, error: "Pagination liefert wiederholt dieselben Inserate" };
+    }
+    if (page >= knownMaxPages) return { ads, pages: page, rootKeys };
+    page++;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return { ads, pages: Math.min(page - 1, maxPages), rootKeys, error: "Maximale Seitenzahl der Search-API erreicht" };
+}
+
+
 
 export interface ReconcileResult {
   checked: number;
