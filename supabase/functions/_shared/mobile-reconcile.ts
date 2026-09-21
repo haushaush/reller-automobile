@@ -233,7 +233,11 @@ export async function fetchSearchAds(
     const arr = Array.isArray(json.ads) ? (json.ads as unknown[]) : [];
     let fresh = 0;
     for (const item of arr) {
-      const ad = normalizeAd(item as Record<string, unknown>);
+      const row = item as Record<string, unknown>;
+      if (!row.mobileAdId) {
+        console.log(`Search-API Inserat ohne mobileAdId: keys=${Object.keys(row).slice(0, 25).join(",")} url=${row.detailPageUrl ?? "-"}`);
+      }
+      const ad = normalizeAd(row);
       if (!ad || seen.has(ad.mobileAdId)) continue;
       seen.add(ad.mobileAdId);
       ads.push(ad);
