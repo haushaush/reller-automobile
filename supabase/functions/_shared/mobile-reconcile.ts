@@ -364,7 +364,6 @@ export async function reconcile(
    * Die Search-API liefert eine andere Inseratsnummer als die Seller-API.
    * Deshalb zusätzlich über die Inseratsadresse (und die darin enthaltene Nummer) zuordnen.
    */
-  const matchDebug = new Map<string, string>();
   const findVehicleForAd = (ad: SellerAd): Record<string, unknown> | undefined => {
     const direct = byAdId.get(ad.mobileAdId);
     if (direct) return direct;
@@ -427,12 +426,6 @@ export async function reconcile(
   for (const ad of ads) {
     liveIds.add(ad.mobileAdId);
     const listing = listingByAdId.get(ad.mobileAdId);
-    const vDbg = findVehicleForAd(ad);
-    if (vDbg) {
-      const prev = matchDebug.get(String(vDbg.id));
-      if (prev) console.log(`Doppelt-Debug: Fahrzeug ${vDbg.title} matcht Inserate ${prev} und ${ad.mobileAdId} (${ad.detailPageUrl})`);
-      else matchDebug.set(String(vDbg.id), ad.mobileAdId);
-    }
     const v = findVehicleForAd(ad) ??
       (listing?.vehicle_id ? vehicleById.get(String(listing.vehicle_id)) : undefined);
 
@@ -584,6 +577,13 @@ export async function reconcile(
         .update({ mobile_live_at: now, mobile_missing_since: null })
         .in("id", liveList);
       if (error) console.error("mobile_live_at konnte nicht gesetzt werden:", error.message);
+      // Bei Mobile.de wieder online, im Portal aber als verkauft markiert → Verkauft-Status aufheben.
+      const { error: soldError } = await supabase
+        .from("vehicles")
+        .update({ is_sold: false, sold_at: null })
+        .in("id", liveList)
+        .eq("is_sold", true);
+      if (soldError) console.error("Verkauft-Status konnte nicht aufgehoben werden:", soldError.message);
       // Bei Mobile.de online, im Portal aber als zurückgezogen markiert → wieder sichtbar schalten.
       const { error: reviveError } = await supabase
         .from("vehicles")
