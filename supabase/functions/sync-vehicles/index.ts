@@ -118,7 +118,10 @@ Deno.serve(async (req) => {
       // Der Suchindex ist verzögert und kennt keine pausierten Inserate:
       // aus Search-API-Daten niemals automatisch depublizieren.
       allowUnpublish: source === "seller-api" && !suspiciouslySmall && !dryRun,
+      // Sichtbarkeit nur bei vollständig gelesener Liste anpassen.
+      syncVisibility: listComplete && !suspiciouslySmall && !dryRun,
     });
+
     console.log(`Reconcile done (${source}): ${JSON.stringify(result)}`);
 
     finalStatus = suspiciouslySmall || error ? "success_with_warning" : "success";
