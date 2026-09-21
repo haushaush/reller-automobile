@@ -631,7 +631,14 @@ export async function reconcile(
         .update({ mobile_missing_since: now })
         .in("id", missingIds);
       if (error) console.error("mobile_missing_since konnte nicht gesetzt werden:", error.message);
-      console.log(`Sichtbarkeit: ${liveList.length} Fahrzeuge live, ${missingIds.length} neu als "bei Mobile.de nicht gefunden" markiert.`);
+      // Bei Mobile.de verschwundene Inserate gelten als verkauft.
+      const { error: soldError } = await supabase
+        .from("vehicles")
+        .update({ is_sold: true, sold_at: now })
+        .in("id", missingIds)
+        .eq("is_sold", false);
+      if (soldError) console.error("Verkauft-Markierung fehlgeschlagen:", soldError.message);
+      console.log(`Sichtbarkeit: ${liveList.length} Fahrzeuge live, ${missingIds.length} neu als "bei Mobile.de nicht gefunden" markiert und als verkauft gesetzt.`);
     }
   }
 
