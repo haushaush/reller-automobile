@@ -189,11 +189,25 @@ Deno.serve(async (req) => {
     const unclear: { mobileAdId: string; title: string; reason: string }[] = [];
     const alreadyLinked: string[] = [];
 
+    // Fahrzeuge, die eindeutig über die Inseratsnummer zu einem anderen Inserat
+    // gehören, dürfen nicht über den Sprechtext der Adresse mitbenutzt werden –
+    // sonst verschwinden echte Zweitfahrzeuge mit fast gleichem Titel.
+    const claimed = new Set<string>();
+    for (const ad of ads) {
+      const k = bare(ad.mobileAdId);
+      const n = (ad.detailPageUrl ?? "").split("?")[0].match(/(\d{6,})\.html$/)?.[1] ?? null;
+      const owner = byAdId.get(k) ?? byMobileDeId.get(k) ??
+        (n ? byMobileDeId.get(n) ?? byAdId.get(n) : undefined);
+      if (owner) claimed.add(String(owner.id));
+    }
+    const usedBySlug = new Set<string>();
+
     for (const ad of ads) {
       const adKey = bare(ad.mobileAdId);
       if (byAdId.has(adKey)) { alreadyLinked.push(ad.mobileAdId); continue; }
       const adUrl = ad.detailPageUrl ? ad.detailPageUrl.split("?")[0] : null;
-      const viaUrl = adUrl ? byUrl.get(adUrl) ?? bySlug.get(adSlug(adUrl) ?? "") : undefined;
+      let viaUrl = adUrl ? byUrl.get(adUrl) ?? bySlug.get(adSlug(adUrl) ?? "") : undefined;
+      if (viaUrl && (claimed.has(String(viaUrl.id)) || usedBySlug.has(String(viaUrl.id)))) viaUrl = undefined;
       const urlNumber = adUrl?.match(/(\d{6,})\.html$/)?.[1] ?? null;
       const viaId = byMobileDeId.get(adKey) ??
         (urlNumber ? byMobileDeId.get(urlNumber) ?? byAdId.get(urlNumber) : undefined);
@@ -208,6 +222,7 @@ Deno.serve(async (req) => {
           });
           continue;
         }
+        if (!viaId) usedBySlug.add(String(hit.id));
         toMatch.push({ vehicleId: hit.id as string, ad, via: viaId ? "mobile_de_id" : "detail_page_url" });
       } else {
         toCreate.push(ad);
