@@ -253,6 +253,7 @@ export interface ReconcileResult {
   driftAds: number;
   soldButListed: number;
   issues: number;
+  pricesAdopted?: number;
 }
 
 export interface ReconcileOptions {
@@ -586,6 +587,7 @@ export async function reconcile(
     driftAds: uniqueIssues.filter((i) => String(i.issue_type).endsWith("_drift")).length,
     soldButListed: uniqueIssues.filter((i) => i.issue_type === "sold_but_listed").length,
     issues: uniqueIssues.length,
+    pricesAdopted,
   };
 
 }
