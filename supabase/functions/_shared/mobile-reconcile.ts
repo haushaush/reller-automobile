@@ -267,6 +267,11 @@ export interface ReconcileOptions {
    * Die öffentliche Seite blendet fehlende Fahrzeuge nach einer Karenzzeit aus.
    */
   syncVisibility?: boolean;
+  /**
+   * Preise von Mobile.de ins Portal übernehmen (solange das Portal selbst nicht
+   * pushen kann). Manuelle Preis-Overrides bleiben unangetastet.
+   */
+  adoptPrices?: boolean;
 }
 
 
