@@ -236,7 +236,7 @@ Deno.serve(async (req) => {
     }
 
     for (const ad of toCreate) {
-      const { error: iErr } = await admin.from("vehicles").insert(adToVehicle(ad) as never);
+      const { error: iErr } = await admin.from("vehicles").insert(adToVehicle(ad, source) as never);
       if (iErr) failures.push(`${ad.mobileAdId}: ${iErr.message}`);
       else created++;
     }
