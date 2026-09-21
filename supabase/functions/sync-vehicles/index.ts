@@ -123,6 +123,8 @@ Deno.serve(async (req) => {
       allowUnpublish: source === "seller-api" && !suspiciouslySmall && !dryRun,
       // Sichtbarkeit nur bei vollständig gelesener Liste anpassen.
       syncVisibility: listComplete && !suspiciouslySmall && !dryRun,
+      // Mobile.de ist Preisquelle, solange das Portal nicht pushen kann.
+      adoptPrices: !suspiciouslySmall && !dryRun,
     });
 
     console.log(`Reconcile done (${source}): ${JSON.stringify(result)}`);
