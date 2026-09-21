@@ -323,7 +323,7 @@ export async function reconcile(
 
   const { data: rows } = await supabase
     .from("vehicles")
-    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at, reserved_at, is_test, manual_overrides")
+    .select("id, title, mobile_ad_id, mobile_de_id, detail_page_url, price, mileage, publish_status, is_sold, sold_at, reserved_at, is_test, manual_overrides, creation_date, modification_date")
     .eq("is_test", false);
   const vehicles = (rows ?? []) as Array<Record<string, unknown>>;
 
@@ -382,6 +382,7 @@ export async function reconcile(
   const liveIds = new Set<string>();
   const liveVehicleIds = new Set<string>();
   const priceAdoptions: Array<{ id: string; price: number; from: number }> = [];
+  const dateAdoptions: Array<{ id: string; creation: string | null; modification: string | null }> = [];
   let matched = 0;
   let accountMismatch = 0;
 
@@ -427,6 +428,21 @@ export async function reconcile(
     matched++;
     if (!v) continue;
     liveVehicleIds.add(String(v.id));
+
+    // Einstell-/Änderungsdatum von Mobile.de übernehmen (Basis für "Neueste zuerst")
+    if (options.adoptDates) {
+      const sameTs = (a: unknown, b: string | null) =>
+        (a ? new Date(String(a)).getTime() : null) === (b ? new Date(b).getTime() : null);
+      const creationDiff = ad.creationDate && !sameTs(v.creation_date, ad.creationDate);
+      const modificationDiff = ad.modificationDate && !sameTs(v.modification_date, ad.modificationDate);
+      if (creationDiff || modificationDiff) {
+        dateAdoptions.push({
+          id: String(v.id),
+          creation: creationDiff ? ad.creationDate : null,
+          modification: modificationDiff ? ad.modificationDate : null,
+        });
+      }
+    }
 
 
     if (v.is_sold === true) {
