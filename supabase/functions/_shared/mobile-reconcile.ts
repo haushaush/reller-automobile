@@ -532,6 +532,26 @@ export async function reconcile(
   }
 
 
+  // Preise von Mobile.de übernehmen (Mobile.de ist Preisquelle, solange das
+  // Portal nicht pushen kann). Manuell gesetzte Preise bleiben unberührt.
+  let pricesAdopted = 0;
+  for (const p of priceAdoptions) {
+    const { error } = await supabase
+      .from("vehicles")
+      .update({ price: p.price })
+      .eq("id", p.id);
+    if (error) {
+      console.error(`Preisübernahme für ${p.id} fehlgeschlagen:`, error.message);
+      continue;
+    }
+    pricesAdopted++;
+    await supabase
+      .from("vehicle_price_history")
+      .insert({ vehicle_id: p.id, price: p.price, currency: "EUR" });
+  }
+  if (pricesAdopted) {
+    console.log(`Preise von Mobile.de übernommen: ${pricesAdopted}`);
+  }
 
 
   // Alte offene Meldungen dieses Scopes schließen und neu schreiben
