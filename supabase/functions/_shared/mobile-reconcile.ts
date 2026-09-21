@@ -12,6 +12,9 @@ export interface SellerAd {
   detailPageUrl: string | null;
   reserved: boolean | null;
   title: string;
+  /** Einstelldatum des Inserats bei Mobile.de (Basis für "Neueste zuerst"). */
+  creationDate: string | null;
+  modificationDate: string | null;
   raw: Record<string, unknown>;
 }
 
@@ -35,6 +38,12 @@ function toNum(v: unknown): number | null {
   return null;
 }
 
+function toIso(v: unknown): string | null {
+  if (typeof v !== "string" || !v.trim()) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 function normalizeAd(raw: Record<string, unknown>): SellerAd | null {
   const id = raw.mobileAdId ?? raw.id ?? raw.adId;
   if (id === undefined || id === null) return null;
@@ -48,6 +57,8 @@ function normalizeAd(raw: Record<string, unknown>): SellerAd | null {
       ? raw.reserved
       : (raw.reserved === "true" ? true : raw.reserved === "false" ? false : null),
     title: [raw.make, raw.model, raw.modelDescription].filter(Boolean).join(" ") || String(id),
+    creationDate: toIso(raw.creationDate),
+    modificationDate: toIso(raw.modificationDate),
     raw,
   };
 }
