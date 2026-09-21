@@ -577,6 +577,13 @@ export async function reconcile(
         .update({ mobile_live_at: now, mobile_missing_since: null })
         .in("id", liveList);
       if (error) console.error("mobile_live_at konnte nicht gesetzt werden:", error.message);
+      // Bei Mobile.de online, im Portal aber als zurückgezogen markiert → wieder sichtbar schalten.
+      const { error: reviveError } = await supabase
+        .from("vehicles")
+        .update({ publish_status: "published" })
+        .in("id", liveList)
+        .eq("publish_status", "unpublished");
+      if (reviveError) console.error("Status konnte nicht zurückgesetzt werden:", reviveError.message);
     }
     const { data: publishedRows } = await supabase
       .from("vehicles")
