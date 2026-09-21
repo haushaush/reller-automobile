@@ -214,8 +214,23 @@ Deno.serve(async (req) => {
       matches.push({ vehicle: v, ad });
     }
 
+    // Detaildaten (alle Bilder + Beschreibung) parallel in kleinen Gruppen nachladen.
+    const auth = basicAuth(SEARCH_USER, SEARCH_PASS);
+    let detailsLoaded = 0;
+    const withDetails = dryRun ? matches.slice(0, 1) : matches;
+    for (let i = 0; i < withDetails.length; i += 6) {
+      await Promise.all(withDetails.slice(i, i + 6).map(async (m) => {
+        const detail = await fetchAdDetail(m.ad.mobileAdId, auth);
+        if (!detail) return;
+        detailsLoaded++;
+        m.ad.raw = { ...m.ad.raw, ...detail };
+      }));
+    }
+    console.log(`refresh-from-search: Details geladen für ${detailsLoaded}/${withDetails.length} Inserate`);
+
     if (dryRun) {
       return json(200, {
+        detailsLoaded,
         ok: true, dryRun: true, totalAds: ads.length,
         willUpdate: matches.length, unmatched: unmatched.length,
         unmatchedSamples: unmatched.slice(0, 20),
@@ -238,7 +253,7 @@ Deno.serve(async (req) => {
 
     console.log(`refresh-from-search: ${updated}/${matches.length} aktualisiert, ${unmatched.length} ohne Zuordnung`);
     return json(200, {
-      ok: true, dryRun: false, totalAds: ads.length, updated,
+      ok: true, dryRun: false, totalAds: ads.length, updated, detailsLoaded,
       unmatched: unmatched.length, unmatchedSamples: unmatched.slice(0, 20),
       keptManualFields: [...skippedFields], failures,
     });
