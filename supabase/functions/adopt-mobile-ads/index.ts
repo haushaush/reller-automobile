@@ -2,7 +2,10 @@
 // und übernimmt sie als vehicles-Zeilen. Zweistufig: dryRun → apply. Admin-only.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { basicAuth, fetchSellerAds, SellerAd } from "../_shared/mobile-reconcile.ts";
+import { adSlug, basicAuth, fetchSearchAds, fetchSellerAds, SellerAd } from "../_shared/mobile-reconcile.ts";
+
+const SEARCH_USER = Deno.env.get("MOBILE_DE_SEARCH_USERNAME") || "";
+const SEARCH_PASS = Deno.env.get("MOBILE_DE_SEARCH_PASSWORD") || "";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -53,13 +56,25 @@ function int(v: unknown): number | null {
   return null;
 }
 
-function adToVehicle(ad: SellerAd): Row {
+function adToVehicle(ad: SellerAd, source = "seller-api"): Row {
   const r = ad.raw;
+  const portalCategory = (firstReg: string, category: string | null): string => {
+    const cat = (category ?? "").toLowerCase();
+    if (cat.includes("van") || cat.includes("truck") || cat.includes("transport")) return "commercial";
+    const year = Number(firstReg.slice(0, 4));
+    const age = Number.isFinite(year) && year > 1900 ? new Date().getFullYear() - year : 0;
+    if (age >= 30) return "oldtimer";
+    if (age >= 20) return "youngtimer";
+    return "used";
+  };
   const firstReg = String(r.firstRegistration ?? "");
   const price = (r.price ?? {}) as Row;
+  const fromSearch = source === "search-api";
+  const urlNumber = ad.detailPageUrl?.split("?")[0].match(/(\d{6,})\.html$/)?.[1] ?? null;
   return {
-    mobile_de_id: ad.mobileAdId,
-    mobile_ad_id: ad.mobileAdId,
+    mobile_de_id: fromSearch ? (urlNumber ?? ad.mobileAdId) : ad.mobileAdId,
+    // Die Such-API liefert eine andere Nummer als die Verkäufer-API → nicht als Anzeigen-ID speichern.
+    mobile_ad_id: fromSearch ? null : ad.mobileAdId,
     source: "adopted",
     publish_status: "published",
     published_at: new Date().toISOString(),
@@ -68,7 +83,7 @@ function adToVehicle(ad: SellerAd): Row {
     model: str(r.model),
     model_description: str(r.modelDescription),
     category: str(r.category),
-    vehicle_category: str(r.category),
+    vehicle_category: portalCategory(firstReg, str(r.category)),
     body_type: str(r.category),
     year: firstReg.length >= 4 ? firstReg.slice(0, 4) : null,
     mileage: int(r.mileage),
@@ -131,7 +146,20 @@ Deno.serve(async (req) => {
     }
     console.log(`adopt-mobile-ads Konto=${account.accountKey} seller=${account.sellerId} dryRun=${dryRun}`);
 
-    const { ads, error } = await fetchSellerAds(account.sellerId, basicAuth(account.user, account.pass));
+    let source = "seller-api";
+    let { ads, error } = await fetchSellerAds(account.sellerId, basicAuth(account.user, account.pass));
+
+    // Fallback: Seller-Zugang wird abgelehnt → öffentlichen Such-Zugang verwenden.
+    const authBlocked = !!error && /Seller-API (401|403)/.test(error);
+    if ((authBlocked || ads.length === 0) && SEARCH_USER && SEARCH_PASS) {
+      console.log(`adopt-mobile-ads: Seller-API nicht nutzbar (${error ?? "keine Inserate"}) → Search-API`);
+      const fallback = await fetchSearchAds(account.sellerId, basicAuth(SEARCH_USER, SEARCH_PASS));
+      if (fallback.ads.length > 0) {
+        source = "search-api";
+        ads = fallback.ads;
+        error = fallback.error;
+      }
+    }
     if (error && ads.length === 0) return json(502, { error });
 
     const { data: rows } = await admin
@@ -145,10 +173,15 @@ Deno.serve(async (req) => {
     const byAdId = new Map<string, Row>();
     const byMobileDeId = new Map<string, Row>();
     const byUrl = new Map<string, Row>();
+    const bySlug = new Map<string, Row>();
     for (const v of vehicles) {
       if (v.mobile_ad_id) byAdId.set(bare(v.mobile_ad_id), v);
       if (v.mobile_de_id) byMobileDeId.set(bare(v.mobile_de_id), v);
-      if (v.detail_page_url) byUrl.set(String(v.detail_page_url).split("?")[0], v);
+      if (v.detail_page_url) {
+        byUrl.set(String(v.detail_page_url).split("?")[0], v);
+        const slug = adSlug(v.detail_page_url);
+        if (slug && !bySlug.has(slug)) bySlug.set(slug, v);
+      }
     }
 
     const toCreate: SellerAd[] = [];
@@ -159,12 +192,15 @@ Deno.serve(async (req) => {
     for (const ad of ads) {
       const adKey = bare(ad.mobileAdId);
       if (byAdId.has(adKey)) { alreadyLinked.push(ad.mobileAdId); continue; }
-      const viaUrl = ad.detailPageUrl ? byUrl.get(ad.detailPageUrl.split("?")[0]) : undefined;
-      const viaId = byMobileDeId.get(adKey);
+      const adUrl = ad.detailPageUrl ? ad.detailPageUrl.split("?")[0] : null;
+      const viaUrl = adUrl ? byUrl.get(adUrl) ?? bySlug.get(adSlug(adUrl) ?? "") : undefined;
+      const urlNumber = adUrl?.match(/(\d{6,})\.html$/)?.[1] ?? null;
+      const viaId = byMobileDeId.get(adKey) ??
+        (urlNumber ? byMobileDeId.get(urlNumber) ?? byAdId.get(urlNumber) : undefined);
       const hit = viaId ?? viaUrl;
       if (hit) {
         // Fahrzeug hängt bereits an einer anderen Anzeigen-Nummer → nicht eindeutig
-        if (hit.mobile_ad_id && bare(hit.mobile_ad_id) !== adKey) {
+        if (source !== "search-api" && hit.mobile_ad_id && bare(hit.mobile_ad_id) !== adKey) {
           unclear.push({
             mobileAdId: ad.mobileAdId,
             title: ad.title,
@@ -179,6 +215,7 @@ Deno.serve(async (req) => {
     }
 
     const preview = {
+      source,
       accountKey: account.accountKey,
       accountLabel: account.label,
       sellerId: account.sellerId,
@@ -200,17 +237,20 @@ Deno.serve(async (req) => {
     const failures: string[] = [];
 
     for (const m of toMatch) {
-      const { error: uErr } = await admin.from("vehicles").update({
-        mobile_ad_id: m.ad.mobileAdId,
+      // Die Such-API vergibt andere Inseratsnummern als die Verkäufer-API –
+      // in diesem Fall die gespeicherte Nummer nicht überschreiben.
+      const patch: Row = {
         publish_status: "published",
         detail_page_url: m.ad.detailPageUrl,
-      } as never).eq("id", m.vehicleId);
+      };
+      if (source !== "search-api") patch.mobile_ad_id = m.ad.mobileAdId;
+      const { error: uErr } = await admin.from("vehicles").update(patch as never).eq("id", m.vehicleId);
       if (uErr) failures.push(`${m.ad.mobileAdId}: ${uErr.message}`);
       else matched++;
     }
 
     for (const ad of toCreate) {
-      const { error: iErr } = await admin.from("vehicles").insert(adToVehicle(ad) as never);
+      const { error: iErr } = await admin.from("vehicles").insert(adToVehicle(ad, source) as never);
       if (iErr) failures.push(`${ad.mobileAdId}: ${iErr.message}`);
       else created++;
     }

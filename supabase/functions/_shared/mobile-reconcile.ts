@@ -44,6 +44,17 @@ function toIso(v: unknown): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/**
+ * Sprechender Teil der Inseratsadresse ohne Nummer – erlaubt die Zuordnung,
+ * wenn Such- und Verkäufer-Schnittstelle unterschiedliche Nummern vergeben.
+ */
+export function adSlug(url: unknown): string | null {
+  if (typeof url !== "string" || !url) return null;
+  const path = url.split("?")[0];
+  const match = path.match(/\/([a-z0-9-]+)\/\d{6,}\.html$/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
 function normalizeAd(raw: Record<string, unknown>): SellerAd | null {
   const id = raw.mobileAdId ?? raw.id ?? raw.adId;
   if (id === undefined || id === null) return null;
@@ -334,10 +345,34 @@ export async function reconcile(
   // Interne Präfixe (z. B. "accident_") gehören nicht zur echten Mobile.de-Inseratsnummer.
   const bareAdId = (value: unknown) => String(value).replace(/^accident_/, "");
   const byAdId = new Map<string, Record<string, unknown>>();
+  const byUrl = new Map<string, Record<string, unknown>>();
+  const bySlug = new Map<string, Record<string, unknown>>();
   for (const v of vehicles) {
     if (v.mobile_ad_id) byAdId.set(bareAdId(v.mobile_ad_id), v);
     if (v.mobile_de_id && !byAdId.has(bareAdId(v.mobile_de_id))) byAdId.set(bareAdId(v.mobile_de_id), v);
+    if (v.detail_page_url) {
+      const url = String(v.detail_page_url).split("?")[0];
+      byUrl.set(url, v);
+      const fromUrl = url.match(/(\d{6,})\.html$/)?.[1];
+      if (fromUrl && !byAdId.has(fromUrl)) byAdId.set(fromUrl, v);
+      const slug = adSlug(url);
+      if (slug && !bySlug.has(slug)) bySlug.set(slug, v);
+    }
   }
+
+  /**
+   * Die Search-API liefert eine andere Inseratsnummer als die Seller-API.
+   * Deshalb zusätzlich über die Inseratsadresse (und die darin enthaltene Nummer) zuordnen.
+   */
+  const findVehicleForAd = (ad: SellerAd): Record<string, unknown> | undefined => {
+    const direct = byAdId.get(ad.mobileAdId);
+    if (direct) return direct;
+    if (!ad.detailPageUrl) return undefined;
+    const url = String(ad.detailPageUrl).split("?")[0];
+    return byUrl.get(url) ??
+      byAdId.get(url.match(/(\d{6,})\.html$/)?.[1] ?? "") ??
+      bySlug.get(adSlug(url) ?? "");
+  };
 
   // Kontozuordnung: mobile_de-Listings aller Konten
   const { data: listingRows } = await supabase
@@ -391,7 +426,7 @@ export async function reconcile(
   for (const ad of ads) {
     liveIds.add(ad.mobileAdId);
     const listing = listingByAdId.get(ad.mobileAdId);
-    const v = byAdId.get(ad.mobileAdId) ??
+    const v = findVehicleForAd(ad) ??
       (listing?.vehicle_id ? vehicleById.get(String(listing.vehicle_id)) : undefined);
 
     if (!v && !listing) {
@@ -503,12 +538,13 @@ export async function reconcile(
   for (const l of scopeListings) {
     const adId = l.external_ad_id ? bareAdId(l.external_ad_id) : null;
     if (!adId || liveIds.has(adId) || vanishedIds.has(adId)) continue;
+    if (l.vehicle_id && liveVehicleIds.has(String(l.vehicle_id))) continue;
     vanishedIds.add(adId);
     vanished.push({ vehicle_id: l.vehicle_id ? String(l.vehicle_id) : null, mobile_ad_id: adId });
   }
   for (const v of legacyVehicles) {
     const adId = bareAdId(v.mobile_ad_id);
-    if (liveIds.has(adId) || vanishedIds.has(adId)) continue;
+    if (liveIds.has(adId) || vanishedIds.has(adId) || liveVehicleIds.has(String(v.id))) continue;
     vanishedIds.add(adId);
     vanished.push({ vehicle_id: String(v.id), mobile_ad_id: adId });
   }
@@ -541,6 +577,13 @@ export async function reconcile(
         .update({ mobile_live_at: now, mobile_missing_since: null })
         .in("id", liveList);
       if (error) console.error("mobile_live_at konnte nicht gesetzt werden:", error.message);
+      // Bei Mobile.de online, im Portal aber als zurückgezogen markiert → wieder sichtbar schalten.
+      const { error: reviveError } = await supabase
+        .from("vehicles")
+        .update({ publish_status: "published" })
+        .in("id", liveList)
+        .eq("publish_status", "unpublished");
+      if (reviveError) console.error("Status konnte nicht zurückgesetzt werden:", reviveError.message);
     }
     const { data: publishedRows } = await supabase
       .from("vehicles")
