@@ -198,6 +198,7 @@ Deno.serve(async (req) => {
     }
 
     const preview = {
+      source,
       accountKey: account.accountKey,
       accountLabel: account.label,
       sellerId: account.sellerId,
@@ -219,11 +220,14 @@ Deno.serve(async (req) => {
     const failures: string[] = [];
 
     for (const m of toMatch) {
-      const { error: uErr } = await admin.from("vehicles").update({
-        mobile_ad_id: m.ad.mobileAdId,
+      // Die Such-API vergibt andere Inseratsnummern als die Verkäufer-API –
+      // in diesem Fall die gespeicherte Nummer nicht überschreiben.
+      const patch: Row = {
         publish_status: "published",
         detail_page_url: m.ad.detailPageUrl,
-      } as never).eq("id", m.vehicleId);
+      };
+      if (source !== "search-api") patch.mobile_ad_id = m.ad.mobileAdId;
+      const { error: uErr } = await admin.from("vehicles").update(patch as never).eq("id", m.vehicleId);
       if (uErr) failures.push(`${m.ad.mobileAdId}: ${uErr.message}`);
       else matched++;
     }
