@@ -361,8 +361,10 @@ export async function reconcile(
 
   const issues: Array<Record<string, unknown>> = [];
   const liveIds = new Set<string>();
+  const liveVehicleIds = new Set<string>();
   let matched = 0;
   let accountMismatch = 0;
+
 
   for (const ad of ads) {
     liveIds.add(ad.mobileAdId);
@@ -404,6 +406,8 @@ export async function reconcile(
 
     matched++;
     if (!v) continue;
+    liveVehicleIds.add(String(v.id));
+
 
     if (v.is_sold === true) {
       const soldAt = v.sold_at ? new Date(String(v.sold_at)).toLocaleDateString("de-DE") : "unbekannt";
