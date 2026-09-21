@@ -484,6 +484,41 @@ export async function reconcile(
       .in("id", vanishedVehicleIds);
   }
 
+  // Sichtbarkeit im Portal an Mobile.de koppeln: gefundene Fahrzeuge werden als
+  // "live" markiert, alle übrigen veröffentlichten Fahrzeuge bekommen einen
+  // Fehlt-seit-Zeitstempel. Die öffentliche Seite blendet sie nach Karenzzeit aus.
+  if (options.syncVisibility) {
+    const now = new Date().toISOString();
+    const liveList = [...liveVehicleIds];
+    if (liveList.length) {
+      const { error } = await supabase
+        .from("vehicles")
+        .update({ mobile_live_at: now, mobile_missing_since: null })
+        .in("id", liveList);
+      if (error) console.error("mobile_live_at konnte nicht gesetzt werden:", error.message);
+    }
+    const { data: publishedRows } = await supabase
+      .from("vehicles")
+      .select("id")
+      .eq("is_test", false)
+      .is("archived_at", null)
+      .is("mobile_missing_since", null)
+      .or("publish_status.is.null,publish_status.in.(published,out_of_sync)");
+    const missingIds = ((publishedRows ?? []) as Array<{ id: string }>)
+      .map((r) => String(r.id))
+      .filter((id) => !liveVehicleIds.has(id));
+    if (missingIds.length) {
+      const { error } = await supabase
+        .from("vehicles")
+        .update({ mobile_missing_since: now })
+        .in("id", missingIds);
+      if (error) console.error("mobile_missing_since konnte nicht gesetzt werden:", error.message);
+      console.log(`Sichtbarkeit: ${liveList.length} Fahrzeuge live, ${missingIds.length} neu als "bei Mobile.de nicht gefunden" markiert.`);
+    }
+  }
+
+
+
 
   // Alte offene Meldungen dieses Scopes schließen und neu schreiben
   await supabase
