@@ -81,11 +81,27 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Reconcile start against ${API_BASE}/sellers/${SELLER_ID}/ads`);
-    const { ads, pages, error, rootKeys } = await fetchSellerAds(SELLER_ID, basicAuth(MOBILE_USER, MOBILE_PASS));
+    let source = "seller-api";
+    let { ads, pages, error, rootKeys } = await fetchSellerAds(SELLER_ID, basicAuth(MOBILE_USER, MOBILE_PASS));
+
+    // Fallback: Seller-API lehnt die Zugangsdaten ab → öffentliche Search-API verwenden.
+    const authBlocked = !!error && /Seller-API (401|403)/.test(error);
+    if ((authBlocked || ads.length === 0) && SEARCH_USER && SEARCH_PASS) {
+      console.log(`Seller-API nicht nutzbar (${error ?? "keine Inserate"}) → Fallback auf Search-API`);
+      const fallback = await fetchSearchAds(SELLER_ID, basicAuth(SEARCH_USER, SEARCH_PASS));
+      if (fallback.ads.length > 0) {
+        source = "search-api";
+        ads = fallback.ads;
+        pages = fallback.pages;
+        rootKeys = fallback.rootKeys;
+        error = [error ? `Seller-API nicht verfügbar (${error})` : null, fallback.error].filter(Boolean).join("; ") || undefined;
+      }
+    }
+
     finalExtra = { pages_fetched: pages, vehicles_total: ads.length, stop_reason: error ? `partial: ${error}` : "complete" };
     if (ads.length === 0) {
       finalStatus = "skipped";
-      finalError = `Keine Inserate aus Seller-API gelesen (Root-Keys: ${rootKeys.join(", ") || "keine"})${error ? `; ${error}` : ""}`;
+      finalError = `Keine Inserate gelesen (Quelle: ${source}, Root-Keys: ${rootKeys.join(", ") || "keine"})${error ? `; ${error}` : ""}`;
       return json(200, { ok: true, skipped: true, error: finalError });
     }
 
@@ -96,14 +112,17 @@ Deno.serve(async (req) => {
     const result = await reconcile(supabase, ads, "search", {
       accountKey: "standard",
       claimLegacyVehicles: true,
-      allowUnpublish: !suspiciouslySmall && !dryRun,
+      // Der Suchindex ist verzögert und kennt keine pausierten Inserate:
+      // aus Search-API-Daten niemals automatisch depublizieren.
+      allowUnpublish: source === "seller-api" && !suspiciouslySmall && !dryRun,
     });
-    console.log(`Reconcile done: ${JSON.stringify(result)}`);
+    console.log(`Reconcile done (${source}): ${JSON.stringify(result)}`);
 
     finalStatus = suspiciouslySmall || error ? "success_with_warning" : "success";
     finalError = suspiciouslySmall
-      ? `Seller-API lieferte nur ${ads.length} von ${publishedCount ?? 0} erwarteten Inseraten; Statusänderungen wurden übersprungen.`
+      ? `${source} lieferte nur ${ads.length} von ${publishedCount ?? 0} erwarteten Inseraten; Statusänderungen wurden übersprungen.`
       : error;
+
     finalExtra = {
       pages_fetched: pages,
       vehicles_total: result.checked,
